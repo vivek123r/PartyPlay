@@ -48,6 +48,15 @@ export default class HollowClashGame implements GameModule {
     this.gameContainer.addChild(this.lounge.container);
     stage.addChild(this.gameContainer);
 
+    // Global stage pointer click listener
+    stage.eventMode = 'static';
+    stage.cursor = 'pointer';
+    stage.on('pointerdown', () => {
+      if (this.isLoungePhase) {
+        this.lounge.startRequested = true;
+      }
+    });
+
     this.state = 'Ready';
   }
 
@@ -71,10 +80,15 @@ export default class HollowClashGame implements GameModule {
     this.knights = this.ctx.players.slice(0, count).map((p, idx) => {
       const mask: KnightMaskType = this.lounge.selections[idx + 1]?.mask || 'vessel';
       const pos = startPositions[idx];
-      return new Knight({ id: p.id, mask, x: pos.x, y: pos.y });
+      const knight = new Knight({ id: p.id, mask, x: pos.x, y: pos.y });
+
+      // Add knight container to scene graph so knight sprites render!
+      this.gameContainer.addChild(knight.container);
+
+      return knight;
     });
 
-    // Spawn Initial Enemies (id, type, x, y)
+    // Spawn Initial Enemies
     this.enemies.push(new Enemy('spore-1', 'spore_bug', 300, 150));
     this.enemies.push(new Enemy('mantis-1', 'mantis_crawler', 500, 360));
     this.enemies.push(new Enemy('husk-1', 'shielded_husk', 650, 360));
@@ -94,14 +108,15 @@ export default class HollowClashGame implements GameModule {
         const input = this.ctx.input.getPlayer(p.id);
         const navLeft = input.isJustPressed('moveLeft');
         const navRight = input.isJustPressed('moveRight');
-        const toggleReady = input.isJustPressed('action');
+        const toggleReady = input.isJustPressed('action') || input.isJustPressed('moveUp');
 
         this.lounge.updateInput(idx + 1, navLeft, navRight, toggleReady);
       });
 
       this.lounge.render(count);
 
-      if (this.lounge.isAllReady(count)) {
+      // Check if Enter / Space / Action / Click triggered Start
+      if (this.lounge.startRequested || this.lounge.isAllReady(count)) {
         this.startCavernPhase();
         this.ctx.audio.playTone(600, 'square', 0.4);
       }
