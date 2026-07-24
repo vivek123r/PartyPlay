@@ -1,0 +1,316 @@
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&display=swap');
+
+:root {
+  --pixel-bg: #0f0e17;
+  --pixel-surface: #1f1e2e;
+  --pixel-border: #fffffe;
+  --pixel-text: #fffffe;
+  --pixel-muted: #a7a9be;
+  --pixel-red: #ff2e63;
+  --pixel-blue: #08d9d6;
+  --pixel-green: #2af598;
+  --pixel-yellow: #ffde7d;
+  --pixel-purple: #7160e8;
+
+  --font-pixel-heading: 'Press Start 2P', monospace;
+  --font-pixel-body: 'Pixelify Sans', monospace;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--pixel-bg);
+  color: var(--pixel-text);
+  font-family: var(--font-pixel-body);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-pixel-heading);
+  margin: 0;
+}
+
+button {
+  font-family: var(--font-pixel-heading);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  background: none;
+}
+
+.pixel-panel {
+  background-color: var(--pixel-surface);
+  border: 2px solid var(--pixel-border);
+  border-radius: 0;
+  padding: 16px;
+  image-rendering: pixelated;
+  position: relative;
+}
+
+.pixel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--pixel-surface);
+  border: 2px solid var(--pixel-border);
+  color: var(--pixel-text);
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  transition: transform 0.1s steps(2);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.pixel-btn:active {
+  animation: buttonPress 0.1s steps(2) forwards;
+}
+
+.pixel-btn-primary {
+  background-color: var(--pixel-blue);
+  color: var(--pixel-bg);
+  border-color: var(--pixel-border);
+}
+
+.pixel-btn-secondary {
+  background-color: var(--pixel-purple);
+  color: var(--pixel-text);
+}
+
+.pixel-btn-danger {
+  background-color: var(--pixel-red);
+  color: var(--pixel-border);
+}
+
+/* Game-Specific Themed Buttons */
+.btn-snake {
+  background-color: var(--pixel-green);
+  color: var(--pixel-bg);
+  border: 2px solid var(--pixel-border);
+  box-shadow: 0 4px 0 var(--pixel-bg);
+}
+
+.btn-snake:hover {
+  background-color: #26e68d;
+  transform: translateY(-2px);
+}
+
+.btn-obstacle {
+  background-color: var(--pixel-red);
+  color: var(--pixel-border);
+  border: 2px solid var(--pixel-border);
+  box-shadow: 0 4px 0 var(--pixel-bg);
+}
+
+.btn-obstacle:hover {
+  background-color: #e62255;
+  transform: translateY(-2px);
+}
+
+.btn-micro {
+  background-color: var(--pixel-blue);
+  color: var(--pixel-bg);
+  border: 2px solid var(--pixel-border);
+  box-shadow: 0 4px 0 var(--pixel-bg);
+}
+
+.btn-micro:hover {
+  background-color: #06c4c1;
+  transform: translateY(-2px);
+}
+
+/* CRT Scanline Overlay */
+.scanline-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  background-size: 100% 4px, 3px 100%;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.screen-transition {
+  animation: fadeIn 0.3s steps(4) forwards;
+}
+
+/* Arcade Marquee LED Glow Header */
+.marquee-banner {
+  border: 3px solid var(--pixel-yellow);
+  background: #141024;
+  padding: 14px 28px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 0 12px rgba(255, 222, 125, 0.4), inset 0 0 8px rgba(8, 217, 214, 0.3);
+  animation: marqueePulse 2s steps(4) infinite;
+}
+
+/* LED Flickering Neon Sign Animation */
+.led-flicker {
+  animation: ledFlicker 3s steps(6) infinite;
+}
+
+/* Slightly Tilted Broken/Hanging Cartridge Effect */
+.cartridge-tilted {
+  transform: rotate(-2.2deg);
+  transition: transform 0.2s steps(2);
+}
+
+.cartridge-tilted:hover {
+  transform: rotate(0deg) scale(1.02);
+}
+
+/* Cartridge Pin Notch */
+.cartridge-pins {
+  height: 8px;
+  width: 100%;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pixel-yellow) 0px,
+    var(--pixel-yellow) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  border-bottom: 2px solid var(--pixel-border);
+  margin-bottom: 12px;
+}
+
+/* Game-Unique Card Themes */
+.snake-card-theme {
+  border: 2px solid var(--pixel-green);
+  background: linear-gradient(135deg, #162a22 0%, #1f1e2e 100%);
+  position: relative;
+}
+
+.snake-card-theme::before {
+  content: '🐍 🍎 🐍';
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.obstacle-card-theme {
+  border: 2px solid var(--pixel-red);
+  background: linear-gradient(135deg, #2b1824 0%, #1f1e2e 100%);
+  position: relative;
+}
+
+.obstacle-card-theme::before {
+  content: '⚠️ 🧱 ⚠️';
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.micro-card-theme {
+  border: 2px solid var(--pixel-blue);
+  background: linear-gradient(135deg, #142834 0%, #1f1e2e 100%);
+  position: relative;
+}
+
+.micro-card-theme::before {
+  content: '🧪 ⚡ 🎯';
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+/* Keyframes */
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes slideUp {
+  0% { transform: translateY(20px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pixelBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes buttonPress {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+@keyframes blinkText {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes ledFlicker {
+  0%, 100% { opacity: 1; filter: drop-shadow(0 0 8px var(--pixel-blue)); }
+  30% { opacity: 0.4; filter: none; }
+  32% { opacity: 1; filter: drop-shadow(0 0 10px var(--pixel-red)); }
+  70% { opacity: 0.8; }
+  72% { opacity: 0.2; }
+  74% { opacity: 1; filter: drop-shadow(0 0 8px var(--pixel-yellow)); }
+}
+
+@keyframes marqueePulse {
+  0%, 100% { border-color: var(--pixel-yellow); }
+  50% { border-color: var(--pixel-blue); }
+}
+
+.blink-text {
+  animation: blinkText 1s steps(2, start) infinite;
+}
+
+.pixel-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  background-color: var(--pixel-blue);
+  color: var(--pixel-bg);
+  border: 2px solid var(--pixel-border);
+  font-family: var(--font-pixel-heading);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  width: 100%;
+  background: transparent;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 24px;
+  width: 16px;
+  background: var(--pixel-blue);
+  border: 2px solid var(--pixel-border);
+  cursor: pointer;
+  margin-top: -10px;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 4px;
+  cursor: pointer;
+  background: var(--pixel-muted);
+  border: 2px solid var(--pixel-border);
+}

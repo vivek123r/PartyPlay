@@ -1,0 +1,8 @@
+# game-design
+- Use pixel-art visual style with attention to detail: directional features, outlines, body patterns, and proper object representations (e.g., apple with stem and leaf, not just colored squares). Confidence: 0.70
+- Research how real games implement mechanics rather than guessing — look up reference implementations and game design patterns before coding. Confidence: 0.70
+- Go beyond minimal implementations — be creative and add rich features like multiple arena types, power-ups, obstacles, and varied content without being asked for specifics. Confidence: 0.70
+- When a game has collectible items or power-ups, include an in-game reference HUD (e.g., a bottom bar or overlay) showing what each item does, styled in the game's pixel-art visual aesthetic. Confidence: 0.70
+- Avoid hand-drawn pixel-font text rendering for HUD/legend elements — it tends to render illegibly (misaligned, cluttered). Use proper text rendering (e.g., standard canvas/framework text with readable sizing) for labels and legends. Confidence: 0.70
+- Keep game UI controls (pause, info, settings buttons) as proper UI elements outside the game's pixel-art canvas rather than rendering them as in-game overlays or hint text within the arena viewport. Confidence: 0.65
+- For maze/corridor-heavy game arenas, slow down movement speed significantly (e.g., 40% slower than normal) to give players time to navigate tight spaces. Confidence: 0.70
