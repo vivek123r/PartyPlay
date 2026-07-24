@@ -1,207 +1,373 @@
-import { Graphics } from 'pixi.js';
-import type { KnightMaskType, KnightState } from '../types';
+import { Graphics, Container } from 'pixi.js';
 import { PLATFORM_PHYSICS, COMBAT_STATS } from '../config';
+import type { KnightState, KnightMaskType, PlatformTile, BossState } from '../types';
 
-export class Knight implements KnightState {
-  public id: number;
-  public mask: KnightMaskType;
+export interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  color: number;
+  alpha: number;
+  size: number;
+}
 
-  public x: number;
-  public y: number;
-  public vx = 0;
-  public vy = 0;
+export interface SlashArc {
+  x: number;
+  y: number;
+  rotation: number;
+  life: number;
+  maxLife: number;
+  scale: number;
+}
 
-  public hp = COMBAT_STATS.MASK_HP;
-  public maxHp = COMBAT_STATS.MASK_HP;
-  public soul = 0;
-  public maxSoul = COMBAT_STATS.MAX_SOUL;
+export class Knight {
+  public state: KnightState;
+  public container: Container;
+  public graphics: Graphics;
+  public width = 16;
+  public height = 24;
 
-  public isGrounded = false;
-  public isWallSliding = false;
-  public isShadowDashing = false;
-  public facing: 'left' | 'right' = 'right';
-
-  public canDoubleJump = true;
-  public dashTimer = 0;
-  public dashCooldownTimer = 0;
-
-  public isSlashing = false;
-  public slashDir: 'forward' | 'up' | 'down' = 'forward';
-  public slashTimer = 0;
+  public canDoubleJump = false;
+  public attackCooldown = 0;
+  public comboCounter = 0;
+  public comboTimer = 0;
 
   public isInvulnerable = false;
-  public invulnerableTimer = 0;
+  public invulnerabilityTimer = 0;
 
-  public geoCount = 0;
-  private shadowTrail: { x: number; y: number; alpha: number }[] = [];
+  public isAttacking = false;
+  public attackDirection: 'up' | 'down' | 'forward' = 'forward';
+  public attackTimer = 0;
 
-  constructor(id: number, mask: KnightMaskType, x: number, y: number) {
-    this.id = id;
-    this.mask = mask;
-    this.x = x;
-    this.y = y;
+  public shadowDashDuration = 0;
+
+  public trailParticles: Particle[] = [];
+  public slashArcs: SlashArc[] = [];
+
+  constructor(initialState: Partial<KnightState>) {
+    this.state = {
+      id: 1,
+      mask: 'vessel',
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      hp: COMBAT_STATS.MASK_HP,
+      maxHp: COMBAT_STATS.MASK_HP,
+      soul: 0,
+      maxSoul: COMBAT_STATS.MAX_SOUL,
+      isGrounded: false,
+      isWallSliding: false,
+      isShadowDashing: false,
+      facing: 'right',
+      dashCooldownTimer: 0,
+      geoCount: 0,
+      ...initialState,
+    };
+
+    this.container = new Container();
+    this.container.x = this.state.x;
+    this.container.y = this.state.y;
+
+    this.graphics = new Graphics();
+    this.container.addChild(this.graphics);
   }
 
-  public update(
-    dt: number,
-    moveLeft: boolean,
-    moveRight: boolean,
-    jumpPressed: boolean,
-    downActive: boolean,
-    upActive: boolean,
-    slashPressed: boolean,
-    dashPressed: boolean
-  ): void {
-    // 1. Timers
-    if (this.dashCooldownTimer > 0) this.dashCooldownTimer -= dt;
-    if (this.invulnerableTimer > 0) {
-      this.invulnerableTimer -= dt;
-      if (this.invulnerableTimer <= 0) this.isInvulnerable = false;
+  public update(dt: number, input: any, platforms: PlatformTile[], enemies: BossState[]) {
+    // Cooldowns and Timers
+    if (this.state.dashCooldownTimer > 0) this.state.dashCooldownTimer -= dt;
+    if (this.attackCooldown > 0) this.attackCooldown -= dt;
+    if (this.comboTimer > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) this.comboCounter = 0;
+    }
+    if (this.attackTimer > 0) {
+      this.attackTimer -= dt;
+      if (this.attackTimer <= 0) this.isAttacking = false;
+    }
+    if (this.invulnerabilityTimer > 0) {
+      this.invulnerabilityTimer -= dt;
+      if (this.invulnerabilityTimer <= 0) this.isInvulnerable = false;
     }
 
-    if (this.isSlashing) {
-      this.slashTimer -= dt;
-      if (this.slashTimer <= 0) this.isSlashing = false;
-    }
+    // Shadow Dash
+    if (this.state.isShadowDashing) {
+      this.shadowDashDuration -= dt;
+      this.state.vx = this.state.facing === 'right' ? PLATFORM_PHYSICS.SHADOW_DASH_SPEED : -PLATFORM_PHYSICS.SHADOW_DASH_SPEED;
+      this.state.vy = 0; // Freeze vertical movement
 
-    // Shadow Trail Fading
-    for (let i = this.shadowTrail.length - 1; i >= 0; i--) {
-      this.shadowTrail[i].alpha -= 3.0 * dt;
-      if (this.shadowTrail[i].alpha <= 0) this.shadowTrail.splice(i, 1);
-    }
+      this.spawnGhostTrail();
 
-    // 2. Shadow Dash State
-    if (this.isShadowDashing) {
-      this.dashTimer -= dt;
-      this.shadowTrail.push({ x: this.x, y: this.y, alpha: 0.6 });
-      if (this.dashTimer <= 0) {
-        this.isShadowDashing = false;
-        this.vx = (this.facing === 'right' ? 1 : -1) * PLATFORM_PHYSICS.MOVE_SPEED;
+      if (this.shadowDashDuration <= 0) {
+        this.state.isShadowDashing = false;
+        this.isInvulnerable = false;
+        this.state.vx = 0;
       }
-      return;
-    }
-
-    // Reset Double Jump when grounded or wall sliding
-    if (this.isGrounded || this.isWallSliding) {
-      this.canDoubleJump = true;
-    }
-
-    // Horizontal Movement Input
-    if (moveLeft) {
-      this.vx = -PLATFORM_PHYSICS.MOVE_SPEED;
-      this.facing = 'left';
-    } else if (moveRight) {
-      this.vx = PLATFORM_PHYSICS.MOVE_SPEED;
-      this.facing = 'right';
     } else {
-      this.vx = 0;
+      // Horizontal Movement
+      if (input.left) {
+        this.state.vx = -PLATFORM_PHYSICS.MOVE_SPEED;
+        this.state.facing = 'left';
+      } else if (input.right) {
+        this.state.vx = PLATFORM_PHYSICS.MOVE_SPEED;
+        this.state.facing = 'right';
+      } else {
+        this.state.vx = 0;
+      }
+
+      // Gravity
+      this.state.vy += PLATFORM_PHYSICS.GRAVITY * dt;
     }
 
-    // Jump / Double Jump / Wall Jump Input
-    if (jumpPressed) {
-      if (this.isGrounded) {
-        this.vy = PLATFORM_PHYSICS.JUMP_VELOCITY;
-        this.isGrounded = false;
-      } else if (this.isWallSliding) {
-        this.vy = PLATFORM_PHYSICS.JUMP_VELOCITY * 0.9;
-        this.vx = (this.facing === 'right' ? -1 : 1) * PLATFORM_PHYSICS.MOVE_SPEED * 1.2;
-        this.facing = this.facing === 'right' ? 'left' : 'right';
-        this.isWallSliding = false;
+    // Physics and collisions
+    this.state.isGrounded = false;
+    this.state.isWallSliding = false;
+    let touchingWallDir: 'left' | 'right' | null = null;
+    let onMoss = false;
+
+    // Collision detection against platforms
+    for (const p of platforms) {
+      const isIntersecting =
+        this.state.x < p.x + p.width &&
+        this.state.x + this.width > p.x &&
+        this.state.y < p.y + p.height &&
+        this.state.y + this.height > p.y;
+
+      if (isIntersecting) {
+        // Resolve Y (ground)
+        if (this.state.vy > 0 && this.state.y + this.height - this.state.vy * dt <= p.y) {
+          this.state.y = p.y - this.height;
+          this.state.vy = 0;
+          this.state.isGrounded = true;
+          this.canDoubleJump = true;
+        }
+
+        // Resolve X (walls)
+        if (!this.state.isGrounded) {
+          if (this.state.vx > 0 && this.state.x + this.width - this.state.vx * dt <= p.x) {
+            this.state.x = p.x - this.width;
+            this.state.vx = 0;
+            touchingWallDir = 'right';
+            if (p.type === 'moss') onMoss = true;
+          } else if (this.state.vx < 0 && this.state.x - this.state.vx * dt >= p.x + p.width) {
+            this.state.x = p.x + p.width;
+            this.state.vx = 0;
+            touchingWallDir = 'left';
+            if (p.type === 'moss') onMoss = true;
+          }
+        }
+      }
+    }
+
+    // Wall Slide Logic
+    if (touchingWallDir && this.state.vy > 0 && !this.state.isGrounded && onMoss) {
+      this.state.isWallSliding = true;
+      this.state.vy = Math.min(this.state.vy, PLATFORM_PHYSICS.WALL_SLIDE_SPEED);
+    }
+
+    // Jump Inputs
+    if (input.jumpJustPressed) {
+      if (this.state.isGrounded) {
+        this.state.vy = PLATFORM_PHYSICS.JUMP_VELOCITY;
+      } else if (this.state.isWallSliding && touchingWallDir) {
+        // Wall Jump
+        this.state.vy = PLATFORM_PHYSICS.JUMP_VELOCITY;
+        this.state.vx = touchingWallDir === 'left' ? PLATFORM_PHYSICS.MOVE_SPEED : -PLATFORM_PHYSICS.MOVE_SPEED;
+        this.state.facing = touchingWallDir === 'left' ? 'right' : 'left';
       } else if (this.canDoubleJump) {
-        this.vy = PLATFORM_PHYSICS.JUMP_VELOCITY * 0.85;
+        // Double Jump
+        this.state.vy = PLATFORM_PHYSICS.JUMP_VELOCITY;
         this.canDoubleJump = false;
       }
     }
 
-    // Shadow Dash Trigger
-    if (dashPressed && this.dashCooldownTimer <= 0) {
-      this.isShadowDashing = true;
-      this.dashTimer = PLATFORM_PHYSICS.SHADOW_DASH_DURATION;
-      this.dashCooldownTimer = PLATFORM_PHYSICS.SHADOW_DASH_COOLDOWN;
-      this.vx = (this.facing === 'right' ? 1 : -1) * PLATFORM_PHYSICS.SHADOW_DASH_SPEED;
-      this.vy = 0;
+    // Variable Jump: release jump button early to stop ascending
+    if (input.jumpReleased && this.state.vy < 0) {
+      this.state.vy *= 0.5;
+    }
+
+    // Shadow Dash Input
+    if (input.dashJustPressed && this.state.dashCooldownTimer <= 0) {
+      this.state.isShadowDashing = true;
+      this.shadowDashDuration = PLATFORM_PHYSICS.SHADOW_DASH_DURATION;
+      this.state.dashCooldownTimer = PLATFORM_PHYSICS.SHADOW_DASH_COOLDOWN;
       this.isInvulnerable = true;
-      this.invulnerableTimer = 0.3;
     }
 
-    // Nail Slash Trigger
-    if (slashPressed && !this.isSlashing) {
-      this.isSlashing = true;
-      this.slashTimer = 0.2;
-
-      if (downActive && !this.isGrounded) {
-        this.slashDir = 'down';
-      } else if (upActive) {
-        this.slashDir = 'up';
-      } else {
-        this.slashDir = 'forward';
-        // Recoil
-        this.vx += (this.facing === 'right' ? -1 : 1) * PLATFORM_PHYSICS.NAIL_RECOIL_VELOCITY;
-      }
+    // Combat: Attack
+    if (input.attackJustPressed && this.attackCooldown <= 0 && !this.state.isShadowDashing) {
+      this.performAttack(input, enemies);
     }
+
+    // Update Particles & Arcs
+    this.updateParticles(dt);
+
+    // Update Positions
+    this.state.x += this.state.vx * dt;
+    this.state.y += this.state.vy * dt;
+    this.container.position.set(this.state.x, this.state.y);
+
+    this.render();
   }
 
-  public triggerPogoBounce(): void {
-    if (this.slashDir === 'down') {
-      this.vy = PLATFORM_PHYSICS.POGO_BOUNCE_VELOCITY;
-      this.canDoubleJump = true;
-    }
-  }
+  private performAttack(input: any, enemies: BossState[]) {
+    this.isAttacking = true;
+    this.attackTimer = 0.2;
+    this.attackCooldown = 0.3;
 
-  public takeDamage(): void {
-    if (this.isInvulnerable || this.isShadowDashing) return;
-
-    this.hp = Math.max(0, this.hp - 1);
-    this.isInvulnerable = true;
-    this.invulnerableTimer = 1.0;
-  }
-
-  public render(g: Graphics): void {
-    const x = Math.round(this.x);
-    const y = Math.round(this.y);
-
-    // Render Shadow Trails
-    for (const st of this.shadowTrail) {
-      g.rect(st.x - 6, st.y - 18, 12, 18).fill({ color: 0x00f0ff, alpha: st.alpha * 0.4 });
-    }
-
-    // Flashing when invulnerable
-    if (this.isInvulnerable && Math.floor(this.invulnerableTimer * 20) % 2 === 0) {
-      return;
-    }
-
-    // 1. Flowing Dark Cloak
-    g.poly([x - 7, y, x + 7, y, x, y - 18]).fill({ color: 0x2c3e50 });
-
-    // 2. Glowing White Horn Mask
-    const maskColor = 0xf5f6fa;
-    g.ellipse(x, y - 16, 6, 8).fill({ color: maskColor });
-
-    // Horns based on Mask Type
-    if (this.mask === 'hornet') {
-      g.poly([x - 4, y - 22, x - 9, y - 30, x - 2, y - 24]).fill({ color: maskColor });
-      g.poly([x + 4, y - 22, x + 9, y - 30, x + 2, y - 24]).fill({ color: maskColor });
+    if (input.up) {
+      this.attackDirection = 'up';
+    } else if (input.down && !this.state.isGrounded) {
+      this.attackDirection = 'down';
     } else {
-      // Vessel Horns
-      g.poly([x - 3, y - 22, x - 6, y - 29, x - 1, y - 23]).fill({ color: maskColor });
-      g.poly([x + 3, y - 22, x + 6, y - 29, x + 1, y - 23]).fill({ color: maskColor });
+      this.attackDirection = 'forward';
+      this.comboCounter = (this.comboCounter + 1) % 3;
+      this.comboTimer = 1.0;
     }
 
-    // Black Eyes
-    g.circle(x - 2, y - 16, 2).fill({ color: 0x000000 });
-    g.circle(x + 2, y - 16, 2).fill({ color: 0x000000 });
+    // Create slash visual arc
+    this.slashArcs.push({
+      x: this.width / 2,
+      y: this.height / 2,
+      rotation:
+        this.attackDirection === 'up'
+          ? -Math.PI / 2
+          : this.attackDirection === 'down'
+          ? Math.PI / 2
+          : this.state.facing === 'right'
+          ? 0
+          : Math.PI,
+      life: 0.15,
+      maxLife: 0.15,
+      scale: 1.0 + this.comboCounter * 0.2,
+    });
 
-    // 3. Nail Slash Blade Arc Animation
-    if (this.isSlashing) {
-      g.stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
-      if (this.slashDir === 'forward') {
-        const sx = this.facing === 'right' ? x + 10 : x - 10;
-        g.circle(sx, y - 12, 14).fill({ color: 0x00f0ff, alpha: 0.5 });
-      } else if (this.slashDir === 'down') {
-        g.circle(x, y + 8, 14).fill({ color: 0x00f0ff, alpha: 0.5 });
-      } else if (this.slashDir === 'up') {
-        g.circle(x, y - 28, 14).fill({ color: 0x00f0ff, alpha: 0.5 });
+    // Hitbox logic against enemies
+    let hitEnemy = false;
+    for (const enemy of enemies) {
+      const dx = enemy.x - this.state.x;
+      const dy = enemy.y - this.state.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 40) {
+        hitEnemy = true;
       }
+    }
+
+    // Pogo bounce
+    if (this.attackDirection === 'down' && hitEnemy) {
+      this.state.vy = PLATFORM_PHYSICS.POGO_BOUNCE_VELOCITY;
+      this.canDoubleJump = true; // reset double jump on successful pogo
+    }
+
+    if (hitEnemy) {
+      this.addSoul(COMBAT_STATS.SOUL_PER_HIT);
+      // Nail Recoil
+      if (this.attackDirection === 'forward') {
+        this.state.vx =
+          this.state.facing === 'right'
+            ? -PLATFORM_PHYSICS.NAIL_RECOIL_VELOCITY
+            : PLATFORM_PHYSICS.NAIL_RECOIL_VELOCITY;
+      }
+    }
+  }
+
+  public addSoul(amount: number) {
+    this.state.soul = Math.min(this.state.maxSoul, this.state.soul + amount);
+  }
+
+  public takeDamage(amount: number) {
+    if (this.isInvulnerable) return;
+    this.state.hp -= amount;
+    this.isInvulnerable = true;
+    this.invulnerabilityTimer = 1.5;
+  }
+
+  private spawnGhostTrail() {
+    this.trailParticles.push({
+      x: this.state.x,
+      y: this.state.y,
+      vx: 0,
+      vy: 0,
+      life: 0.3,
+      maxLife: 0.3,
+      color: 0x00f0ff,
+      alpha: 0.6,
+      size: 16,
+    });
+  }
+
+  private updateParticles(dt: number) {
+    for (let i = this.trailParticles.length - 1; i >= 0; i--) {
+      const p = this.trailParticles[i];
+      p.life -= dt;
+      if (p.life <= 0) this.trailParticles.splice(i, 1);
+    }
+
+    for (let i = this.slashArcs.length - 1; i >= 0; i--) {
+      const arc = this.slashArcs[i];
+      arc.life -= dt;
+      if (arc.life <= 0) this.slashArcs.splice(i, 1);
+    }
+  }
+
+  public render() {
+    this.graphics.clear();
+
+    // Draw trail particles (Shadow dash ghosts)
+    for (const p of this.trailParticles) {
+      this.graphics.rect(p.x - this.state.x, p.y - this.state.y, p.size, p.size * 1.5).fill({ color: p.color, alpha: p.alpha * (p.life / p.maxLife) });
+    }
+
+    // Flicker if invulnerable
+    if (this.invulnerabilityTimer > 0 && !this.state.isShadowDashing) {
+      if (Math.floor(this.invulnerabilityTimer * 10) % 2 === 0) return;
+    }
+
+    const cx = this.width / 2;
+    const cy = this.height / 2;
+    const faceDir = this.state.facing === 'right' ? 1 : -1;
+
+    // Dark Cloak
+    this.graphics.roundRect(cx - 8, cy - 2, 16, 14, 4).fill({ color: 0x1a1a2e });
+
+    // Glowing White Horns Mask
+    const maskColor = 0xffffff;
+    this.graphics.ellipse(cx, cy - 8, 8, 7).fill({ color: maskColor });
+
+    // Horns
+    if (this.state.mask === 'vessel') {
+      this.graphics.poly([cx - 6, cy - 12, cx - 8, cy - 20, cx - 2, cy - 14]).fill({ color: maskColor });
+      this.graphics.poly([cx + 6, cy - 12, cx + 8, cy - 20, cx + 2, cy - 14]).fill({ color: maskColor });
+    }
+
+    // Eye holes
+    this.graphics.ellipse(cx - 3 * faceDir, cy - 7, 2, 3).fill({ color: 0x000000 });
+    this.graphics.ellipse(cx + 3 * faceDir, cy - 7, 2, 3).fill({ color: 0x000000 });
+
+    // Draw Glowing Nail Sword if Attacking
+    if (this.isAttacking) {
+      let nailEnd = { x: 0, y: 0 };
+      if (this.attackDirection === 'up') {
+        nailEnd = { x: cx, y: cy - 24 };
+      } else if (this.attackDirection === 'down') {
+        nailEnd = { x: cx, y: cy + 24 };
+      } else {
+        nailEnd = { x: cx + 24 * faceDir, y: cy };
+      }
+
+      this.graphics.poly([cx, cy, nailEnd.x, nailEnd.y]).stroke({ color: 0xd4e1f9, width: 2, alpha: 0.8 });
+    }
+
+    // Draw Slash Arcs
+    for (const arc of this.slashArcs) {
+      const arcScale = arc.scale * (1 - arc.life / arc.maxLife);
+      const dx = Math.cos(arc.rotation) * 20 * arcScale;
+      const dy = Math.sin(arc.rotation) * 20 * arcScale;
+
+      this.graphics.poly([arc.x - dy, arc.y + dx, arc.x + dx * 2, arc.y + dy * 2, arc.x + dy, arc.y - dx]).stroke({ color: 0xffffff, width: 2, alpha: arc.life / arc.maxLife });
     }
   }
 }
