@@ -34,13 +34,17 @@ export const PlayerSetup: React.FC = () => {
   const [chosenColors, setChosenColors] = useState<string[]>(DEFAULT_COLORS);
 
   const isSnakeArena = selectedGame?.id === 'snake-arena';
+  const isLavaEscape = selectedGame?.id === 'lava-escape';
 
   const controlHints = useMemo(() => {
-    if (!isSnakeArena) {
-      return ['[A/D]', '[◀/▶]', '[J/L]', '[4/6]'];
+    if (isLavaEscape) {
+      return ['[A/D + W]', '[◀/▶ + ▲]', '[J/L + I]', '[4/6 + 8]'];
     }
-    return ['[A/D W=DASH]', '[◀/▶ ▲=DASH]', '[J/L I=DASH]', '[4/6 8=DASH]'];
-  }, [isSnakeArena]);
+    if (isSnakeArena) {
+      return ['[A/D W=DASH]', '[◀/▶ ▲=DASH]', '[J/L I=DASH]', '[4/6 8=DASH]'];
+    }
+    return ['[A/D]', '[◀/▶]', '[J/L]', '[4/6]'];
+  }, [isLavaEscape, isSnakeArena]);
 
   if (!selectedGame) return null;
 

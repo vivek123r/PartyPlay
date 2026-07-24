@@ -10,6 +10,20 @@ export const GameBrowser: React.FC = () => {
 
   const getGameTheme = (id: string) => {
     switch (id) {
+      case 'lava-escape':
+        return {
+          cardClass: 'lava-card-theme',
+          btnClass: 'btn-lava',
+          btnText: 'OUTRUN THE LAVA ▶',
+          accentColor: '#ff7b36',
+          statusLed: '★ FLAGSHIP',
+          statusClass: 'led-flicker',
+          isFaulty: false,
+          stars: '★★★★☆',
+          slotId: 'SLOT #05',
+          motifIcon: '🌋',
+          badgeText: 'SURVIVAL RACE',
+        };
       case 'snake-arena':
         return {
           cardClass: 'snake-card-theme',

@@ -72,7 +72,7 @@ export const GameResults: React.FC = () => {
           onClick={() => setScreen('play')}
           style={{ fontSize: '1.2rem', padding: '16px 24px' }}
         >
-          ↻ PLAY AGAIN
+          ↻ RESTART MATCH
         </button>
         <button
           className="pixel-btn"

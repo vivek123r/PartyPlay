@@ -28,6 +28,7 @@ export const GamePlay: React.FC = () => {
     });
 
     const unsubPause = runner.eventService.on('game:pause', () => {
+      runner.pause();
       setIsPaused(true);
     });
 
@@ -43,7 +44,7 @@ export const GamePlay: React.FC = () => {
       unsubCrash();
       runner.stopGame();
     };
-  }, [selectedGame, players, modifiers, setResults, setCrash]);
+  }, [selectedGame, players, modifiers, setResults, setCrash, setScreen]);
 
   const handleResume = () => {
     setIsPaused(false);

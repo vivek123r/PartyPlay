@@ -119,6 +119,18 @@ button {
   transform: translateY(-2px);
 }
 
+.btn-lava {
+  background-color: #ff6b35;
+  color: var(--pixel-border);
+  border: 2px solid var(--pixel-border);
+  box-shadow: 0 4px 0 var(--pixel-bg);
+}
+
+.btn-lava:hover {
+  background-color: #ff8c42;
+  transform: translateY(-2px);
+}
+
 .btn-micro {
   background-color: var(--pixel-blue);
   color: var(--pixel-bg);
@@ -218,6 +230,22 @@ button {
   right: 12px;
   font-size: 0.75rem;
   opacity: 0.85;
+}
+
+.lava-card-theme {
+  border: 2px solid #ff6b35;
+  background: linear-gradient(135deg, #3b1417 0%, #221525 55%, #1f1e2e 100%);
+  position: relative;
+  box-shadow: 0 0 18px rgba(255, 107, 53, 0.18);
+}
+
+.lava-card-theme::before {
+  content: '🔥 🌋 🔥';
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  font-size: 0.75rem;
+  opacity: 0.9;
 }
 
 .micro-card-theme {

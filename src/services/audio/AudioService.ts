@@ -57,19 +57,26 @@ export class AudioService {
     this.musicGain.gain.setValueAtTime(this.musicVolume, this.ctx?.currentTime ?? 0);
   }
 
-  /** Synthesizes simple audio tones for SFX when audio files are not provided */
-  public playTone(freq: number, type: OscillatorType = 'sine', duration = 0.15): void {
-    if (!this.ctx || !this.sfxGain || this.isMutedState) return;
+  /** Synthesizes simple audio tones when audio files are not provided. */
+  public playTone(
+    freq: number,
+    type: OscillatorType = 'sine',
+    duration = 0.15,
+    channel: 'sfx' | 'music' = 'sfx',
+    volume = 0.2
+  ): void {
+    const output = channel === 'music' ? this.musicGain : this.sfxGain;
+    if (!this.ctx || !output || this.isMutedState) return;
     try {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = type;
       osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-      gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+      gain.gain.setValueAtTime(Math.max(0.001, Math.min(1, volume)), this.ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
 
       osc.connect(gain);
-      gain.connect(this.sfxGain);
+      gain.connect(output);
       osc.start();
       osc.stop(this.ctx.currentTime + duration);
     } catch {

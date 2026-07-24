@@ -1,4 +1,4 @@
-import { Application, SCALE_MODES, TextureSource } from 'pixi.js';
+import { Application, TextureSource } from 'pixi.js';
 import type { GameModule, GameContext, GameModifiers, PlayerConfig } from './types';
 import type { GameRegistryEntry } from './GameRegistry';
 import { PixiRendererContext } from './RendererContext';
@@ -193,6 +193,7 @@ export class GameRunner {
   }
 
   public pause(): void {
+    if (this.currentGame?.state === 'Paused') return;
     this.gameLoop?.pause();
     this.currentGame?.pause();
     this.eventService.emit('game:pause', undefined);
