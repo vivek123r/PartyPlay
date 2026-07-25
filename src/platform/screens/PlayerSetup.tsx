@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { usePlatformStore } from '@platform/stores/platformStore';
-import type { PlayerConfig, GameModifiers } from '@runtime/types';
+import type { GameModifiers, PlayerConfig } from '@runtime/types';
 
 const RETRO_SWATCHES = [
   { hex: '#ff2e63', name: 'Neon Crimson' },
@@ -15,11 +15,65 @@ const RETRO_SWATCHES = [
 
 const DEFAULT_COLORS = ['#ff2e63', '#08d9d6', '#2af598', '#ffde7d'];
 
+const CONTROL_LABELS: Record<string, string> = {
+  moveLeft: 'LEFT', moveRight: 'RIGHT', moveUp: 'UP', moveDown: 'DOWN',
+  jump: 'JUMP', action: 'ACTION', skill: 'SKILL', focus: 'FOCUS', info: 'INFO', pause: 'PAUSE',
+};
+
+const formatKey = (key: string) => key
+  .replace(/^Key/, '')
+  .replace(/^Digit/, '')
+  .replace('Arrow', '')
+  .replace('Numpad', 'NUM ')
+  .replace('ControlLeft', 'CTRL L')
+  .replace('ControlRight', 'CTRL R')
+  .replace('ShiftLeft', 'SHIFT L')
+  .replace('ShiftRight', 'SHIFT R')
+  .replace('Space', 'SPACE')
+  .replace('Enter', 'ENTER')
+  .replace('Escape', 'ESC')
+  .replace('Slash', '/')
+  .replace('Period', '.')
+  .replace('Plus', '+');
+
+const getControlRows = (bindings: Record<string, string[]> | undefined) => {
+  if (!bindings) return ['NO BINDINGS'];
+  return Object.entries(bindings).map(([action, keys]) => `${CONTROL_LABELS[action] || action.toUpperCase()}: ${keys.map(formatKey).join(' / ')}`);
+};
+
+const GAME_SETTINGS: Record<string, Array<{ key: string; label: string; low: string; high: string; min: number; max: number; step: number; default: number }>> = {
+  'dungeon-brawl': [
+    { key: 'enemyHealthMultiplier', label: 'ENEMY VITALITY', low: 'CASUAL', high: 'BRUTAL', min: 0.75, max: 1.5, step: 0.25, default: 1 },
+    { key: 'bossDifficulty', label: 'BOSS DIFFICULTY', low: 'STANDARD', high: 'NIGHTMARE', min: 0.75, max: 1.5, step: 0.25, default: 1 },
+  ],
+  'hollow-clash': [
+    { key: 'enemyHealthMultiplier', label: 'ENEMY VITALITY', low: 'CASUAL', high: 'BRUTAL', min: 0.75, max: 1.5, step: 0.25, default: 1 },
+    { key: 'gravityMultiplier', label: 'GRAVITY', low: 'FLOATY', high: 'HEAVY', min: 0.75, max: 1.5, step: 0.25, default: 1 },
+  ],
+  'obstacle-survival': [
+    { key: 'speedMultiplier', label: 'GAME SPEED', low: 'TACTICAL', high: 'MAYHEM', min: 0.5, max: 2, step: 0.25, default: 1 },
+    { key: 'obstacleDensity', label: 'OBSTACLE DENSITY', low: 'OPEN LANES', high: 'PACKED', min: 0.75, max: 1.5, step: 0.25, default: 1 },
+    { key: 'playerRadiusMultiplier', label: 'PLAYER HITBOX', low: 'FORGIVING', high: 'TIGHT', min: 0.75, max: 1.25, step: 0.25, default: 1 },
+  ],
+  'relic-rush': [
+    { key: 'speedMultiplier', label: 'RACE SPEED', low: 'TACTICAL', high: 'TURBO', min: 0.5, max: 2, step: 0.25, default: 1 },
+    { key: 'trapFrequency', label: 'TRAP FREQUENCY', low: 'SPARSE', high: 'RELIC STORM', min: 0.75, max: 1.5, step: 0.25, default: 1 },
+    { key: 'gravityMultiplier', label: 'GRAVITY', low: 'FLOATY', high: 'HEAVY', min: 0.75, max: 1.5, step: 0.25, default: 1 },
+  ],
+  'snake-arena': [{ key: 'speedMultiplier', label: 'SNAKE SPEED', low: 'TACTICAL', high: 'TURBO', min: 0.5, max: 2, step: 0.25, default: 1 }],
+  'turbo-rider': [
+    { key: 'speedMultiplier', label: 'RACE SPEED', low: 'CRUISE', high: 'TURBO', min: 0.5, max: 2, step: 0.25, default: 1 },
+    { key: 'trafficDensity', label: 'TRAFFIC DENSITY', low: 'OPEN ROAD', high: 'GRIDLOCK', min: 0.75, max: 1.5, step: 0.25, default: 1 },
+  ],
+  'lava-escape': [{ key: 'speedMultiplier', label: 'RUN SPEED', low: 'TACTICAL', high: 'MAYHEM', min: 0.5, max: 2, step: 0.25, default: 1 }],
+  'micro-game': [{ key: 'speedMultiplier', label: 'TEST SPEED', low: 'TACTICAL', high: 'MAYHEM', min: 0.5, max: 2, step: 0.25, default: 1 }],
+};
+
 const ARENA_INFO: Record<string, { label: string; desc: string; emoji: string }> = {
   'battle-pit': { label: 'BATTLE PIT', desc: 'Hazard walls. Rocks drop over time.', emoji: '🏟' },
   'warp-zone': { label: 'WARP ZONE', desc: 'Portal edges. Rotating spike blocks.', emoji: '🌀' },
-  'maze': { label: 'THE MAZE', desc: 'Procedural dungeon. Tight corridors.', emoji: '🏛' },
-  'abyss': { label: 'THE ABYSS', desc: 'Floor crumbles. Drifting platforms.', emoji: '🌌' },
+  maze: { label: 'THE MAZE', desc: 'Procedural dungeon. Tight corridors.', emoji: '🏛' },
+  abyss: { label: 'THE ABYSS', desc: 'Floor crumbles. Drifting platforms.', emoji: '🌌' },
 };
 
 export const PlayerSetup: React.FC = () => {
@@ -28,191 +82,111 @@ export const PlayerSetup: React.FC = () => {
   const setPlayers = usePlatformStore((s) => s.setPlayers);
   const setModifiers = usePlatformStore((s) => s.setModifiers);
 
-  const [playerCount, setPlayerCount] = useState<number>(2);
-  const [speedMultiplier, setSpeedMultiplier] = useState<number>(1.0);
-  const [arena, setArena] = useState<string>('battle-pit');
-  const [chosenColors, setChosenColors] = useState<string[]>(DEFAULT_COLORS);
+  const [playerCount, setPlayerCount] = useState(2);
+  const [gameOptions, setGameOptions] = useState<Record<string, number>>({ speedMultiplier: 1 });
+  const [arena, setArena] = useState('battle-pit');
+  const [chosenColors, setChosenColors] = useState(DEFAULT_COLORS);
 
   const isSnakeArena = selectedGame?.id === 'snake-arena';
-  const isLavaEscape = selectedGame?.id === 'lava-escape';
-
-  const controlHints = useMemo(() => {
-    if (isLavaEscape) {
-      return ['[A/D + W]', '[◀/▶ + ▲]', '[J/L + I]', '[4/6 + 8]'];
-    }
-    if (isSnakeArena) {
-      return ['[A/D W=DASH]', '[◀/▶ ▲=DASH]', '[J/L I=DASH]', '[4/6 8=DASH]'];
-    }
-    return ['[A/D]', '[◀/▶]', '[J/L]', '[4/6]'];
-  }, [isLavaEscape, isSnakeArena]);
 
   if (!selectedGame) return null;
 
+  const settings = GAME_SETTINGS[selectedGame.id] ?? GAME_SETTINGS['micro-game'];
+
   const handleColorSelect = (playerIdx: number, hex: string) => {
-    const next = [...chosenColors];
-    next[playerIdx] = hex;
-    setChosenColors(next);
+    setChosenColors((current) => current.map((color, index) => index === playerIdx ? hex : color));
   };
 
   const handleStart = () => {
-    const activePlayers: PlayerConfig[] = Array.from({ length: playerCount }, (_, i) => ({
-      id: i + 1,
-      name: `Player ${i + 1}`,
-      color: chosenColors[i] || DEFAULT_COLORS[i],
+    const activePlayers: PlayerConfig[] = Array.from({ length: playerCount }, (_, index) => ({
+      id: index + 1,
+      name: `Player ${index + 1}`,
+      color: chosenColors[index] || DEFAULT_COLORS[index],
     }));
     setPlayers(activePlayers);
-    const mods: GameModifiers = { speedMultiplier };
-    if (isSnakeArena) mods.arena = arena;
-    setModifiers(mods);
+    const modifiers: GameModifiers = { ...gameOptions };
+    if (isSnakeArena) modifiers.arena = arena;
+    setModifiers(modifiers);
     setScreen('play');
   };
 
   return (
-    <div className="screen-transition" style={{ width: '100vw', height: '100vh', padding: '32px 48px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+    <main className="setup-screen screen-transition">
       <div className="scanline-overlay" />
-      
-      {/* Top Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', zIndex: 10 }}>
-        <button
-          className="pixel-btn"
-          onClick={() => setScreen('browser')}
-        >
-          ◀ RETURN
-        </button>
-        <h2 style={{ fontSize: '1.8rem', color: 'var(--pixel-yellow)', textShadow: '2px 2px 0 var(--pixel-purple)' }}>
-          {selectedGame.title.toUpperCase()} — SETUP
-        </h2>
-        <div style={{ width: '120px' }} />
-      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '32px', maxWidth: '1080px', margin: '0 auto', width: '100%', zIndex: 10 }}>
-        {/* Player Count & Color Swatches */}
-        <div className="pixel-panel">
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '20px', color: 'var(--pixel-blue)' }}>👥 SELECT PLAYERS & COLORS</h3>
+      <header className="setup-header">
+        <button className="pixel-btn setup-back" onClick={() => setScreen('browser')}>◀ BACK</button>
+        <div className="setup-title-block">
+          <span>PARTYPLAY // READY ROOM</span>
+          <h1>{selectedGame.title.toUpperCase()}</h1>
+        </div>
+        <div className="setup-round-chip"><span>ROUND</span><strong>01</strong></div>
+      </header>
 
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-            {[2, 3, 4].map((num) => (
-              <button
-                key={num}
-                onClick={() => setPlayerCount(num)}
-                className={`pixel-btn ${playerCount === num ? 'pixel-btn-primary' : ''}`}
-                style={{ flex: 1, fontSize: '1.3rem', padding: '14px' }}
-              >
-                {num}P
-              </button>
-            ))}
+      <section className="setup-layout">
+        <div className="setup-roster-panel">
+          <div className="setup-panel-heading">
+            <div><span className="setup-kicker">PLAYER CONFIGURATION</span><h2>SELECT PLAYERS</h2></div>
+            <div className="player-count-toggle" aria-label="Player count">
+              {[2, 3, 4].map((count) => (
+                <button key={count} onClick={() => setPlayerCount(count)} className={playerCount === count ? 'is-active' : ''}>{count}P</button>
+              ))}
+            </div>
           </div>
 
-          {/* Active Players & Swatches */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {Array.from({ length: playerCount }).map((_, pIdx) => {
-              const activeColor = chosenColors[pIdx] || DEFAULT_COLORS[pIdx];
-
+          <div className={`hero-card-grid hero-card-grid--${playerCount}`}>
+            {Array.from({ length: playerCount }).map((_, playerIndex) => {
+              const color = chosenColors[playerIndex] || DEFAULT_COLORS[playerIndex];
+              const controlRows = getControlRows(selectedGame.defaultControls[playerIndex]?.bindings);
               return (
-                <div key={pIdx} style={{ padding: '12px', border: '2px solid var(--pixel-border)', background: 'var(--pixel-bg)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div
-                        style={{
-                          width: '24px',
-                          height: '24px',
-                          backgroundColor: activeColor,
-                          border: '2px solid var(--pixel-border)',
-                          boxShadow: '0 2px 0 #000',
-                        }}
-                      />
-                      <span style={{ fontFamily: 'var(--font-pixel-heading)', fontSize: '0.85rem', color: activeColor }}>
-                        PLAYER {pIdx + 1}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--pixel-muted)', fontFamily: 'var(--font-pixel-heading)' }}>
-                      {controlHints[pIdx]}
-                    </span>
-                  </div>
-
-                  {/* Swatch Selector Grid */}
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.6rem', fontFamily: 'var(--font-pixel-heading)', color: 'var(--pixel-muted)', marginRight: '4px' }}>COLOR:</span>
+                <article className="hero-card player-config-card" key={playerIndex} style={{ '--player-color': color } as React.CSSProperties}>
+                  <div className="hero-card__topline"><span>P{playerIndex + 1} // CONTROLLER {playerIndex + 1}</span><span className="hero-card__ready">READY</span></div>
+                  <div className="player-config-card__summary"><span className="player-config-card__swatch" style={{ backgroundColor: color }} /><div><span>PLAYER {playerIndex + 1}</span><h3>ACTIVE PLAYER</h3></div></div>
+                  <div className="player-controls"><span>KEY MAP // P{playerIndex + 1}</span><div>{controlRows.map((row) => <strong key={row}>{row}</strong>)}</div></div>
+                  <div className="hero-card__palette" aria-label={`Player ${playerIndex + 1} colour`}>
                     {RETRO_SWATCHES.map((swatch) => (
                       <button
                         key={swatch.hex}
-                        onClick={() => handleColorSelect(pIdx, swatch.hex)}
-                        title={swatch.name}
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          backgroundColor: swatch.hex,
-                          border: activeColor === swatch.hex ? '2px solid var(--pixel-border)' : '1px solid #000',
-                          transform: activeColor === swatch.hex ? 'scale(1.25)' : 'scale(1)',
-                          cursor: 'pointer',
-                          padding: 0,
-                          transition: 'transform 0.1s steps(2)',
-                        }}
+                        aria-label={`Set Player ${playerIndex + 1} to ${swatch.name}`}
+                        aria-pressed={color === swatch.hex}
+                        className={color === swatch.hex ? 'is-selected' : ''}
+                        onClick={() => handleColorSelect(playerIndex, swatch.hex)}
+                        style={{ backgroundColor: swatch.hex }}
                       />
                     ))}
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>
         </div>
 
-        {/* Modifiers */}
-        <div className="pixel-panel" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '20px', color: 'var(--pixel-purple)' }}>⚙ GAME MODIFIERS</h3>
-
-            {/* Speed slider */}
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.9rem', fontFamily: 'var(--font-pixel-heading)' }}>
-                SPEED: <strong style={{ color: 'var(--pixel-yellow)' }}>{speedMultiplier.toFixed(2)}x</strong>
-              </label>
-              <input
-                type="range"
-                min="0.5"
-                max="2.0"
-                step="0.25"
-                value={speedMultiplier}
-                onChange={(e) => setSpeedMultiplier(parseFloat(e.target.value))}
-              />
-            </div>
-
-            {/* Arena selector (Snake Arena only) */}
-            {isSnakeArena && (
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.9rem', fontFamily: 'var(--font-pixel-heading)' }}>
-                  ARENA: <strong style={{ color: 'var(--pixel-green)' }}>{ARENA_INFO[arena]?.label || arena.toUpperCase()}</strong>
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  {Object.entries(ARENA_INFO).map(([key, info]) => (
-                    <button
-                      key={key}
-                      onClick={() => setArena(key)}
-                      className={`pixel-btn ${arena === key ? 'pixel-btn-primary' : ''}`}
-                      style={{ padding: '10px', fontSize: '0.7rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px' }}
-                      title={info.desc}
-                    >
-                      <span style={{ fontSize: '1.1rem' }}>{info.emoji}</span>
-                      <div>
-                        <div style={{ fontFamily: 'var(--font-pixel-heading)', fontSize: '0.65rem' }}>{info.label}</div>
-                        <div style={{ color: 'var(--pixel-muted)', fontSize: '0.55rem' }}>{info.desc}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+        <aside className="setup-settings-panel">
+          <div className="setup-panel-heading"><div><span className="setup-kicker">MISSION PARAMETERS</span><h2>GAME SETUP</h2></div><span className="settings-cog">⚙</span></div>
+          <div className="game-settings-list">
+            {settings.map((setting) => {
+              const value = gameOptions[setting.key] ?? setting.default;
+              return <section className="setting-block" key={setting.key}>
+                <div className="setting-label"><span>{setting.label}</span><strong>{value.toFixed(2)}×</strong></div>
+                <input className="speed-control" type="range" min={setting.min} max={setting.max} step={setting.step} value={value} onChange={(event) => setGameOptions((current) => ({ ...current, [setting.key]: Number(event.target.value) }))} />
+                <div className="range-labels"><span>{setting.low}</span><span>{setting.high}</span></div>
+              </section>;
+            })}
           </div>
 
-          <button
-            className="pixel-btn pixel-btn-primary"
-            onClick={handleStart}
-            style={{ fontSize: '1.3rem', padding: '18px', width: '100%', marginTop: '16px' }}
-          >
-            START GAME ▶
-          </button>
-        </div>
-      </div>
-    </div>
+          {isSnakeArena && <section className="setting-block arena-block">
+            <div className="setting-label"><span>COMBAT ZONE</span><strong>{ARENA_INFO[arena].label}</strong></div>
+            <div className="arena-options">
+              {Object.entries(ARENA_INFO).map(([key, info]) => <button key={key} className={arena === key ? 'is-active' : ''} onClick={() => setArena(key)}><span>{info.emoji}</span><b>{info.label}</b><small>{info.desc}</small></button>)}
+            </div>
+          </section>}
+
+          <div className="setup-launch-panel">
+            <span>ALL SYSTEMS NOMINAL</span>
+            <button className="pixel-btn pixel-btn-primary setup-launch" onClick={handleStart}>START GAME <b>▶</b></button>
+          </div>
+        </aside>
+      </section>
+    </main>
   );
 };
