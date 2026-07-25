@@ -18,8 +18,26 @@ export class PlatformPhysics {
       knightObj.lastSafeGroundPosition = { x: knight.x, y: knight.y };
     }
 
-    // Apply gravity (if not grounded, not wall sliding, and not shadow dashing)
-    if (!knight.isGrounded && !knight.isWallSliding && !knight.isShadowDashing) {
+    const isCrystalDash = knight.isCrystalDashing || knightObj?.isCrystalDashing;
+    const isChargingDash = knight.isChargingSuperDash || knightObj?.isChargingSuperDash;
+    const isDiving = knight.isDiving || knightObj?.isDiving;
+
+    // Desolate Dive velocity lock
+    if (isDiving) {
+      knight.vy = PLATFORM_PHYSICS.DESOLATE_DIVE_SPEED; // 600
+    }
+    // Crystal Dash velocity lock
+    else if (isCrystalDash) {
+      knight.vy = 0;
+      knight.vx = knight.facing === 'right' ? PLATFORM_PHYSICS.CRYSTAL_DASH_SPEED : -PLATFORM_PHYSICS.CRYSTAL_DASH_SPEED;
+    }
+    // Charging Super Dash velocity lock
+    else if (isChargingDash) {
+      knight.vx = 0;
+      knight.vy = 0;
+    }
+    // Standard Gravity
+    else if (!knight.isGrounded && !knight.isWallSliding && !knight.isShadowDashing) {
       knight.vy += PLATFORM_PHYSICS.GRAVITY * dt;
     }
 
@@ -33,8 +51,12 @@ export class PlatformPhysics {
 
     knight.isGrounded = false;
     knight.isWallSliding = false;
+    if (!isChargingDash) {
+      knight.isWallClinging = false;
+      if (knightObj) knightObj.isWallClinging = false;
+    }
 
-    // Horizontal Movement & Collisions (Obeyed during normal movement & Shadow Dash)
+    // Horizontal Movement & Collisions
     knight.x += dx;
     for (const tile of tiles) {
       if (!tile.isSolid) continue;
@@ -46,6 +68,15 @@ export class PlatformPhysics {
         } else if (dx < 0) {
           knight.x = tile.x + tile.width;
           knight.vx = 0;
+        }
+
+        // Cancel Crystal Dash on solid wall hit
+        if (isCrystalDash) {
+          knight.isCrystalDashing = false;
+          if (knightObj) {
+            knightObj.isCrystalDashing = false;
+            knightObj.state.isCrystalDashing = false;
+          }
         }
       }
     }
@@ -60,6 +91,16 @@ export class PlatformPhysics {
           knight.y = tile.y - this.knightHeight;
           knight.vy = 0;
           knight.isGrounded = true;
+
+          // Desolate Dive Ground Impact
+          if (isDiving) {
+            knight.isDiving = false;
+            if (knightObj) {
+              knightObj.isDiving = false;
+              knightObj.state.isDiving = false;
+              knightObj.onDiveImpact();
+            }
+          }
 
           if (tile.type !== 'spikes') {
             const pos = { x: knight.x, y: knight.y };
@@ -86,8 +127,8 @@ export class PlatformPhysics {
       if (knightObj) knightObj.lastSafeGroundPosition = pos;
     }
 
-    // Moss Wall Sliding Check (triggers ONLY on moss tiles, maintains continuous slide flush against wall)
-    if (!knight.isGrounded && knight.vy > 0 && !knight.isShadowDashing) {
+    // Moss Wall Sliding & Clinging Check
+    if (!knight.isGrounded && knight.vy > 0 && !knight.isShadowDashing && !isCrystalDash) {
       for (const tile of tiles) {
         if (!tile.isSolid || tile.type !== 'moss') continue;
 
@@ -107,6 +148,9 @@ export class PlatformPhysics {
 
         if (isFlushRight || isFlushLeft) {
           knight.isWallSliding = true;
+          knight.isWallClinging = true;
+          if (knightObj) knightObj.isWallClinging = true;
+
           if (knight.vy > PLATFORM_PHYSICS.WALL_SLIDE_SPEED) {
             knight.vy = PLATFORM_PHYSICS.WALL_SLIDE_SPEED;
           }
@@ -131,8 +175,11 @@ export class PlatformPhysics {
           knight.vx = 0;
           knight.vy = 0;
           knight.isGrounded = true;
-
+          knight.isDiving = false;
+          knight.isCrystalDashing = false;
           if (knightObj) {
+            knightObj.isDiving = false;
+            knightObj.isCrystalDashing = false;
             knightObj.lastSafeGroundPosition = { x: safePos.x, y: safePos.y };
             knightObj.container.position.set(safePos.x, safePos.y);
           }

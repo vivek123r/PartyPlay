@@ -1,88 +1,100 @@
-# Handoff Report: Worker 4 (Milestone 2 - Requirement R2 Physics Unification & Hazard Mechanics)
-
-**Working Directory**: `/home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/worker_m2`  
-**Target Codebase**: `/home/viv/Projects/PartyPlay/src/games/hollow-clash`  
-**Handoff Type**: Hard (Task complete)  
-
----
+# Handoff Report — Milestone 2 (Advanced Metroidvania Mechanics & Charms)
 
 ## 1. Observation
 
-Direct observations from codebase inspection and execution:
+Direct implementation and empirical test verification on the HOLLOW CLASH codebase at `/home/viv/Projects/PartyPlay/src/games/hollow-clash` produced the following verified observations:
 
-### Obs 1: Physics Engine Unification & Coordinate System
-- Unified movement, gravity, and Top-Left origin AABB tile collision processing in `systems/PlatformPhysics.ts` and `entities/Knight.ts`.
-- Removed duplicate `dashCooldownTimer` ticks from `PlatformPhysics.ts`.
-- Physics update loop is executed once per entity per frame via `knight.update()` calling `this.physics.update(this, platforms, dt)`.
+1. **Soul Spells System**:
+   - `entities/Knight.ts` (lines 284-332): Implemented `castSpell(direction)` consuming 33 Soul per cast (`COMBAT_STATS.SPELL_SOUL_COST`).
+     - **Vengeful Spirit** (`neutral + cast`): Spawns horizontal soul wave (`vx = ±420`, `damage = 40`, `radius = 14`).
+     - **Abyssal Shriek** (`up + cast`): Spawns upward void column (`44x80px`, `damage = 60`).
+     - **Desolate Dive** (`down + cast` in air): Sets `vy = 600`, grants invulnerability, and spawns ground `dive_shockwave` (`100x24px`, `damage = 50`) upon floor impact in `systems/PlatformPhysics.ts` (lines 62-72).
+     - **Focus Heal** (grounded channel): 0.8s channel (`updateFocusHeal(dt)`) spending 33 Soul for +1 HP without spawning offensive spell projectiles.
+   - `entities/SoulSpell.ts`: Full hit detection & rendering for all 5 spell types (`vengeful_spirit`, `abyssal_shriek`, `desolate_dive`, `dive_shockwave`, `focus_heal`).
 
-### Obs 2: Moss Wall Sliding Mechanics
-- In `systems/PlatformPhysics.ts`: wall sliding is filtered strictly by `tile.type === 'moss'`.
-- Collision boundary equality check uses `Math.abs(...) <= 1.0` flush checks when pressed against a moss wall, ensuring wall sliding stays active continuously without dropping after 1 frame.
-- In `entities/Knight.ts`: wall jump sets `vy = JUMP_VELOCITY`, reverses horizontal facing/velocity away from wall, and preserves `canDoubleJump = true` so double jump remains available for subsequent airborne jumps.
+2. **Advanced Movement & Pogo Bouncing**:
+   - `entities/Knight.ts` (lines 147-152, 401-404): `resetAirAbilities()` sets `canDoubleJump = true`, `canShadowDash = true`, `canCrystalDash = true`, and `dashCooldownTimer = 0`.
+   - **Airborne Pogo Bounce**: Downward slash on enemies or hazard spikes sets `vy = PLATFORM_PHYSICS.POGO_BOUNCE_VELOCITY` (-350) AND calls `resetAirAbilities()`.
+   - **Crystal Super Dash**: `startChargingSuperDash()` handles 0.8s stationary charge with pink/purple crystal glow particles, transitioning to `isCrystalDashing = true` rocket flight (`vx = ±600`, `vy = 0`). Flight is cancelled by jump, dash, damage, or solid wall collision in `systems/PlatformPhysics.ts` (lines 45-51).
+   - **Moss Wall Clinging & Sliding**: Wall cling (`isWallClinging = true`) and wall slide (`isWallSliding = true`) trigger on moss tiles (`type === 'moss'`) in `systems/PlatformPhysics.ts` (lines 115-139).
 
-### Obs 3: Spike Pit Hazard Damage & Safe Respawn
-- In `types.ts`, `entities/Knight.ts`, and `systems/PlatformPhysics.ts`: `lastSafeGroundPosition` is tracked whenever knight is grounded on solid non-spike ground.
-- In `systems/PlatformPhysics.ts`: AABB hazard collision check detects overlap with `tile.type === 'spikes'`.
-- Touching a spike pit calls `knight.takeDamage(1)` (deducting 1 Mask HP and activating 1.5s invulnerability flash) and respawns knight at `lastSafeGroundPosition` with 0 velocity.
+3. **Equippable Charm & Perk System**:
+   - `types.ts` & `entities/Knight.ts`: Supported `CharmType = 'quick_slash' | 'longnail' | 'spore_shroom' | 'lifeblood_heart'`.
+     - **Quick Slash**: Reduces attack cooldown from 0.3s to 0.18s (`0.3 * COMBAT_STATS.QUICK_SLASH_COOLDOWN_MULT`).
+     - **Longnail**: Expands nail AABB hitboxes (forward 28x32 -> 42x48, up/down 32x28 -> 48x42) and visual slash arcs by 1.5x (`COMBAT_STATS.LONGNAIL_HITBOX_MULT`).
+     - **Spore Shroom**: Spawns damaging `SporeCloud` entity (`entities/SporeCloud.ts`, radius 40, 4 dmg/tick over 2.5s) when completing Focus Heal or taking damage.
+     - **Lifeblood Heart**: Grants +2 blue Lifeblood Masks (`lifebloodHp = 2`) that absorb damage before white Mask HP (`hp`) in `takeDamage()`.
+   - `systems/SideHUDManager.ts` (lines 138-164): Renders blue Lifeblood Masks next to white Mask containers and active Charm gem badges.
 
-### Obs 4: Shadow Dash Wall Collision Bounds
-- In `systems/PlatformPhysics.ts`: removed early return during Shadow Dash.
-- Horizontal AABB collision resolution runs during Shadow Dash, snapping knight's position to solid tile wall boundaries (`x = tile.x - knightWidth` or `tile.x + tile.width`) and setting `vx = 0`.
-- Shadow Dash retains invulnerability (`isInvulnerable = true`) for the dash duration without noclipping through solid walls.
+4. **Automated Verification Execution & Results**:
+   - Test command: `npx vitest run src/games/hollow-clash`
+   - Result: 7 test files passed, 126 tests passed (100% pass rate, 0 errors).
+     - `src/games/hollow-clash/HollowClashM2Challenger.test.ts` (16 tests) — PASS
+     - `src/games/hollow-clash/HollowClash.test.ts` (31 tests) — PASS
+     - `src/games/hollow-clash/HollowClashM1Challenger.test.ts` (14 tests) — PASS
+     - `src/games/hollow-clash/HollowClashM1Challenger2.test.ts` (13 tests) — PASS
+     - `src/games/hollow-clash/HollowClashM3Challenger.test.ts` (19 tests) — PASS
+     - `src/games/hollow-clash/HollowClashM4Challenger.test.ts` (12 tests) — PASS
+     - `src/games/hollow-clash/HollowClashM5Challenger.test.ts` (21 tests) — PASS
+   - Build command: `npm run build`
+   - Result: Exit code 0, cleanly built client bundle in 250ms with zero errors.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Unification**:
-   - `Knight.ts` delegates physics updating directly to `PlatformPhysics.update(this, platforms, dt)`.
-   - `PlatformPhysics.ts` consistently uses Top-Left coordinate space `(x, y)` for 16x24 knight AABBs against tile bounds `(tile.x, tile.y, tile.width, tile.height)`.
+1. **Soul Spells System Architecture**:
+   - Inputs map to directional spells when `focus` or `cast` is triggered with 33 Soul.
+   - Grounded hold channels Focus Heal for 0.8s without creating projectiles. Directional inputs (`up`, `down`, `neutral`) trigger Vengeful Spirit (horizontal wave), Abyssal Shriek (upward column), or Desolate Dive (downward slam + ground shockwave).
+   - In `PlatformPhysics.ts`, floor collision during Desolate Dive (`isDiving = true`) triggers `onDiveImpact()`, spawning the ground `dive_shockwave` entity (`100x24px`, 50 damage).
 
-2. **Continuous Moss Wall Sliding & Jump**:
-   - Strict AABB inequality failed when flush against walls (`kRight > tLeft` evaluates false when `x + 16 == tile.x`). Replacing this with a 1px flush tolerance check (`Math.abs(...) <= 1.0`) ensures continuous wall sliding on moss tiles.
-   - Preserving `canDoubleJump = true` during wall sliding allows Wall Jump to launch knight off the moss wall while retaining the airborne double jump capability.
+2. **Movement & Pogo Bouncing Mechanics**:
+   - Pogo bouncing requires resetting all airborne movement options (`canDoubleJump = true`, `canShadowDash = true`, `canCrystalDash = true`, `dashCooldownTimer = 0`). Centralizing this in `resetAirAbilities()` guarantees consistency across enemy and spike pogo strikes.
+   - Crystal Super Dash requires a two-phase state machine: 0.8s stationary charge phase -> rocket flight phase (`vx = ±600`). In `PlatformPhysics.ts`, horizontal AABB wall collision during rocket flight sets `isCrystalDashing = false` and `vx = 0`, preventing clipping.
 
-3. **Spike Hazard & Safe Respawn**:
-   - Grounded state on solid non-spike tiles continuously updates `lastSafeGroundPosition`.
-   - Spike pit overlap detection triggers `takeDamage(1)` and immediately moves entity position back to `lastSafeGroundPosition`, preventing infinite void falling.
-
-4. **Shadow Dash Wall Stopping**:
-   - Removing the early return in `PlatformPhysics.ts` allows horizontal collision checks to run during shadow dash.
-   - When dashing into a solid wall, horizontal velocity is zeroed and position snaps to the wall face, stopping movement while preserving shadow dash invulnerability.
+3. **Charm & Perk System Integration**:
+   - Equipping charms modifies combat parameters dynamically:
+     - Quick Slash scales timers by 0.6x.
+     - Longnail scales AABB hitbox dimensions by 1.5x in `performAttack()`.
+     - Spore Shroom triggers `spawnSporeCloud()` on heal and damage.
+     - Lifeblood Heart absorbs damage in `takeDamage(amount)` prior to regular HP.
+   - `SideHUDManager.ts` reads `lifebloodHp` and `equippedCharms` to display blue masks and charm badges seamlessly.
 
 ---
 
 ## 3. Caveats
 
-- **No Caveats**: All requirements (R2a, R2b, R2c, R2d) implemented, verified, and tested with zero build errors and 100% passing test suite.
+No caveats. All M2 requirements were fully implemented and empirically verified against unit tests and build toolchains.
 
 ---
 
 ## 4. Conclusion
 
-Requirement R2 implementation is complete and fully verified:
-1. **Physics Engine Unified**: Single Top-Left AABB physics update per frame without duplicate ticks or coordinate mismatches.
-2. **Moss Wall Sliding**: Triggers strictly on moss tiles, maintains continuous slide flush against walls, and permits wall jumping without consuming airborne double jump.
-3. **Spike Pit Hazards**: Triggers hazard collision, calls `takeDamage(1)`, and respawns knight safely at `lastSafeGroundPosition` with invulnerability flash.
-4. **Shadow Dash**: Retains invulnerability while stopping horizontal movement at solid tile walls without noclipping.
+Milestone 2 (Advanced Metroidvania Mechanics System & Equippable Charms) is fully implemented, backwards-compatible, and empirically verified with 126 passing Vitest unit tests and clean `npm run build` compilation.
 
 ---
 
 ## 5. Verification Method
 
-- **Build Verification**:
-  ```bash
-  cd /home/viv/Projects/PartyPlay/src/games/hollow-clash
-  npm run build
-  ```
-  Result: Exit code 0, 0 TypeScript errors.
+To independently verify the implementation:
 
-- **Test Verification**:
-  ```bash
-  cd /home/viv/Projects/PartyPlay/src/games/hollow-clash
-  npm run test
-  ```
-  Result: Exit code 0, 13/13 tests passed in `HollowClash.test.ts`.
+1. **Run Unit Test Suite**:
+   ```bash
+   cd /home/viv/Projects/PartyPlay
+   npx vitest run src/games/hollow-clash
+   ```
+   Confirm all 126 tests pass across all 7 test files, including `HollowClashM2Challenger.test.ts`.
 
-- **Layout Compliance**:
-  Source files located strictly in `/home/viv/Projects/PartyPlay/src/games/hollow-clash/`. Metadata placed only in `.agents/worker_m2`.
+2. **Run Project Build**:
+   ```bash
+   cd /home/viv/Projects/PartyPlay
+   npm run build
+   ```
+   Confirm zero compilation or bundle errors.
+
+3. **Inspect Source Files**:
+   - `src/games/hollow-clash/entities/Knight.ts`: Check `castSpell()`, `resetAirAbilities()`, Crystal Dash state machine, and charm perk calculations.
+   - `src/games/hollow-clash/entities/SoulSpell.ts`: Check spell types and hit detection.
+   - `src/games/hollow-clash/entities/SporeCloud.ts`: Check Spore Shroom area damage cloud.
+   - `src/games/hollow-clash/systems/PlatformPhysics.ts`: Check Crystal Dash wall stops, Desolate Dive floor landing, and Moss Wall Clinging.
+   - `src/games/hollow-clash/systems/SideHUDManager.ts`: Check blue Lifeblood Mask HUD rendering and charm badges.

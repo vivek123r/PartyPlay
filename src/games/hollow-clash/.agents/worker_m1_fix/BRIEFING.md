@@ -1,47 +1,47 @@
-# BRIEFING — 2026-07-25T06:39:11Z
+# BRIEFING — 2026-07-25T02:58:14Z
 
 ## Mission
-Fix Knight 4 spawn position overlap with Totem Pillar 1 and fix grounded AABB inequality comparison in PlatformPhysics.ts to prevent flickering isGrounded state.
+Fix `NaN` coordinate bug in `BossMossKnight.ts`, P4 HUD card clipping, and Boss HUD overlap in `SideHUDManager.ts`.
 
 ## 🔒 My Identity
-- Archetype: implementer/qa
-- Roles: implementer, qa
+- Archetype: worker_m1_fix
+- Roles: implementer, qa, specialist
 - Working directory: /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/worker_m1_fix
-- Original parent: 733e7419-7e6d-48c6-8ff9-7a1dd367a322
-- Milestone: Milestone 1 Remediation
+- Original parent: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Milestone: Milestone 1 Bugfix
 
 ## 🔒 Key Constraints
-- Update startPositions in index.ts to [{ x: 50, y: 200 }, { x: 80, y: 200 }, { x: 110, y: 200 }, { x: 140, y: 200 }].
-- Update floor collision check in PlatformPhysics.ts to inclusive comparison (kBottom >= tTop).
-- `npm run build` and `npm run test` must pass with zero errors.
-- Save changes to codebase files, changes.md, handoff.md.
+- Minimal change principle.
+- No hardcoding test results or facade implementations.
+- Handoff report in `/home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/worker_m1_fix/handoff.md`.
 
 ## Current Parent
-- Conversation ID: 733e7419-7e6d-48c6-8ff9-7a1dd367a322
-- Updated: 2026-07-25T06:39:11Z
+- Conversation ID: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Updated: 2026-07-25T02:58:22Z
 
 ## Task Summary
-- **What to build**: Remediation fixes for Knight spawn positions and PlatformPhysics floor collision AABB logic.
-- **Success criteria**:
-  1. index.ts knight startPositions updated to x=50, 80, 110, 140 at y=200.
-  2. PlatformPhysics.ts floor collision comparison updated to inclusive (kBottom >= tTop).
-  3. Clean build and passing test suite.
-  4. changes.md and handoff.md written.
-  5. Parent notified via send_message.
+- **What to build**: Add `animTimer` property to `BossMossKnight`, increment in `update(dt)`, adjust `SideHUDManager.ts` spacing (`step = 116px`, `hudW = 110`) and Boss HUD `barY = 54`.
+- **Success criteria**: 100% pass unit tests (`npx vitest run src/games/hollow-clash`).
+- **Interface contracts**: `BossMossKnight.ts` and `SideHUDManager.ts`.
+
+## Key Decisions Made
+- Declared `public animTimer = 0;` on `BossMossKnight` and incremented in `update(dt)`.
+- Adjusted player HUD card horizontal step to 116px and width to 110px so P4 ends at 464px (<= 480px viewport).
+- Adjusted Boss HUD vertical position `barY = 54` to place the Boss health bar below the player HUD cards (bottom at y=46) without overlap.
+
+## Artifact Index
+- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/worker_m1_fix/DISPATCH.md — Dispatch instructions
+- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/worker_m1_fix/handoff.md — Handoff report
 
 ## Change Tracker
-- **Files modified**: index.ts, systems/PlatformPhysics.ts, HollowClash.test.ts
-- **Build status**: Passed (0 errors)
+- **Files modified**:
+  - `src/games/hollow-clash/entities/BossMossKnight.ts`: Declared `animTimer`, incremented in `update()`.
+  - `src/games/hollow-clash/systems/SideHUDManager.ts`: Updated card width, step, and Boss HUD `barY`.
+  - `src/games/hollow-clash/HollowClashM1Challenger2.test.ts`: Updated `animTimer` test and added HUD layout bounds test.
+- **Build status**: PASS (110/110 vitest tests pass)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: Pass (17/17 tests passing across suite; 9/9 in HollowClash.test.ts)
-- **Lint status**: 0 errors (26 warnings across repo)
-- **Tests added/modified**: Updated HollowClash.test.ts R1c block to verify knight start positions and grounded stability
-
-## Artifact Index
-- ORIGINAL_REQUEST.md — Original request instructions
-- BRIEFING.md — Working memory index
-- progress.md — Liveness heartbeat
-- changes.md — Edits breakdown
-- handoff.md — Final handoff report
+- **Build/test result**: 110/110 vitest tests passed across 6 test files.
+- **Lint status**: Clean (tsc 0 errors).
+- **Tests added/modified**: Updated `HollowClashM1Challenger2.test.ts`.

@@ -1,120 +1,37 @@
+import type { AttackEvent, DamageNumber, Particle } from '../types';
 import type { Hero } from '../entities/Hero';
 import type { Enemy } from '../entities/Enemy';
 import type { BossMinotaur } from '../entities/BossMinotaur';
-import type { Projectile } from '../entities/Projectile';
-import type { SynergySystem } from './SynergySystem';
+
+export interface CombatResult { damageNumbers: DamageNumber[]; particles: Particle[]; killed: Enemy[]; hit: boolean; }
 
 export class CombatEngine {
   public hitStopTimer = 0;
+  public cameraShake = 0;
 
-  public processCombat(
-    heroes: Hero[],
-    enemies: Enemy[],
-    boss: BossMinotaur | null,
-    projectiles: Projectile[],
-    synergy: SynergySystem
-  ): void {
-    if (this.hitStopTimer > 0) return;
+  public update(dt: number): void { this.hitStopTimer = Math.max(0, this.hitStopTimer - dt); this.cameraShake = Math.max(0, this.cameraShake - dt); }
 
-    // 1. Hero Melee & Special Skill Attacks vs Enemies
-    for (const hero of heroes) {
-      if (hero.hp <= 0) continue;
-
-      if (hero.isAttacking) {
-        const attackRange = 28;
-        const attackX = hero.x + Math.cos(hero.facingAngle) * 16;
-        const attackY = hero.y + Math.sin(hero.facingAngle) * 16;
-
-        // Check against Regular Enemies
-        for (const enemy of enemies) {
-          if (enemy.hp <= 0) continue;
-
-          const distSq = (enemy.x - attackX) ** 2 + (enemy.y - attackY) ** 2;
-          if (distSq <= attackRange ** 2) {
-            const knockX = Math.cos(hero.facingAngle) * 40;
-            const knockY = Math.sin(hero.facingAngle) * 40;
-
-            enemy.takeDamage(hero.config.attackPower, knockX, knockY);
-            hero.score += 25;
-            this.hitStopTimer = 0.08; // 80ms freeze-frame hit-stop
-
-            // Check Freeze Synergy Combo
-            if (enemy.isFrozen && hero.classType === 'barbarian') {
-              synergy.triggerSynergy('Shatter Blast!', enemy.x, enemy.y, 0x00f0ff);
-              enemy.takeDamage(80, knockX * 2, knockY * 2);
-            }
-          }
-        }
-
-        // Check against Boss Minotaur
-        if (boss && boss.hp > 0) {
-          const distSq = (boss.x - attackX) ** 2 + (boss.y - attackY) ** 2;
-          if (distSq <= (attackRange + 12) ** 2) {
-            boss.takeDamage(hero.config.attackPower);
-            hero.score += 50;
-            this.hitStopTimer = 0.08;
-          }
-        }
-      }
+  public resolveAttack(hero: Hero, attack: AttackEvent, enemies: Enemy[], boss: BossMinotaur | null): CombatResult {
+    const result: CombatResult = { damageNumbers: [], particles: [], killed: [], hit: false };
+    const targets = [...enemies.filter(enemy => enemy.hp > 0), ...(boss && boss.hp > 0 ? [boss] : [])];
+    const hitLimit = attack.comboStep === 2 ? 4 : 1;
+    let hits = 0;
+    for (const target of targets) {
+      const dx = target.x - attack.x; const dy = target.y - attack.y; const distance = Math.hypot(dx, dy);
+      const inPath = distance <= attack.range + (target instanceof Object && 'radius' in target ? Number(target.radius) : 10);
+      const angle = Math.atan2(dy, dx); const angleDelta = Math.abs(Math.atan2(Math.sin(angle - attack.angle), Math.cos(angle - attack.angle)));
+      const broadArc = hero.classType === 'wizard' || attack.comboStep === 2;
+      if (!inPath || (!broadArc && angleDelta > 1.05)) continue;
+      const damage = target === boss ? boss.takeDamage(attack.damage) : (target as Enemy).takeDamage(attack.damage, Math.cos(attack.angle) * 52, Math.sin(attack.angle) * 52);
+      if (!damage) continue;
+      result.hit = true; hits++;
+      result.damageNumbers.push({ x: target.x, y: target.y - 19, value: damage, color: attack.comboStep === 2 ? 0xf2c14e : 0xffffff, lifetime: .7, vy: -20 });
+      for (let i = 0; i < 5; i++) result.particles.push({ x: target.x, y: target.y - 5, vx: Math.cos(attack.angle + (i - 2) * .45) * (32 + i * 7), vy: Math.sin(attack.angle + (i - 2) * .45) * (32 + i * 7) - 10, life: .38, maxLife: .38, color: hero.config.primaryColor, size: 2 });
+      hero.score += target === boss ? 12 : 10; hero.ultimate = Math.min(100, hero.ultimate + (attack.comboStep === 2 ? 9 : 5)); hero.mana = Math.min(hero.maxMana, hero.mana + (attack.comboStep === 2 ? 8 : 2));
+      if (target !== boss && (target as Enemy).hp <= 0) result.killed.push(target as Enemy);
+      if (hits >= hitLimit) break;
     }
-
-    // 2. Projectile Collisions vs Enemies
-    for (let i = projectiles.length - 1; i >= 0; i--) {
-      const proj = projectiles[i];
-
-      // Player Projectiles hitting Enemies
-      if (proj.ownerId > 0) {
-        for (const enemy of enemies) {
-          if (enemy.hp <= 0) continue;
-          const distSq = (enemy.x - proj.x) ** 2 + (enemy.y - proj.y) ** 2;
-          if (distSq <= (enemy.type === 'slime' ? 14 : 10) ** 2) {
-            enemy.takeDamage(proj.damage);
-            projectiles.splice(i, 1);
-            break;
-          }
-        }
-      } else {
-        // Enemy Projectiles (Goblin Arrows / Lava Waves) hitting Heroes
-        for (const hero of heroes) {
-          if (hero.hp <= 0) continue;
-          const distSq = (hero.x - proj.x) ** 2 + (hero.y - proj.y) ** 2;
-          if (distSq <= 12 ** 2) {
-            hero.takeDamage(proj.damage);
-            projectiles.splice(i, 1);
-            break;
-          }
-        }
-      }
-    }
-
-    // 3. Enemy Contact Damage vs Heroes
-    for (const enemy of enemies) {
-      if (enemy.hp <= 0 || enemy.isStunned || enemy.isFrozen) continue;
-
-      for (const hero of heroes) {
-        if (hero.hp <= 0) continue;
-        const distSq = (hero.x - enemy.x) ** 2 + (hero.y - enemy.y) ** 2;
-        if (distSq <= 12 ** 2) {
-          hero.takeDamage(enemy.damage);
-        }
-      }
-    }
-
-    // 4. Boss Contact Damage vs Heroes
-    if (boss && boss.hp > 0 && !boss.isStunned) {
-      for (const hero of heroes) {
-        if (hero.hp <= 0) continue;
-        const distSq = (hero.x - boss.x) ** 2 + (hero.y - boss.y) ** 2;
-        if (distSq <= 24 ** 2) {
-          hero.takeDamage(25);
-        }
-      }
-    }
-  }
-
-  public update(dt: number): void {
-    if (this.hitStopTimer > 0) {
-      this.hitStopTimer -= dt;
-    }
+    if (result.hit) { this.hitStopTimer = attack.comboStep === 2 ? .065 : .035; this.cameraShake = attack.comboStep === 2 ? .14 : .06; }
+    return result;
   }
 }

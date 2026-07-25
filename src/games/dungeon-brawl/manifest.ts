@@ -3,8 +3,8 @@ import type { GameManifest } from '@runtime/types';
 const manifest: GameManifest = {
   id: 'dungeon-brawl',
   title: 'DUNGEON BRAWL',
-  description: '2 to 4 Player Co-Op Fantasy Hack & Slash Arena! Pick your hero (Knight, Wizard, Rogue, Barbarian), battle hordes of skeletons & slimes, unleash team synergy combos, and defeat the giant Minotaur Boss!',
-  version: '1.0.0',
+  description: 'A gothic-neon 2–4 player co-op dungeon gauntlet. Smart-target enemies, master four class kits, claim party blessings, revive allies, and bring down the Horned King.',
+  version: '2.0.0',
   author: 'PartyPlay Studio',
   category: 'Arcade',
   thumbnail: '',
@@ -12,7 +12,7 @@ const manifest: GameManifest = {
   difficulty: 'Hard',
   minPlayers: 2,
   maxPlayers: 4,
-  estimatedRoundTime: '120-180s',
+  estimatedRoundTime: '5-7 min',
 
   capabilities: {
     supportsPause: true,

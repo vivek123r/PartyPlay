@@ -1,47 +1,57 @@
-# Project: HOLLOW CLASH: SHADOW METROIDVANIA
+# Project: HOLLOW CLASH: SHADOW METROIDVANIA (Dark Metroidvania Overhaul)
 
 ## Architecture
-- 2-4 Player Metroidvania Action game built with TypeScript/Canvas rendering in PartyPlay.
-- Core entities: Player (Knight), Enemies (Crawlers, Moss Knight Boss), Hazards (Spikes), Particles/VFX.
-- Systems: Input, Physics & Collision (AABB, Tilemap, Slopes/Walls), Combat (Hitboxes, Hurtboxes, Damage, Pogo, Soul), Level/Camera (Viewport scrolling up to x=960), UI (Side HUD, Boss HP bar).
+- Single-player dark Metroidvania action game powered by HTML5 Canvas and TypeScript.
+- Core systems:
+  - `PlatformPhysics.ts`: AABB tile collisions, gravity, moss wall sliding, wall clinging, pogo resets.
+  - `Knight.ts`: Player vessel state machine, movement, slashes, spells (Vengeful Spirit, Abyssal Shriek, Desolate Dive), Crystal Dash, Shadow Dash, Charms.
+  - `SideHUDManager.ts`: Gothic top-left HUD frame, cracked Mask HP containers, cyan Soul Vessel gauge, Geo counter.
+  - `Enemy.ts` & `BossMossKnight.ts`: Grotesque mutant enemies (Spore Husks, Thorn Crawlers, Acid Spitters) and multi-phase Boss state machine.
+  - `CavernTilemap.ts` & `Collectible.ts`: Deep cavern level map, breakable walls, crumbling platforms, spike pits, secret upgrade shrines (Mask Shard, Vessel Fragment).
+
+## Feature Inventory
+| # | Feature | Description | Milestone | Source |
+|---|---------|-------------|-----------|--------|
+| 1 | Player Vessel Art | Asymmetrical cracked horned mask, tattered cloak, glowing crimson/cyan eyes | M1 | R1 |
+| 2 | Grotesque Enemy Art & FX | Mutant subterranean enemy art & bio-sludge/slime particle FX | M1 | R1 |
+| 3 | Gothic HUD & Gauge | Top-left gothic frame, cracked Mask HP containers, cyan Soul Vessel gauge, Geo counter | M1 | R1, R4 |
+| 4 | Soul Spells System | Vengeful Spirit, Abyssal Shriek, Desolate Dive + dive shockwave, Focus Heal | M2 | R2 |
+| 5 | Movement & Pogo Mechanics | Airborne pogo bouncing on enemies/spikes (resets abilities), Crystal Super Dash, Moss Wall Cling/Slide | M2 | R2 |
+| 6 | Equippable Charms | Quick Slash, Longnail, Spore Shroom, Lifeblood Heart charm perks | M2 | R2 |
+| 7 | Grotesque Mutant Enemies | Mutant Spore Husks (spore cloud/acid), Jagged Thorn Crawlers (wall crawl), Acid Spitters AI | M3 | R3 |
+| 8 | Multi-Phase Boss Encounter | Phase 1 & 2 transitions, enraged aura, 8-way acid spore bursts, vine shockwaves, minion wave summons | M3 | R3 |
+| 9 | Cavern Level Expansion | Secret rooms, breakable walls, crumbling platforms, hazard spike chasms | M4 | R4 |
+| 10 | Upgrade Shrines & E2E Build | Mask Shard (+1 HP), Vessel Fragment (+33 Soul), Geo deposits, zero-error `npm run build` | M4 | R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M0 | Exploration & Baseline Audit | Analyze existing codebase, list bug locations, establish build check | None | DONE |
-| M1 | R1: Single-Keyboard Controls & Lounge Bypass | P1/P2 single-keyboard controls, Enter/Space lounge bypass, clean knight spawn y=200 | M0 | DONE |
-| M2 | R2: Physics Unification & Hazard Mechanics | Single physics engine (AABB, moss wall slide, spike pit damage & safe respawn, Shadow Dash wall collision) | M1 | DONE |
-| M3 | R3: Combat System & Level Expansion & Moss Knight Boss | Melee AABB boxes (Fwd/Up/Dn), takeDamage(), airborne pogo, level expansion to x=960, 2-phase Moss Knight Boss | M2 | DONE |
-| M4 | R4: UI & Visual FX Polish | Cyan Soul Vessel meter in Side HUD, top-center Boss Health Bar, Parallax Cavern wrap math | M3 | DONE |
-| M5 | Final E2E Audit & Hardening | Full build, verification of all acceptance criteria, forensic audit | M4 | IN_PROGRESS |
+| 1 | Visual Identity & Gothic HUD | Player vessel visuals, grotesque enemy/boss art, bio-sludge FX, top-left gothic HUD frame & Soul Vessel gauge | none | DONE |
+| 2 | Advanced Mechanics & Charms | Soul Spells (Vengeful Spirit, Abyssal Shriek, Desolate Dive), Crystal Super Dash, Airborne Pogo, Charms system | M1 | PLANNED |
+| 3 | Grotesque Enemies & Boss | Mutant Spore Husks, Thorn Crawlers, Acid Spitters, Multi-Phase Boss with enraged aura, acid bursts & minion summons | M2 | PLANNED |
+| 4 | Cavern Expansion & Upgrades | Deep cavern tilemap, secret rooms, breakable walls, crumbling platforms, Mask/Vessel upgrade shrines, clean build | M3 | PLANNED |
 
 ## Interface Contracts
-### Player Input & Control Mapping
-- P1: A/D (move), W (jump/up), S (down), LCTRL (slash/attack), LSHIFT (dash/heal)
-- P2: Left/Right Arrows (move), Up Arrow (jump/up), Down Arrow (down), RCTRL (slash/attack), RSHIFT (dash/heal)
-- Lounge Bypass: Enter or Space key press transitions state immediately from Hero Lounge to active gameplay.
+### `Knight.ts` ↔ `SideHUDManager.ts`
+- `knight.getSoul(): number` (0 - 100)
+- `knight.getMaxSoul(): number` (100 - 199)
+- `knight.getCharms(): CharmType[]`
+- `knight.getLifebloodHP(): number`
 
-### Physics & Collisions
-- AABB Top-Left origin tile collisions with map width extending from x=0 to x=960.
-- Spike pits: detect collision, deduct 1 Mask HP, respawn player safely at last solid ground position.
-- Wall slide: Moss wall sliding logic unified with gravity and horizontal velocity limits.
-- Shadow Dash: invulnerability active while preserving standard horizontal wall stopping physics.
+### `Knight.ts` ↔ `PlatformPhysics.ts`
+- `isCrystalDashing: boolean`, `isDiving: boolean`, `isWallClinging: boolean`
+- `resetAirAbilities()`: sets `canDoubleJump = true`, `canShadowDash = true`, `canCrystalDash = true`, `dashCooldownTimer = 0`
 
-### Combat & Boss Mechanics
-- Melee Slash: Forward, Upward, Downward directional AABB attack hitboxes.
-- Pogo: Downward slash connecting with enemy or spike pit launches player upward (pogo bounce).
-- Enemies & Boss: `takeDamage(amount)` method handling HP deduction, hit visual feedback, and Soul award to player. Moss Knight Boss has 2 phases (Phase 1 & Phase 2 behavior).
-
-### UI & Render Components
-- Side HUD: Renders player Mask HP (hearts/masks), Geo count, and cyan Soul Vessel meter.
-- Boss Health Bar: Rendered top-center during Moss Knight fight.
-- Background: Parallax Cavern background math wrapping smoothly without seams/stretching up to x=960.
+### `Enemy.ts` / `BossMossKnight.ts` ↔ `PlatformPhysics.ts`
+- Spore cloud & acid projectile AABBs, minion spawn requests, phase state emissions.
 
 ## Code Layout
-- `config.ts`: Game configuration, constants, dimensions, control mappings.
-- `types.ts`: TypeScript interfaces for entities, player state, game state, inputs.
-- `index.ts`: Game entry point, main update/render loop.
-- `manifest.ts`: Game metadata and registration in PartyPlay.
-- `entities/`: Player, Enemy, Boss, Spike, Particle entity implementations.
-- `screens/`: Hero Lounge, Main Game Screen, Game Over / Victory screens.
-- `systems/`: Input, Physics, Collision, Combat, Audio, UI/Render systems.
+- `src/games/hollow-clash/index.ts` — Main game loop, scene setup, input dispatch.
+- `src/games/hollow-clash/entities/Knight.ts` — Player vessel state, movement, slashes, spells, charms.
+- `src/games/hollow-clash/entities/Enemy.ts` — Mutant enemy logic, AI states, render & hitboxes.
+- `src/games/hollow-clash/entities/BossMossKnight.ts` — Multi-phase boss logic & attack patterns.
+- `src/games/hollow-clash/entities/Particle.ts` — Bio-sludge, hit sparks, crystal glow, spell FX.
+- `src/games/hollow-clash/entities/Collectible.ts` — Geo coins, Mask Shards, Vessel Fragments.
+- `src/games/hollow-clash/systems/PlatformPhysics.ts` — Physics engine & tile collisions.
+- `src/games/hollow-clash/systems/SideHUDManager.ts` — Top-left gothic HUD & gauges.
+- `src/games/hollow-clash/systems/CavernTilemap.ts` — Tilemap layout, secret walls, crumbling tiles.

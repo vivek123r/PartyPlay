@@ -1,43 +1,34 @@
-# BRIEFING — 2026-07-25T06:31:16Z
+# BRIEFING — 2026-07-25T08:24:55Z
 
 ## Mission
-Analyze HOLLOW CLASH: SHADOW METROIDVANIA codebase for Milestone 0 (Combat, Level, Boss & UI Baseline) focusing on Requirements R3 & R4.
+Investigate "HOLLOW CLASH: SHADOW METROIDVANIA" codebase to map enemy AI/types, multi-phase Moss Knight/Grotesque Boss fight, cavern level maps, hazard spike pits, breakable walls, crumbling platforms, and upgrade chambers for R3 & R4 implementation.
 
 ## 🔒 My Identity
-- Archetype: Teamwork explorer
-- Roles: Explorer 3
+- Archetype: Explorer 3 (Enemies, Boss & Level Explorer)
+- Roles: Read-only investigation and architectural blueprint for Enemies, Boss, Map & Environment
 - Working directory: /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3
-- Original parent: 733e7419-7e6d-48c6-8ff9-7a1dd367a322
-- Milestone: Milestone 0 - Combat, Level, Boss & UI Baseline
+- Original parent: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Milestone: M0 (Exploration)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement code changes in the game source directory.
-- Document all findings in analysis.md and handoff.md in /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3/.
-- Send summary message to parent agent upon completion.
+- Read-only investigation — do NOT edit source code files outside .agents/explorer_m0_3/
+- Provide clear evidence chains with exact file paths and line numbers
+- Document current vs required behavior for R3 & R4 specifications
 
 ## Current Parent
-- Conversation ID: 733e7419-7e6d-48c6-8ff9-7a1dd367a322
-- Updated: 2026-07-25T06:31:16Z
+- Conversation ID: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Updated: 2026-07-25T08:24:55Z
 
 ## Investigation State
-- **Explored paths**: Entire `src/games/hollow-clash` codebase (`config.ts`, `types.ts`, `index.ts`, `entities/*`, `systems/*`, `screens/*`).
-- **Key findings**:
-  1. Melee slash uses radial dist check instead of directional AABB hitboxes and excludes regular enemies (`this.enemies`).
-  2. `takeDamage()` is never invoked on enemies or boss by knight slashes or spells.
-  3. Spike pits (`isSolid: false`) are ignored in physics loop, causing players to fall out of bounds; no spike pogo or safe ground respawn.
-  4. Map bounds set to 480px with wall at x=464; needs expansion to x=960.
-  5. Boss Moss Knight attacks deal 0 damage, boss is stationary, and Boss Health Bar is rendered inside panned world container.
-  6. Cyan Soul Vessel meter is completely missing from Side HUD.
-  7. Parallax Cavern background modulo math produces negative seam gaps during scrolling.
-  8. Duplicate, conflicting physics handling in `Knight.ts` and `PlatformPhysics.ts`.
-- **Unexplored areas**: None within scope of R3 & R4 audit.
+- **Explored paths**: `types.ts`, `entities/Enemy.ts`, `entities/BossMossKnight.ts`, `systems/CavernTilemap.ts`, `entities/Collectible.ts`, `systems/PlatformPhysics.ts`, `entities/Knight.ts`, `index.ts`, `config.ts`, `entities/SoulSpell.ts`, `systems/SideHUDManager.ts`, `systems/ParallaxCavern.ts`, test files (`HollowClash.test.ts`, `HollowClashM3Challenger.test.ts`, `HollowClashM4Challenger.test.ts`, `HollowClashM5Challenger.test.ts`).
+- **Key findings**: Complete architectural mapping of enemy AI, boss state machine, cavern level map, breakable walls, crumbling platforms, spike pits, and upgrade collectibles.
+- **Unexplored areas**: None. Entire codebase inspected.
 
 ## Key Decisions Made
-- Completed systematic audit and created `analysis.md` and `handoff.md`.
+- Formulated clear 5-component handoff report detailing exact file paths, line numbers, current vs required behaviors, and architectural blueprints for implementers.
 
 ## Artifact Index
-- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3/ORIGINAL_REQUEST.md — Original task prompt
-- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3/BRIEFING.md — Persistent memory index
-- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3/progress.md — Liveness heartbeat and progress log
-- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3/analysis.md — Detailed codebase analysis report for R3 & R4
-- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3/handoff.md — 5-component handoff report
+- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3/DISPATCH.md — Dispatch log
+- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3/BRIEFING.md — Working memory index
+- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3/progress.md — Progress log
+- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3/handoff.md — Final exploration & handoff report

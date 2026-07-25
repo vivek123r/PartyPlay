@@ -1,47 +1,16 @@
 import { Graphics } from 'pixi.js';
+import type { Blessing, RunPhase } from '../types';
 import type { Hero } from '../entities/Hero';
 import { PixelFont } from '../../turbo-rider/render/PixelFont';
 import { ARENA_CONFIG } from '../config';
 
 export class HUDManager {
-  public renderHUD(g: Graphics, heroes: Hero[], waveNum: number, enemiesLeft: number): void {
-    const w = ARENA_CONFIG.width;
-    const h = ARENA_CONFIG.height;
-
-    // 1. Top Wave & Enemy Banner
-    g.rect(w / 2 - 75, 4, 150, 16).fill({ color: 0x0f0e17, alpha: 0.85 });
-    PixelFont.drawText(g, `WAVE ${waveNum} - ENEMIES: ${enemiesLeft}`, w / 2 - 68, 8, 0xf1c40f, 1);
-
-    // 2. 4-Player Status Cards
-    const count = heroes.length;
-    const colW = Math.floor(w / count);
-
-    for (let i = 0; i < count; i++) {
-      const hero = heroes[i];
-      const startX = i * colW + 4;
-      const bottomY = h - 22;
-
-      g.rect(startX, bottomY, colW - 8, 18).fill({ color: 0x0f0e17, alpha: 0.85 });
-
-      // Player Tag & Hero Name
-      PixelFont.drawText(g, `P${hero.id}:${hero.config.name.substring(0, 4)}`, startX + 2, bottomY + 2, hero.config.primaryColor, 1);
-
-      // HP Bar
-      const hpPct = Math.max(0, hero.hp / hero.maxHp);
-      g.rect(startX + 38, bottomY + 3, 40, 5).fill({ color: 0x2c3e50 });
-      g.rect(startX + 38, bottomY + 3, hpPct * 40, 5).fill({ color: 0xe74c3c });
-
-      // Mana Bar
-      const manaPct = Math.max(0, hero.mana / hero.maxMana);
-      g.rect(startX + 38, bottomY + 10, 40, 4).fill({ color: 0x2c3e50 });
-      g.rect(startX + 38, bottomY + 10, manaPct * 40, 4).fill({ color: 0x3498db });
-
-      // Skill CD Indicator
-      if (hero.specialCooldownTimer > 0) {
-        PixelFont.drawText(g, `${Math.ceil(hero.specialCooldownTimer)}S`, startX + 82, bottomY + 5, 0x7f8c8d, 1);
-      } else {
-        PixelFont.drawText(g, 'SKILL', startX + 82, bottomY + 5, 0x2ecc71, 1);
-      }
-    }
+  public render(g: Graphics, heroes: Hero[], title: string, enemiesLeft: number, phase: RunPhase, bossHp?: { hp: number; maxHp: number; phase: number }, blessing?: { choices: Blessing[]; votes: Map<number, number>; time: number }): void {
+    const w = ARENA_CONFIG.width; const h = ARENA_CONFIG.height;
+    if (phase === 'combat') { g.rect(w / 2 - 76, 4, 152, 16).fill({ color: 0x090611, alpha: .9 }); g.rect(w / 2 - 76, 4, 152, 16).stroke({ color: 0x6ff7ff, width: 1, alpha: .55 }); PixelFont.drawText(g, bossHp ? `MINOTAUR P${bossHp.phase}` : `${title} ${enemiesLeft} LEFT`, w / 2 - 68, 9, bossHp ? 0xf2c14e : 0xeaf6ff, 1); }
+    if (bossHp) { const barX = w / 2 - 88; const pct = Math.max(0, bossHp.hp / bossHp.maxHp); g.rect(barX - 2, 23, 180, 8).fill({ color: 0x08040e, alpha: .9 }); g.rect(barX - 2, 23, 180, 8).stroke({ color: bossHp.phase === 3 ? 0xff526b : 0xf2c14e, width: 1 }); g.rect(barX, 25, 176 * pct, 4).fill({ color: bossHp.phase === 3 ? 0xe05263 : 0xb779f5 }); }
+    const plateW = Math.floor((w - 10) / Math.max(heroes.length, 1)); heroes.forEach((hero, index) => { const x = 4 + index * plateW; const y = h - 27; const width = plateW - 4; g.rect(x, y, width, 23).fill({ color: 0x0a0712, alpha: .9 }); g.rect(x, y, width, 23).stroke({ color: hero.config.primaryColor, width: 1, alpha: .65 }); PixelFont.drawText(g, `P${hero.id} ${hero.config.name.substring(0, 4)}`, x + 3, y + 3, hero.config.primaryColor, 1); const barX = x + 35; const barW = Math.max(24, width - 72); g.rect(barX, y + 4, barW, 4).fill({ color: 0x30203c }); g.rect(barX, y + 4, barW * Math.max(0, hero.hp / hero.maxHp), 4).fill({ color: hero.isDowned ? 0xe05263 : 0xff526b }); g.rect(barX, y + 11, barW, 3).fill({ color: 0x30203c }); g.rect(barX, y + 11, barW * hero.mana / hero.maxMana, 3).fill({ color: 0x6ff7ff }); g.rect(barX, y + 17, barW, 2).fill({ color: 0x30203c }); g.rect(barX, y + 17, barW * hero.ultimate / 100, 2).fill({ color: 0xf2c14e }); const ready = hero.specialCooldownTimer <= 0 && hero.mana >= hero.config.specialManaCost; PixelFont.drawText(g, hero.isDowned ? 'DOWN' : hero.ultimate >= 100 ? 'ULT' : ready ? 'SKL' : `${Math.ceil(hero.specialCooldownTimer)}`, x + width - 22, y + 3, hero.ultimate >= 100 ? 0xf2c14e : ready ? 0x7de38a : 0xa48ba8, 1); });
+    if (phase === 'room-intro') { g.rect(66, 96, 348, 64).fill({ color: 0x0a0712, alpha: .84 }); g.rect(66, 96, 348, 64).stroke({ color: 0x6ff7ff, width: 2, alpha: .8 }); PixelFont.drawText(g, title, 170, 111, 0xf2c14e, 2); PixelFont.drawText(g, 'PREPARE YOUR STEEL', 164, 139, 0xeaf6ff, 1); }
+    if (blessing && phase === 'blessing') { g.rect(23, 41, 434, 161).fill({ color: 0x0a0712, alpha: .95 }); g.rect(23, 41, 434, 161).stroke({ color: 0xf2c14e, width: 2 }); PixelFont.drawText(g, 'CHOOSE A PARTY BLESSING', 124, 53, 0xf2c14e, 1); blessing.choices.forEach((choice, index) => { const x = 35 + index * 142; const votes = [...blessing.votes.values()].filter(vote => vote === index).length; g.rect(x, 79, 128, 94).fill({ color: 0x1b1324 }); g.rect(x, 79, 128, 94).stroke({ color: choice.color, width: 2 }); PixelFont.drawText(g, choice.name, x + 8, 91, choice.color, 1); PixelFont.drawText(g, choice.description, x + 8, 110, 0xeaf6ff, 1); PixelFont.drawText(g, `VOTES ${votes}`, x + 8, 145, 0xa48ba8, 1); }); PixelFont.drawText(g, `${Math.ceil(blessing.time)}S  LEFT RIGHT + ATTACK`, 136, 184, 0x6ff7ff, 1); }
   }
 }

@@ -1,48 +1,49 @@
-# BRIEFING — 2026-07-25T06:48:28+05:30
+# BRIEFING — 2026-07-25T03:05:15Z
 
 ## Mission
-Forensic Integrity Audit on Milestone 2 (Requirement R2) for HOLLOW CLASH: SHADOW METROIDVANIA
+Perform a forensic integrity audit on Milestone 2 work product for HOLLOW CLASH: SHADOW METROIDVANIA.
 
 ## 🔒 My Identity
 - Archetype: forensic_auditor
-- Roles: [critic, specialist, auditor]
+- Roles: critic, specialist, auditor
 - Working directory: /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/auditor_m2
-- Original parent: ef7a73b1-8f84-4bed-aaba-63e7e2de3a98
-- Target: Milestone 2 (Requirement R2)
+- Original parent: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Target: Milestone 2 (M2)
 
 ## 🔒 Key Constraints
 - Audit-only — do NOT modify implementation code
 - Trust NOTHING — verify everything independently
-- Check for hardcoded test results, facade implementations, fake logic, self-certifying tests
-- Strictly report CLEAN / INTEGRITY VIOLATION with evidence
+- ORIGINAL_REQUEST.md takes precedence over dispatch prompt
+- Perform empirical forensic checks and behavioral verification
+- Single failure = INTEGRITY VIOLATION
 
 ## Current Parent
-- Conversation ID: ef7a73b1-8f84-4bed-aaba-63e7e2de3a98
-- Updated: 2026-07-25T06:48:28+05:30
+- Conversation ID: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Updated: 2026-07-25T03:05:15Z
 
 ## Audit Scope
-- Work product: /home/viv/Projects/PartyPlay/src/games/hollow-clash (systems/PlatformPhysics.ts, entities/Knight.ts, types.ts, test suite)
-- Profile loaded: General Project
-- Audit type: forensic integrity check
+- **Work product**: /home/viv/Projects/PartyPlay/src/games/hollow-clash
+- **Profile loaded**: General Project
+- **Audit type**: Forensic Integrity Audit
 
 ## Audit Progress
-- Phase: reporting / complete
-- Checks completed: Phase 1 source code inspection, Phase 2 empirical build & unit test verification, adversarial stress testing
-- Checks remaining: none
-- Findings so far: CLEAN (0 violations found)
+- **Phase**: reporting
+- **Checks completed**:
+  - Read ORIGINAL_REQUEST.md and worker_m2/handoff.md
+  - Hardcoded test returns / facade implementations check (PASS)
+  - Genuine implementation of M2 Soul Spells, Focus Heal, Crystal Super Dash, Pogo reset, Charms (PASS)
+  - Pre-populated artifacts check (PASS)
+  - Build check (PASS)
+  - Vitest suite execution (FAIL - 5 tests failed out of 160)
+- **Findings so far**: INTEGRITY VIOLATION
 
 ## Key Decisions Made
-- Confirmed implementation is genuine, clean, and fully operational with 0 TypeScript build errors and 13/13 passing tests.
+- Confirmed implementation is genuine (no facade code or hardcoded test returns).
+- Observed 5 test failures during `npx vitest run src/games/hollow-clash`.
+- Rendered verdict: INTEGRITY VIOLATION.
 
 ## Artifact Index
-- ORIGINAL_REQUEST.md — copy of initial prompt request
-- handoff.md — detailed Forensic Audit Report and verdict (CLEAN)
-- progress.md — audit progress log and heartbeat
-
-## Attack Surface
-- Hypotheses tested: Moss wall sliding continuous flush tracking, spike hazard respawn, shadow dash wall stopping
-- Vulnerabilities found: None
-- Untested angles: None
-
-## Loaded Skills
-- None loaded
+- DISPATCH.md — record of dispatch instructions
+- BRIEFING.md — agent state index
+- progress.md — liveness heartbeat
+- handoff.md — final audit report

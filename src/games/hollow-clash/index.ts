@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { GameModule, GameContext, InternalGameState } from '@runtime/types';
 import { Knight } from './entities/Knight';
 import { Enemy } from './entities/Enemy';
+import { AcidSpitter } from './entities/AcidSpitter';
 import { BossMossKnight } from './entities/BossMossKnight';
 import { SoulSpell } from './entities/SoulSpell';
 import { Collectible } from './entities/Collectible';
@@ -12,6 +13,17 @@ import { HeroLoungeScreen } from './screens/HeroLoungeScreen';
 import { SideHUDManager } from './systems/SideHUDManager';
 import type { KnightMaskType } from './types';
 import { CAVERN_CONFIG } from './config';
+
+interface BreakableWall {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  hp: number;
+  maxHp: number;
+  crumbling: boolean;
+  crumbleTimer: number;
+}
 
 export default class HollowClashGame implements GameModule {
   public state: InternalGameState = 'Initializing';
@@ -24,9 +36,11 @@ export default class HollowClashGame implements GameModule {
 
   private knights: Knight[] = [];
   private enemies: Enemy[] = [];
+  private acidSpitters: AcidSpitter[] = [];
   private boss: BossMossKnight | null = null;
   private spells: SoulSpell[] = [];
   private collectibles: Collectible[] = [];
+  private breakableWalls: BreakableWall[] = [];
 
   private physics = new PlatformPhysics();
   private cavern = new ParallaxCavern();
@@ -102,21 +116,38 @@ export default class HollowClashGame implements GameModule {
       const pos = startPositions[idx];
       const knight = new Knight({ id: p.id, mask, x: pos.x, y: pos.y });
 
+      // Give player 1 default charms to start. Player 2 gets different set.
+      if (idx === 0) {
+        knight.equipCharm('quick_slash');
+      } else {
+        knight.equipCharm('longnail');
+      }
+
       // Add knight container to world container so it moves with the camera
       this.worldContainer.addChild(knight.container);
 
       return knight;
     });
 
-    // Spawn Initial Enemies across the expanded level (x=0..960)
-    this.enemies.push(new Enemy('spore-1', 'spore_bug', 300, 150));
-    this.enemies.push(new Enemy('mantis-1', 'mantis_crawler', 500, 200));
-    this.enemies.push(new Enemy('husk-1', 'shielded_husk', 650, 210));
-    this.enemies.push(new Enemy('spore-2', 'spore_bug', 720, 120));
-    this.enemies.push(new Enemy('mantis-2', 'mantis_crawler', 850, 200));
+    // Spawn varied grotesque enemies across the 960px level
+    this.enemies.push(new Enemy('spore-1', 'spore_bug', 280, 140));
+    this.enemies.push(new Enemy('mantis-1', 'mantis_crawler', 460, 195));
+    this.enemies.push(new Enemy('husk-1', 'shielded_husk', 600, 210));
+    this.enemies.push(new Enemy('spore-2', 'spore_bug', 700, 120));
+    this.enemies.push(new Enemy('mantis-2', 'mantis_crawler', 820, 200));
 
-    // Spawn Moss Knight Boss in expanded section (x=750..850)
-    this.boss = new BossMossKnight(780, 200);
+    // Acid Spitters — perched on ledges, ranged hazard
+    this.acidSpitters.push(new AcidSpitter('acid-1', 380, 175));
+    this.acidSpitters.push(new AcidSpitter('acid-2', 740, 155));
+
+    // Spawn Moss Knight Boss in expanded section
+    this.boss = new BossMossKnight(800, 200);
+
+    // Breakable walls — covering hidden upgrade chamber at x=440..460
+    this.breakableWalls = [
+      { x: 330, y: 120, width: 16, height: 60, hp: 3, maxHp: 3, crumbling: false, crumbleTimer: 0 },
+      { x: 880, y: 145, width: 16, height: 75, hp: 3, maxHp: 3, crumbling: false, crumbleTimer: 0 },
+    ];
   }
 
   public update(dt: number): void {
@@ -170,7 +201,7 @@ export default class HollowClashGame implements GameModule {
     }
 
     // Update Knights
-    const targets = [...this.enemies, ...(this.boss ? [this.boss] : [])];
+    const targets: any[] = [...this.enemies, ...this.acidSpitters, ...(this.boss ? [this.boss] : [])];
     this.knights.forEach((knight) => {
       if (knight.state.hp <= 0) return;
 
@@ -188,18 +219,36 @@ export default class HollowClashGame implements GameModule {
         jumpReleased: !input.isActive('moveUp'),
         attackJustPressed: input.isJustPressed('action'),
         dashJustPressed: input.isJustPressed('skill'),
+        skillActive: input.isActive('skill'),
+        focusJustPressed: input.isJustPressed('focus'),
+        focusActive: input.isActive('focus'),
+        castJustPressed: input.isJustPressed('focus'),
       };
 
       knight.update(dt, inputObj, this.tilemap.tiles, targets);
 
-      // Focus Soul Spell
-      if (input.isJustPressed('focus') && knight.state.soul >= 33) {
-        knight.state.soul -= 33;
-        if (knight.state.hp < knight.state.maxHp) {
-          knight.state.hp += 1;
+      // Propagate knight active spells to hit world enemies & boss
+      for (const spell of knight.activeSpells) {
+        spell.checkHitEnemies(targets);
+      }
+
+      // Check knight spell hits against breakable walls
+      for (const spell of knight.activeSpells) {
+        if (spell.damage <= 0) continue;
+        for (const wall of this.breakableWalls) {
+          if (wall.hp <= 0) continue;
+          const sLeft = spell.x, sRight = spell.x + spell.width;
+          const sTop = spell.y, sBottom = spell.y + spell.height;
+          const wRight = wall.x + wall.width, wBottom = wall.y + wall.height;
+          if (sLeft < wRight && sRight > wall.x && sTop < wBottom && sBottom > wall.y) {
+            wall.hp--;
+            wall.crumbling = true;
+            if (wall.hp <= 0) {
+              // Drop a mask shard from a broken secret wall
+              this.collectibles.push(new Collectible(`shard-${Date.now()}`, 'mask_shard', wall.x + 8, wall.y));
+            }
+          }
         }
-        this.spells.push(new SoulSpell(`spell-${Date.now()}`, 'vengeful_spirit', knight.state.x, knight.state.y - 12, knight.state.facing === 'right'));
-        this.ctx.audio.playTone(520, 'sine', 0.3);
       }
     });
 
@@ -208,6 +257,10 @@ export default class HollowClashGame implements GameModule {
       const enemy = this.enemies[i];
       if (enemy.hp <= 0) {
         this.collectibles.push(new Collectible(`geo-${Date.now()}`, 'geo_coin', enemy.x, enemy.y));
+        // Also drop soul orb occasionally
+        if (Math.random() < 0.5) {
+          this.collectibles.push(new Collectible(`soul-${Date.now()}`, 'soul_orb', enemy.x, enemy.y - 12));
+        }
         this.enemies.splice(i, 1);
         continue;
       }
@@ -217,6 +270,29 @@ export default class HollowClashGame implements GameModule {
       for (const k of activeKnights) {
         if (!k.isInvulnerable && Math.abs(k.state.x - enemy.x) < 16 && Math.abs(k.state.y - enemy.y) < 16) {
           k.takeDamage(enemy.damage);
+        }
+      }
+    }
+
+    // Update Acid Spitters
+    for (let i = this.acidSpitters.length - 1; i >= 0; i--) {
+      const spitter = this.acidSpitters[i];
+      if (spitter.hp <= 0) {
+        this.collectibles.push(new Collectible(`geo-ac-${Date.now()}`, 'geo_coin', spitter.x, spitter.y));
+        this.collectibles.push(new Collectible(`soul-ac-${Date.now()}`, 'soul_orb', spitter.x, spitter.y - 12));
+        this.acidSpitters.splice(i, 1);
+        continue;
+      }
+      spitter.update(dt, this.knights);
+    }
+
+    // Update Breakable Walls
+    for (let i = this.breakableWalls.length - 1; i >= 0; i--) {
+      const wall = this.breakableWalls[i];
+      if (wall.crumbling) {
+        wall.crumbleTimer += dt;
+        if (wall.hp <= 0 && wall.crumbleTimer > 0.5) {
+          this.breakableWalls.splice(i, 1);
         }
       }
     }
@@ -233,6 +309,14 @@ export default class HollowClashGame implements GameModule {
         for (const sw of bRes.shockwaves) {
           this.spells.push(new SoulSpell(`boss-wave-${Date.now()}-${Math.random()}`, 'vengeful_spirit', sw.x, sw.y, sw.dir > 0));
         }
+      }
+      // Phase 3: Boss summons additional spore bugs as minions
+      if (bRes.spawnMinions) {
+        const bossX = this.boss.x;
+        const bossY = this.boss.y;
+        this.enemies.push(new Enemy(`minion-${Date.now()}-1`, 'spore_bug', bossX - 40, bossY - 20));
+        this.enemies.push(new Enemy(`minion-${Date.now()}-2`, 'spore_bug', bossX + 40, bossY - 20));
+        this.ctx.audio.playTone(180, 'square', 0.3);
       }
     }
 
@@ -264,13 +348,42 @@ export default class HollowClashGame implements GameModule {
     
     this.worldGraphics.clear();
     this.tilemap.render(this.worldGraphics);
+
+    // Render breakable walls
+    this.renderBreakableWalls(this.worldGraphics);
+
     this.collectibles.forEach((c) => c.render(this.worldGraphics));
     this.spells.forEach((s) => s.render(this.worldGraphics));
     this.enemies.forEach((e) => e.render(this.worldGraphics));
+    this.acidSpitters.forEach((a) => a.render(this.worldGraphics));
     if (this.boss) this.boss.render(this.worldGraphics);
     
     this.knights.forEach((k) => k.render());
     this.hud.render(this.knights.map((k) => k.state), this.boss, (this.state as string) === 'Finished', this.isVictory);
+  }
+
+  private renderBreakableWalls(g: Graphics): void {
+    for (const wall of this.breakableWalls) {
+      if (wall.hp <= 0) continue;
+      const crackRatio = 1 - wall.hp / wall.maxHp;
+      // Dark ancient stone wall
+      g.rect(wall.x, wall.y, wall.width, wall.height).fill({ color: 0x1e1b2e });
+      g.rect(wall.x, wall.y, wall.width, wall.height).stroke({ color: 0x4c1d95, width: 2 });
+      // Glowing rune line hinting at secret
+      g.rect(wall.x + 4, wall.y + wall.height / 2 - 2, wall.width - 8, 4).fill({ color: 0x6d28d9, alpha: 0.7 });
+      // Cracks appear as HP decreases
+      if (crackRatio > 0) {
+        g.poly([wall.x + 4, wall.y + 8, wall.x + wall.width - 2, wall.y + 20]).stroke({ color: 0x7c3aed, width: 1, alpha: crackRatio });
+        g.poly([wall.x + 2, wall.y + 30, wall.x + wall.width - 4, wall.y + 45]).stroke({ color: 0x8b5cf6, width: 1, alpha: crackRatio });
+      }
+      if (crackRatio > 0.5) {
+        g.poly([wall.x + 6, wall.y + 15, wall.x + wall.width - 3, wall.y + 55]).stroke({ color: 0xa78bfa, width: 1 });
+      }
+      // Crumbling shimmer when destroyed
+      if (wall.crumbling) {
+        g.rect(wall.x, wall.y, wall.width, wall.height).fill({ color: 0x7c3aed, alpha: 0.4 * (wall.crumbleTimer / 0.5) });
+      }
+    }
   }
 
   private triggerMatchOver(isVictory: boolean = true): void {

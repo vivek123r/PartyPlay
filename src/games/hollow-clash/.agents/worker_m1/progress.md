@@ -1,14 +1,13 @@
-# Progress Log - worker_m1
+# Progress Log
 
-Last visited: 2026-07-25T01:02:43Z
+Last visited: 2026-07-25T08:27:10Z
 
-- [x] Initialized agent directory and ORIGINAL_REQUEST.md
-- [x] Created progress.md and BRIEFING.md
-- [x] Read Explorer 1's handoff report (/home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_1/handoff.md)
-- [x] Investigate codebase files (manifest.ts, config.ts, HeroLoungeScreen.ts, index.ts, Knight.ts, PlatformPhysics.ts, input systems)
-- [x] Implement Requirement R1a: Single-Keyboard Multi-Player Controls
-- [x] Implement Requirement R1b: Hero Lounge Bypass (Enter / Space key start, fix frame 1 auto-start)
-- [x] Implement Requirement R1c: Knight Spawn Alignment & y=200 Safety
-- [x] Run `npm run build` to verify clean build (passed with zero errors)
-- [x] Write `changes.md` and `handoff.md`
-- [x] Send message to parent
+- Initialized briefing and dispatch logs.
+- Analyzed requirements and explorer blueprints.
+- Modified `Knight.ts` to implement player vessel aesthetics (dark tattered cloak, asymmetrical cracked horned mask, dual-layer glowing eyes) and bio-sludge gravity particles (`vy += 180 * dt`).
+- Modified `Enemy.ts` to redraw grotesque subterranean mutant enemies (Mutant Spore Husk, Jagged Thorn Crawler, Chitin Shield Abomination).
+- Modified `BossMossKnight.ts` to redraw BossMossKnight with multi-layered chitin armor, fungal spores, bio-sludge tentacles, and enraged slime aura.
+- Modified `SideHUDManager.ts` to render top-left Gothic HUD frame, circular Soul Vessel orb gauge (vertical cyan liquid fill + 33-Soul tick mark), cracked horned mask HP containers, and gold Geo coin emblem.
+- Added M1 test case to `HollowClash.test.ts`.
+- Verified all 83 tests pass with `npx vitest run src/games/hollow-clash`.
+- Completed handoff report.

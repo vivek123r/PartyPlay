@@ -13,7 +13,7 @@ export type PlatformEventMap = {
   // Gameplay Events
   'round:start': { seed: number; playerIds: number[] };
   'player:eliminated': { playerId: number; rank: number; position: { x: number; y: number } };
-  'game:over': { winnerId: number; isTeamLoss?: boolean; standings: { playerId: number; score: number }[] };
+  'game:over': { winnerId: number; isTeamLoss?: boolean; isTeamVictory?: boolean; standings: { playerId: number; score: number }[] };
   'game:pause': void;
   'game:resume': void;
   'game:crash': { error: Error; gameId: string };

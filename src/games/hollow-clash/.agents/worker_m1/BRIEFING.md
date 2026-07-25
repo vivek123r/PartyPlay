@@ -1,55 +1,57 @@
-# BRIEFING — 2026-07-25T01:02:43Z
+# BRIEFING — 2026-07-25T08:27:10Z
 
 ## Mission
-Implement Milestone 1 - Controls & Lounge Bypass (Requirement R1) for HOLLOW CLASH: SHADOW METROIDVANIA.
+Implement Milestone 1 (Grotesque Dark Subterranean Visual Identity, Character Art, Dark Slime Particles & Top-Left Gothic HUD) for Hollow Clash.
 
 ## 🔒 My Identity
 - Archetype: implementer, qa, specialist
 - Roles: implementer, qa, specialist
 - Working directory: /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/worker_m1
-- Original parent: 733e7419-7e6d-48c6-8ff9-7a1dd367a322
-- Milestone: Milestone 1 - Controls & Lounge Bypass R1
+- Original parent: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Milestone: Milestone 1 Visuals & Gothic HUD Worker
 
 ## 🔒 Key Constraints
-- CODE_ONLY network mode.
-- Non-cheating mandate: Genuine implementations only, no hardcoding, no facades.
-- Layout compliance: write metadata only to .agents/worker_m1 folder.
+- Pure canvas/Pixi drawing - no external image asset dependencies.
+- Pass unit tests with `npx vitest run src/games/hollow-clash`.
+- Follow implementation blueprints from explorer_m0_1 handoff.
 
 ## Current Parent
-- Conversation ID: 733e7419-7e6d-48c6-8ff9-7a1dd367a322
-- Updated: 2026-07-25T01:02:43Z
+- Conversation ID: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Updated: 2026-07-25T08:27:10Z
 
 ## Task Summary
-- **What to build**: Fix control mappings for single-keyboard multi-player (P1: A/D/W/S/LCTRL/LSHIFT, P2: Arrows/Down/RCTRL/RSHIFT); fix Hero Lounge auto-start on frame 1 and add Enter/Space lounge bypass to start game; fix Knight spawn alignment & y=200 safety in Knight.ts & PlatformPhysics.ts.
-- **Success criteria**: Zero build errors (`npm run build`), proper controls, working lounge bypass, correct Knight spawn y=200 alignment.
-- **Interface contracts**: /home/viv/Projects/PartyPlay/src/games/hollow-clash
-- **Code layout**: /home/viv/Projects/PartyPlay/src/games/hollow-clash/src
+- **What to build**:
+  1. Player Vessel Visual Rendering (`src/games/hollow-clash/entities/Knight.ts`).
+  2. Grotesque Enemy & Boss Art + Dark Slime Particles (`src/games/hollow-clash/entities/Enemy.ts`, `BossMossKnight.ts`, `Knight.ts`).
+  3. Top-Left Gothic HUD & Soul Vessel Gauge (`src/games/hollow-clash/systems/SideHUDManager.ts`).
+- **Success criteria**: All 83 tests pass cleanly.
+
+## Key Decisions Made
+- Implemented bio-sludge gravity particles (`vy += 180 * dt`) with `hasGravity` property in `Knight.ts`.
+- Redrew Knight vessel with tattered cloak, asymmetrical cracked horned mask, and dual-layer cyan/crimson glowing eyes.
+- Redrew Enemy units (Mutant Spore Husk, Jagged Thorn Crawler, Chitin Shield Abomination) and BossMossKnight with grotesque chitin plates, spores, tentacles, and enraged aura.
+- Redrew SideHUDManager with top-left Gothic frame, circular Soul Vessel orb gauge (vertical cyan liquid fill + 33-Soul tick), cracked horned mask containers, and gold Geo coin emblem.
 
 ## Change Tracker
 - **Files modified**:
-  - `src/games/hollow-clash/manifest.ts`: Updated P1 and P2 controls to match R1a specs.
-  - `src/games/hollow-clash/screens/HeroLoungeScreen.ts`: Fixed initial `isReady: false`, toggle ready input, ready status UI.
-  - `src/games/hollow-clash/systems/PlatformPhysics.ts`: Top-left origin AABB collision and ground positioning.
-  - `src/games/hollow-clash/entities/Knight.ts`: Single-pass physics update and double-jump reset.
-  - `src/games/hollow-clash/index.ts`: Removed duplicate physics call.
-- **Build status**: `npm run build` PASSED (0 errors, exit code 0).
-- **Pending issues**: None.
+  - `src/games/hollow-clash/entities/Knight.ts` — Asymmetrical cracked horned mask, dark tattered cloak, dual-layer glowing eyes, bio-sludge particles with gravity (`vy += 180 * dt`).
+  - `src/games/hollow-clash/entities/Enemy.ts` — Redrew Mutant Spore Husk, Jagged Thorn Crawler, Chitin Shield Abomination.
+  - `src/games/hollow-clash/entities/BossMossKnight.ts` — Redrew BossMossKnight chitin armor, fungal spores, bio-sludge tentacles, enraged purple/green slime aura.
+  - `src/games/hollow-clash/systems/SideHUDManager.ts` — Gothic HUD frame, circular Soul Vessel orb gauge with vertical cyan fill and 33-Soul tick, cracked horned mask containers, gold Geo emblem.
+  - `src/games/hollow-clash/HollowClash.test.ts` — Added M1 empirical unit test covering visuals, particle gravity acceleration, enemy art, and gothic HUD.
+- **Build status**: PASS (83/83 unit tests passing)
+- **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: `npm run build` PASSED; `npm run test` PASSED (8/8 tests).
-- **Lint status**: Clean compilation.
-- **Tests added/modified**: Verified with existing build and test suite.
+- **Build/test result**: PASS (83 passed, 0 failed)
+- **Lint status**: CLEAN (tsc --noEmit passed)
+- **Tests added/modified**: Added M1 test in `HollowClash.test.ts`
 
 ## Loaded Skills
 - None
 
-## Key Decisions Made
-- Unified top-left origin AABB physics in PlatformPhysics.ts and Knight.ts.
-- Lounge initialization isReady set to false; Enter / Space sets startRequested.
-
 ## Artifact Index
-- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/worker_m1/ORIGINAL_REQUEST.md — Initial request
-- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/worker_m1/progress.md — Progress tracker
-- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/worker_m1/BRIEFING.md — Working memory index
-- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/worker_m1/changes.md — Change log
-- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/worker_m1/handoff.md — Final handoff report
+- DISPATCH.md — Worker prompt dispatch
+- BRIEFING.md — Working memory briefing
+- progress.md — Liveness heartbeat
+- handoff.md — Final handoff report

@@ -1,35 +1,46 @@
-# BRIEFING — 2026-07-25T06:32:20Z
+# BRIEFING — 2026-07-25T08:25:00Z
 
 ## Mission
-Analyze HOLLOW CLASH codebase for Milestone 0 (Controls & Lounge Baseline), focusing on single-keyboard P1/P2 key mappings, Hero Lounge bypass on Enter/Space, knight spawn positions, y=200 safety, and controls/lounge flaws.
+Investigate "HOLLOW CLASH: SHADOW METROIDVANIA" codebase and map visual identity, canvas rendering, character/enemy art structures, dark slime particle effects, and gothic UI/HUD components for R1 & R4.
 
 ## 🔒 My Identity
 - Archetype: Teamwork explorer
-- Roles: Read-only investigator
+- Roles: Explorer 1 (Visual & UI Explorer)
 - Working directory: /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_1
-- Original parent: 733e7419-7e6d-48c6-8ff9-7a1dd367a322
-- Milestone: Milestone 0 - Controls & Lounge Baseline
+- Original parent: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Milestone: M0 / R1 & R4 Visual & UI Investigation
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement changes in source code.
-- Analyze codebase and write analysis report + handoff report in working directory.
+- Read-only investigation — do NOT implement or modify source code files
+- Focus on R1 (Player vessel visual rendering, enemy/boss visual rendering, slime particles) & R4 (Gothic HUD, Soul Vessel gauge, Mask HP containers, Geo counter)
+- Produce handoff.md with evidence chains, line numbers, current vs required behavior, and implementation blueprint
 
 ## Current Parent
-- Conversation ID: 733e7419-7e6d-48c6-8ff9-7a1dd367a322
-- Updated: 2026-07-25T06:32:20Z
+- Conversation ID: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Updated: 2026-07-25T08:25:00Z
 
 ## Investigation State
-- **Explored paths**: `index.ts`, `config.ts`, `types.ts`, `manifest.ts`, `screens/HeroLoungeScreen.ts`, `entities/Knight.ts`, `systems/PlatformPhysics.ts`, `systems/CavernTilemap.ts`.
-- **Key findings**: 4 critical bugs identified (P1 bindings broken, P2 bindings broken, Hero Lounge instant auto-bypass, coordinate origin mismatch & dual physics loop on spawn).
-- **Unexplored areas**: None for Milestone 0 scope.
+- **Explored paths**:
+  - `entities/Knight.ts` (lines 1-438): Player vessel rendering, particles, combat.
+  - `entities/Enemy.ts` (lines 1-131): Enemy AI, rendering for spore_bug, mantis_crawler, shielded_husk.
+  - `entities/BossMossKnight.ts` (lines 1-278): Moss Knight boss states, phase 2 enraged visuals, aura particles.
+  - `systems/SideHUDManager.ts` (lines 1-143): Player HUD, Mask HP, Geo counter, Soul Vessel meter, top-center Boss HUD.
+  - `systems/ParallaxCavern.ts` (lines 1-127): Subterranean background rendering & spore particles.
+  - `systems/CavernTilemap.ts` (lines 1-71): Tilemap physics & platform rendering.
+  - `screens/HeroLoungeScreen.ts` (lines 1-112): Lounge card rendering and start trigger.
+  - `index.ts` (lines 1-309): Main engine loop and stage rendering assembly.
+  - `HollowClash.test.ts`, `HollowClashM3Challenger.test.ts`, `HollowClashM4Challenger.test.ts`, `HollowClashM5Challenger.test.ts`: Vitest test suites.
+
+- **Key findings**:
+  - Player vessel currently drawn with simple symmetric white horns and plain black eyes (`Knight.ts`:397-413). Needs cracked asymmetrical horns, dark tattered cloak fringes, and dual-layer crimson/cyan glowing eyes.
+  - Enemy art is basic geometric shapes (`Enemy.ts`:105-122). Needs grotesque dark subterranean redesign (mutant spore husks, jagged scythe crawlers, chitin shield abominations) with dark bio-sludge droplet particle emitter (`Knight.ts`:313-327).
+  - HUD renders linear soul bar (`SideHUDManager.ts`:78-99) and rounded rect HP masks (lines 66-73). Needs sleek top-left Gothic HUD frame with circular/gothic Soul Vessel gauge, cracked mask HP container icons, and ornate gold Geo counter.
+  - All 82 Vitest unit tests in `src/games/hollow-clash` currently pass (`npx vitest run src/games/hollow-clash`).
+
+- **Unexplored areas**: None. Entire visual/rendering subsystem investigated.
 
 ## Key Decisions Made
-- Completed deep-dive analysis of Requirement R1 controls, lounge state, and spawn physics.
-- Authored `analysis.md` and `handoff.md`.
+- Structured findings into handoff report following 5-component protocol with comprehensive evidence chains and line-by-line implementation blueprints.
 
 ## Artifact Index
-- ORIGINAL_REQUEST.md — Initial user prompt
-- BRIEFING.md — Working memory index
-- progress.md — Liveness heartbeat
-- analysis.md — Detailed analysis report
-- handoff.md — Handoff report
+- /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_1/handoff.md — Handoff report (completed)

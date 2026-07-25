@@ -735,6 +735,58 @@ describe('Hollow Clash - Requirement R1 Empirical Verification', () => {
       expect(() => cavern.render(mockGraphics, 240)).not.toThrow();
       expect(() => cavern.render(mockGraphics, 480)).not.toThrow();
     });
+
+    test('M1: Player Vessel rendering, bio-sludge hit particles gravity acceleration, enemy art, and Gothic HUD', () => {
+      // 1. Knight rendering & bio-sludge particle gravity
+      const knight = new Knight({ id: 1, x: 100, y: 200, hp: 5, maxHp: 5, soul: 50, geoCount: 25 });
+      expect(() => knight.render()).not.toThrow();
+
+      // Trigger hit particles and verify gravity acceleration
+      (knight as any).spawnHitParticles(100, 200);
+      expect(knight.trailParticles.length).toBeGreaterThan(0);
+      const hitParticle = knight.trailParticles.find((p) => p.hasGravity);
+      expect(hitParticle).toBeDefined();
+      const initialVy = hitParticle!.vy;
+
+      // Update particles with dt=0.1
+      (knight as any).updateParticles(0.1);
+      expect(hitParticle!.vy).toBeCloseTo(initialVy + 18, 1); // vy += 180 * 0.1
+
+      // 2. Enemy rendering for all grotesque types
+      const sporeHusk = new Enemy('e1', 'spore_bug', 150, 150);
+      const thornCrawler = new Enemy('e2', 'mantis_crawler', 200, 200);
+      const chitinAbomination = new Enemy('e3', 'shielded_husk', 250, 200);
+      const mockG = {
+        rect: () => mockG,
+        fill: () => mockG,
+        circle: () => mockG,
+        poly: () => mockG,
+        stroke: () => mockG,
+        ellipse: () => mockG,
+        roundRect: () => mockG,
+        clear: () => mockG,
+        destroy: () => {},
+      } as any;
+
+      expect(() => sporeHusk.render(mockG)).not.toThrow();
+      expect(() => thornCrawler.render(mockG)).not.toThrow();
+      expect(() => chitinAbomination.render(mockG)).not.toThrow();
+
+      // 3. BossMossKnight rendering & enraged aura
+      const boss = new BossMossKnight(780, 200);
+      expect(() => boss.render(mockG)).not.toThrow();
+      boss.takeDamage(350); // Trigger phase 2 / enraged
+      expect(boss.isEnraged).toBe(true);
+      boss.update(0.1, [knight]);
+      expect(() => boss.render(mockG)).not.toThrow();
+
+      // 4. Gothic HUD rendering
+      const hud = new SideHUDManager();
+      expect(() => hud.render([knight.state], boss)).not.toThrow();
+
+      mockG.destroy();
+      hud.destroy();
+    });
   });
 });
 

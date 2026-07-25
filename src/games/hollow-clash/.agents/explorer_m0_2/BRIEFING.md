@@ -1,34 +1,34 @@
-# BRIEFING — 2026-07-25T06:31:20Z
+# BRIEFING — 2026-07-25T08:25:07Z
 
 ## Mission
-Analyze HOLLOW CLASH codebase focusing on Requirement R2: Physics engine unification, moss wall sliding physics, spike pit hazard detection & safe ground respawn, and Shadow Dash wall collision behavior.
+Investigate the existing codebase of "HOLLOW CLASH: SHADOW METROIDVANIA" at /home/viv/Projects/PartyPlay/src/games/hollow-clash and map the physics engine, combat systems, movement abilities, Soul Spells, Crystal Super Dash, Airborne Pogo Bouncing, Moss Wall Clinging/Sliding, Shadow Dash, and Charm/Perk system required for R2.
 
 ## 🔒 My Identity
-- Archetype: Teamwork explorer
-- Roles: Physics & Hazard Mechanics Explorer (Explorer 2)
+- Archetype: Explorer
+- Roles: Mechanics & Physics Explorer
 - Working directory: /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_2
-- Original parent: 733e7419-7e6d-48c6-8ff9-7a1dd367a322
-- Milestone: Milestone 0 - Physics & Hazards Baseline
+- Original parent: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Milestone: R2 Mechanics & Physics Architecture
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement code changes in the game codebase
-- Write outputs only within /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_2
+- Read-only investigation — do NOT implement source code changes
+- Write analysis and architectural mapping into handoff report (.agents/explorer_m0_2/handoff.md)
+- Do NOT edit or modify source code files
 
 ## Current Parent
-- Conversation ID: 733e7419-7e6d-48c6-8ff9-7a1dd367a322
-- Updated: 2026-07-25T06:31:20Z
+- Conversation ID: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
+- Updated: 2026-07-25T08:25:07Z
 
 ## Investigation State
-- **Explored paths**: `index.ts`, `config.ts`, `types.ts`, `systems/PlatformPhysics.ts`, `systems/CavernTilemap.ts`, `entities/Knight.ts`, `entities/Enemy.ts`, `entities/BossMossKnight.ts`, `systems/SideHUDManager.ts`, `systems/ParallaxCavern.ts`, `screens/HeroLoungeScreen.ts`
-- **Key findings**: Identified 14 distinct defects across physics unification (dual physics loop, AABB coordinate mismatch), moss wall sliding (1-frame boundary drop, missing moss tile check), spike pit hazards (0% hazard collision, missing damage, missing safe ground tracking & respawn), and Shadow Dash (explicit noclip return in `PlatformPhysics.ts`).
-- **Unexplored areas**: None for R2 physics & hazards baseline scope.
+- **Explored paths**: Entire codebase at /home/viv/Projects/PartyPlay/src/games/hollow-clash (index.ts, config.ts, types.ts, entities/*, systems/*, tests)
+- **Key findings**: Complete architectural mapping produced for Physics, Soul Spells (3 variants), Crystal Super Dash, Pogo Dash Reset, Moss Wall Clinging/Sliding, and Equippable Charms (Quick Slash, Longnail, Spore Shroom, Lifeblood Heart).
+- **Unexplored areas**: None.
 
 ## Key Decisions Made
-- Completed full analysis report (`analysis.md`) and 5-component handoff report (`handoff.md`).
+- Completed read-only investigation and produced 5-component handoff report.
 
 ## Artifact Index
-- ORIGINAL_REQUEST.md — Original task description
-- BRIEFING.md — Working memory state
-- progress.md — Liveness heartbeat and step tracking
-- analysis.md — Detailed technical analysis of Requirement R2
-- handoff.md — 5-component handoff report
+- DISPATCH.md — Initial dispatch instructions
+- BRIEFING.md — Context memory briefing
+- progress.md — Liveness heartbeat log
+- handoff.md — Final analysis report and architectural blueprint

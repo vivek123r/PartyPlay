@@ -1,72 +1,10 @@
 import { Graphics } from 'pixi.js';
 import type { ProjectileEntity } from '../types';
+import type { Enemy } from './Enemy';
 
 export class Projectile implements ProjectileEntity {
-  public id: string;
-  public ownerId: number;
-  public x: number;
-  public y: number;
-  public vx: number;
-  public vy: number;
-  public radius: number;
-  public damage: number;
-  public element: 'fireball' | 'arrow' | 'dagger' | 'lava_wave';
-  public lifetime: number;
-  public color: number;
-
-  constructor(id: string, ownerId: number, x: number, y: number, vx: number, vy: number, damage: number, element: 'fireball' | 'arrow' | 'dagger' | 'lava_wave') {
-    this.id = id;
-    this.ownerId = ownerId;
-    this.x = x;
-    this.y = y;
-    this.vx = vx;
-    this.vy = vy;
-    this.damage = damage;
-    this.element = element;
-
-    if (element === 'fireball') {
-      this.radius = 6;
-      this.lifetime = 2.0;
-      this.color = 0xe67e22;
-    } else if (element === 'arrow') {
-      this.radius = 3;
-      this.lifetime = 1.8;
-      this.color = 0xf1c40f;
-    } else if (element === 'dagger') {
-      this.radius = 4;
-      this.lifetime = 1.5;
-      this.color = 0x2ecc71;
-    } else {
-      // lava_wave
-      this.radius = 16;
-      this.lifetime = 3.0;
-      this.color = 0xe74c3c;
-    }
-  }
-
-  public update(dt: number): boolean {
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
-    this.lifetime -= dt;
-
-    return this.lifetime > 0;
-  }
-
-  public render(g: Graphics): void {
-    const x = Math.round(this.x);
-    const y = Math.round(this.y);
-
-    if (this.element === 'fireball') {
-      g.circle(x, y, this.radius).fill({ color: this.color });
-      g.circle(x, y, this.radius * 0.5).fill({ color: 0xfffffe });
-    } else if (this.element === 'arrow') {
-      g.rect(x - 4, y - 1, 8, 2).fill({ color: this.color });
-    } else if (this.element === 'dagger') {
-      g.rect(x - 3, y - 2, 6, 4).fill({ color: this.color });
-    } else {
-      // lava_wave
-      g.circle(x, y, this.radius).fill({ color: 0xe74c3c, alpha: 0.6 });
-      g.circle(x, y, this.radius * 0.6).fill({ color: 0xf39c12, alpha: 0.8 });
-    }
-  }
+  public id: string; public ownerId: number; public x: number; public y: number; public vx: number; public vy: number; public radius: number; public damage: number; public element: ProjectileEntity['element']; public lifetime: number; public color: number; public homing?: boolean; public splashRadius?: number;
+  constructor(id: string, ownerId: number, x: number, y: number, vx: number, vy: number, damage: number, element: ProjectileEntity['element'], options: Partial<Pick<ProjectileEntity, 'homing' | 'splashRadius'>> = {}) { this.id = id; this.ownerId = ownerId; this.x = x; this.y = y; this.vx = vx; this.vy = vy; this.damage = damage; this.element = element; this.homing = options.homing; this.splashRadius = options.splashRadius; const styles = { arcane_bolt: [5, 1.35, 0x6ff7ff], arrow: [3, 1.8, 0xf2c14e], shadow_blade: [4, .55, 0x7de38a], fire_orb: [7, 1.2, 0xff884a], meteor: [9, .5, 0xf2c14e], lava_wave: [24, .6, 0xff526b] } as const; const style = styles[element]; this.radius = style[0]; this.lifetime = style[1]; this.color = style[2]; }
+  public update(dt: number, enemies: Enemy[] = []): boolean { if (this.homing) { const target = enemies.filter(enemy => enemy.hp > 0).sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y))[0]; if (target) { const speed = Math.hypot(this.vx, this.vy); const angle = Math.atan2(target.y - this.y, target.x - this.x); this.vx += Math.cos(angle) * speed * 3 * dt; this.vy += Math.sin(angle) * speed * 3 * dt; const actual = Math.hypot(this.vx, this.vy); this.vx = this.vx / actual * speed; this.vy = this.vy / actual * speed; } } this.x += this.vx * dt; this.y += this.vy * dt; this.lifetime -= dt; return this.lifetime > 0; }
+  public render(g: Graphics): void { const x = Math.round(this.x); const y = Math.round(this.y); g.circle(x, y, this.radius + 3).fill({ color: this.color, alpha: .16 }); if (this.element === 'arrow') { const a = Math.atan2(this.vy, this.vx); g.rect(x - 5, y - 1, 10, 2).fill({ color: this.color }); g.poly([x + Math.cos(a) * 7, y + Math.sin(a) * 7, x + Math.cos(a + 2.4) * 4, y + Math.sin(a + 2.4) * 4, x + Math.cos(a - 2.4) * 4, y + Math.sin(a - 2.4) * 4]).fill({ color: 0xeaf6ff }); } else if (this.element === 'shadow_blade') { g.rect(x - 5, y - 2, 10, 4).fill({ color: this.color }); g.rect(x - 2, y - 4, 4, 8).fill({ color: 0xeaf6ff }); } else { g.circle(x, y, this.radius).fill({ color: this.color }); g.circle(x, y, Math.max(2, this.radius * .42)).fill({ color: 0xfff5d1 }); } }
 }

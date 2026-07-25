@@ -39,3 +39,46 @@ Render the cyan Soul Vessel meter in Side HUD, align Boss Health Bar at top-cent
 - [ ] Side HUD displays Mask HP, Geo count, and cyan Soul Vessel meter for all active players.
 - [ ] Parallax Cavern backdrop scrolls smoothly without polygon stretching or flickering.
 - [ ] `npm run build` passes with zero errors.
+
+## Follow-up — 2026-07-25T02:53:25Z
+
+Transform "HOLLOW CLASH: SHADOW METROIDVANIA" into a deep single-player dark Metroidvania experience inspired by Hollow Knight, featuring grotesque mutant enemy art, dark subterranean aesthetics, sleek gothic UI, and insane game mechanics (soul spells, pogo bouncing, charm perks, crystal dash).
+
+Working directory: /home/viv/Projects/PartyPlay/src/games/hollow-clash
+Integrity mode: development
+
+## Requirements
+
+### R1. Grotesque Dark Subterranean Visual Identity & Character Art
+Redraw the player vessel, enemies, and boss to feature dark, grotesque, mutant insectoid aesthetics (asymmetrical cracked skull masks, dripping bio-sludge, jagged thorn appendages, monstrous twitching mandibles) paired with a sleek gothic dark UI and Soul Vessel gauge.
+
+### R2. Advanced Metroidvania Mechanics System
+Implement advanced combat and movement mechanics:
+- **Soul Spells**: Vengeful Spirit (horizontal soul wave), Abyssal Shriek (upward blast), Desolate Dive (downward ground slam with shockwave).
+- **Insane Combat & Movement**: Airborne pogo bouncing on enemies & spikes, Crystal Super Dash (horizontal rocket boost across long caverns), Moss Wall Clinging & Wall Sliding, Shadow Dash invulnerability.
+- **Charm & Perk System**: Equippable charms (e.g. Quick Slash, Longnail, Spore Shroom, Lifeblood Heart).
+
+### R3. Grotesque Mutant Enemies & Multi-Phase Boss Encounter
+Implement diverse grotesque enemies (Mutant Spore Husks, Jagged Thorn Crawlers, Acid Spitters) and a multi-phase Boss fight with enraged spore explosions, vine shockwaves, and summon minion waves.
+
+### R4. Deep Level Exploration & Modern Gothic UI
+Expand cavern map depth with secret rooms, hazard spike pits, crumbling platforms, health/soul upgrades, and a sleek top-left gothic HUD.
+
+## Acceptance Criteria
+
+### Visuals & Grotesque Aesthetics
+- [ ] Player vessel renders with an asymmetrical cracked horned mask, dark tattered cloak, and glowing crimson/cyan eyes.
+- [ ] Enemies feature grotesque pixel art (dripping sludge, twitching appendages, jagged mandibles) and emit dark slime/sludge particle effects when struck.
+- [ ] Top-left HUD displays a sleek gothic Soul Vessel gauge, cracked Mask HP containers, and Geo counter.
+
+### Mechanics & Combat
+- [ ] Player can execute 3 distinct Soul Spells (Vengeful Spirit, Abyssal Shriek, Desolate Dive).
+- [ ] Crystal Super Dash allows charging up and rocketing across long caverns.
+- [ ] Downward slashes on enemies or spikes trigger pogo bounces and reset jump/dash abilities.
+- [ ] Equippable Charm system applies functional gameplay buffs.
+
+### Boss & Level Design
+- [ ] Multi-phase boss encounter features distinct phase transitions (enraged aura, acid spore bursts, shockwaves).
+- [ ] Cavern map features hazardous spike pits, breakable walls, and hidden upgrade chambers.
+- [ ] `npm run build` compiles cleanly with zero errors.
+

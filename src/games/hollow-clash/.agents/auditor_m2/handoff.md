@@ -1,102 +1,101 @@
-# Forensic Audit Report: Milestone 2 (Requirement R2 Physics Unification & Hazard Mechanics)
-
-**Work Product**: `/home/viv/Projects/PartyPlay/src/games/hollow-clash`  
-**Working Directory**: `/home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/auditor_m2`  
-**Profile**: General Project  
-**Verdict**: **CLEAN**  
-
----
-
-## Forensic Audit Summary Table
-
-| Phase / Check | Result | Details |
-|---|---|---|
-| **Phase 1: Hardcoded Output Detection** | **PASS** | No hardcoded return values, string literals, or pre-computed test constants in physics or entity files. |
-| **Phase 1: Facade Detection** | **PASS** | `PlatformPhysics.ts` and `Knight.ts` contain fully functional AABB collision and physics resolution routines. |
-| **Phase 1: Pre-populated Artifact Detection** | **PASS** | Zero pre-populated log files, result artifacts, or pre-calculated test reports found in workspace. |
-| **Phase 1: Self-Certifying Test Check** | **PASS** | `HollowClash.test.ts` exercises real physics updates and state transitions using dynamic input parameters. |
-| **Phase 2: Physics Collision Resolution** | **PASS** | Top-left AABB coordinate system uniformly handles movement, velocity, and boundary snapping. |
-| **Phase 2: Moss Wall Sliding Mechanics** | **PASS** | Moss tile restriction (`tile.type === 'moss'`) and 1.0px flush tolerance maintain continuous sliding without frame drops. Wall jump preserves double jump. |
-| **Phase 2: Spike Hazard & Safe Respawn** | **PASS** | Grounded solid tile updates `lastSafeGroundPosition`. Spike collision triggers `takeDamage(1)`, safe position respawn, and 1.5s invulnerability flash. |
-| **Phase 2: Shadow Dash Wall Collision** | **PASS** | Horizontal AABB checks run during Shadow Dash, zeroing `vx` and stopping knight at wall faces (`x <= 164` against pillar at x=180) without noclipping. |
-| **Phase 2: Build & Unit Test Verification** | **PASS** | `npm run build` succeeded (exit code 0); `npm run test` passed all 13 tests (exit code 0). |
-
----
+# Handoff Report — Forensic Integrity Audit (Milestone 2)
 
 ## 1. Observation
 
-Direct empirical evidence gathered during forensic inspection:
+A comprehensive empirical forensic integrity audit was conducted on the Milestone 2 work product for **HOLLOW CLASH: SHADOW METROIDVANIA** located at `/home/viv/Projects/PartyPlay/src/games/hollow-clash`.
 
-### Command Executions & Results
-```bash
-cd /home/viv/Projects/PartyPlay/src/games/hollow-clash && npm run build && npm run test
-```
-- **Build Output**: `vite v8.1.5 building client environment for production... built in 268ms` (Exit code 0, 0 TypeScript compilation errors).
-- **Test Output**: `✓ src/games/hollow-clash/HollowClash.test.ts (13 tests) 15ms` (Exit code 0, 13/13 tests passed).
+### Ground Truth & Configuration
+- **Original Request Path**: `/home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/ORIGINAL_REQUEST.md`
+- **Integrity Mode**: `development`
+- **Audit Target**: `src/games/hollow-clash/entities/Knight.ts`, `systems/PlatformPhysics.ts`, `entities/SoulSpell.ts`, `entities/SporeCloud.ts`, `systems/SideHUDManager.ts`, and test files.
 
-### Source Code Inspection
+### Empirical Evidence Recorded
 
-1. **`systems/PlatformPhysics.ts`**:
-   - Lines 38–51: Horizontal movement applies `knight.x += dx` and resolves AABB collisions with all solid tiles via `checkHorizontalAABB(...)`. If moving right (`dx > 0`), knight position snaps to `tile.x - knightWidth`; if moving left (`dx < 0`), snaps to `tile.x + tile.width`. Velocity `vx` is zeroed.
-   - Lines 54–80: Vertical movement applies `knight.y += dy` and resolves ceiling (`dy < 0`) and floor landing (`dy >= 0`) collisions via AABB checks.
-   - Lines 64–68 & 83–87: When grounded on non-spike solid tiles, `lastSafeGroundPosition` is updated with `{ x: knight.x, y: knight.y }`.
-   - Lines 90–116: Moss wall sliding checks `tile.type === 'moss'` and validates flush alignment using `Math.abs(knight.x + knightWidth - tile.x) <= 1.0` (right wall) or `Math.abs(knight.x - (tile.x + tile.width)) <= 1.0` (left wall).
-   - Lines 119–142: Spike collision checks AABB overlap with `tile.type === 'spikes'`, calls `knightObj.takeDamage(1)` (or decrements `hp`), respawns knight at `lastSafeGroundPosition`, zeroes velocity (`vx=0, vy=0`), and updates container position.
+1. **Source Code & Implementation Verification**:
+   - `entities/Knight.ts`: Implements `castSpell()`, `focusHeal()`, `updateFocusHeal()`, `startChargingSuperDash()`, `triggerCrystalDash()`, `cancelSuperDash()`, `resetAirAbilities()`, and `performAttack()`.
+   - `entities/SoulSpell.ts`: Full physics and rendering for `vengeful_spirit`, `abyssal_shriek`, `desolate_dive`, `dive_shockwave`, `spore_cloud`, `focus_heal`. Handles circle/AABB hit detection against enemies, lifetime updates, and damage application.
+   - `entities/SporeCloud.ts`: Real area damage cloud with 40px radius, 0.3s tick interval, 4 damage/tick, 2.5s duration.
+   - `systems/PlatformPhysics.ts`: Real AABB collisions, Moss wall cling/slide detection (`isWallSliding`), spike pit hazard damage/respawn (`lastSafeGroundPosition`), Desolate Dive ground impact (`onDiveImpact()`), and Crystal Dash wall collision cancellation.
+   - **Prohibited Patterns Check**: No hardcoded test return strings, no facade methods returning fixed constants, no pre-populated result logs or artifacts. All core mechanics use authentic dynamic calculations.
 
-2. **`entities/Knight.ts`**:
-   - Lines 103–114: Shadow Dash sets `isShadowDashing = true`, sets `vx` to `SHADOW_DASH_SPEED` in facing direction, freezes `vy = 0`, and activates invulnerability. Does NOT skip physics update call.
-   - Lines 133–139: Wall jump resets `vy = JUMP_VELOCITY`, reverses horizontal facing and velocity (`vx`), cancels `isWallSliding = false`, and restores `canDoubleJump = true`.
-   - Line 161: Delegates physics updating every frame to `this.physics.update(this, platforms, dt)`.
+2. **Automated Verification Execution**:
+   - **Command**: `npx vitest run src/games/hollow-clash`
+   - **Result**: 7 of 9 test files passed (155 of 160 tests passed, 5 tests failed).
+     - `src/games/hollow-clash/HollowClash.test.ts` (31 passed)
+     - `src/games/hollow-clash/HollowClashM1Challenger.test.ts` (14 passed)
+     - `src/games/hollow-clash/HollowClashM1Challenger2.test.ts` (13 passed)
+     - `src/games/hollow-clash/HollowClashM2Challenger.test.ts` (16 passed)
+     - `src/games/hollow-clash/HollowClashM3Challenger.test.ts` (19 passed)
+     - `src/games/hollow-clash/HollowClashM4Challenger.test.ts` (12 passed)
+     - `src/games/hollow-clash/HollowClashM5Challenger.test.ts` (21 passed)
+     - ❌ `src/games/hollow-clash/HollowClashM2Challenger2.test.ts` (4 failed, 11 passed)
+     - ❌ `src/games/hollow-clash/HollowClashM2Stress.test.ts` (1 failed, 15 passed)
 
-3. **`HollowClash.test.ts`**:
-   - Lines 190–275: Contains test suites for Requirement R2:
-     - `R2b`: Verifies moss wall sliding on moss tiles, tests multi-frame stability, wall jump velocity and double jump preservation, and confirms stone walls do not trigger wall sliding.
-     - `R2c`: Establishes grounded safe position, triggers spike collision, asserts HP reduction by 1, invulnerability activation, and safe position respawn.
-     - `R2d`: Dashes toward solid pillar at x=180, verifies knight is stopped at `x <= 164` without wall penetration.
+   - **Build Command**: `npm run build`
+   - **Result**: Success (Exit code 0, 820 modules transformed in 208ms).
+
+3. **Failed Test Breakdown**:
+   - `HollowClashM2Stress.test.ts`:
+     - `100 consecutive pogo bounces on Boss enemy reset double jump, shadow dash, crystal dash, and dash cooldown every time`: `AssertionError: expected 70 to be -350`. (Cause: Boss HP is 600, `NAIL_DAMAGE` is 25. After 24 hits/bounces, Boss HP reaches 0 and dies, causing subsequent downward strikes to miss dead boss and fail pogo bounce).
+   - `HollowClashM2Challenger2.test.ts`:
+     - `Full jump reaches theoretical apex height (~73.5px) in ~0.35s`: `AssertionError: expected 18 to be greater than 70`.
+     - `Variable jump release cuts upward velocity by 50% and reduces jump height`: `AssertionError: expected 0 to be less than 0`.
+     - `Multi-pogo bounce chain enables continuous airborne navigation over 3 spike pits`: `AssertionError: expected 4 to be 5`.
+     - `Pogo bounce -> Shadow Dash -> Double Jump combo execution`: `AssertionError: expected +0 to be 380`. (Cause: On initial frame when `dashJustPressed` is passed, `vx` update section executes before input processing sets `isShadowDashing = true`, causing 1-frame velocity delay).
 
 ---
 
 ## 2. Logic Chain
 
-1. **Absence of Fraudulent Shortcuts**:
-   - All physics calculations in `PlatformPhysics.ts` use dynamic variable inputs (`dt`, `vx`, `vy`, entity AABB coordinates, tile bounding boxes). No constant dummy returns or short-circuited conditionals were detected.
-2. **Physics Unification & Alignment**:
-   - Movement, gravity, AABB collision, and wall interaction are centralized in `PlatformPhysics.ts`. Both `Knight` entity instances and pure `KnightState` data structures process physics via identical math equations.
-3. **Moss Wall Sliding & Wall Jump**:
-   - Adding a 1.0px flush tolerance in `PlatformPhysics.ts` resolves floating-point position boundary discrepancies when flush against moss tiles, preventing the wall-slide flag from flickering off on subsequent frames.
-   - Wall jumping correctly sets upward velocity `vy`, launches away from the wall, and restores `canDoubleJump = true` so players retain their airborne jump.
-4. **Spike Hazard Handling & Recovery**:
-   - Grounded checks update `lastSafeGroundPosition` only on safe non-spike tiles.
-   - Spike AABB overlap detection deals 1 damage via `takeDamage(1)`, triggers 1.5s invulnerability flash, and teleports the knight back to `lastSafeGroundPosition` with zeroed velocity.
-5. **Shadow Dash Wall Collision**:
-   - Retaining horizontal AABB collision resolution during Shadow Dash ensures the knight cannot clip through solid tiles, correctly stopping horizontal velocity while preserving dash invulnerability.
+1. **Phase 1 Forensic Code Check**:
+   - Inspected `Knight.ts`, `PlatformPhysics.ts`, `SoulSpell.ts`, `SporeCloud.ts`, and `SideHUDManager.ts`.
+   - All 3 Soul Spells (Vengeful Spirit, Abyssal Shriek, Desolate Dive + shockwave), Focus Heal, Crystal Super Dash (charge + rocket `vx = ±600`), Pogo reset (`resetAirAbilities`), and Charms (Quick Slash, Longnail, Spore Shroom, Lifeblood Heart) have authentic, non-facade implementations.
+   - No cheating, hardcoded responses, or artificial test bypasses were found in the source code.
+
+2. **Phase 2 Behavioral & Suite Execution Check**:
+   - Ran `npx vitest run src/games/hollow-clash`.
+   - While the base suite `HollowClashM2Challenger.test.ts` passed 100% (16/16), the complete test suite execution resulted in 5 test failures across 2 test files (`HollowClashM2Challenger2.test.ts` and `HollowClashM2Stress.test.ts`).
+   - Under Forensic Audit Rule: "Run `npx vitest run src/games/hollow-clash` to verify authentic test passing. Block on failure: If ANY check fails, the verdict is INTEGRITY VIOLATION and the work product must be rejected."
+   - Because Check 3 fails to achieve 100% test pass rate across the full test suite, the work product cannot be certified as CLEAN.
 
 ---
 
 ## 3. Caveats
 
-- **No Caveats**: All Milestone 2 requirements (R2a, R2b, R2c, R2d) have been thoroughly audited, empirically verified, and proven clean of any integrity violations.
+No caveats. The source code was thoroughly inspected, and all test commands were executed directly on the project codebase.
 
 ---
 
-## 4. Conclusion
+## 4. Forensic Audit Verdict
 
-**Verdict: CLEAN**
+**Work Product**: `/home/viv/Projects/PartyPlay/src/games/hollow-clash`
+**Profile**: General Project
+**Integrity Mode**: `development`
+**Verdict**: **INTEGRITY VIOLATION**
 
-The implementation of Requirement R2 in `/home/viv/Projects/PartyPlay/src/games/hollow-clash` fully adheres to software integrity and domain requirements. No hardcoded test results, facade implementations, mock assertions, or prohibited shortcuts exist. Physics collision, moss wall sliding, hazard respawning, and shadow dash bounds checking function authentically and correctly.
+### Phase Results
+- **Hardcoded Test Results Check**: PASS — No hardcoded test returns or expected value shortcuts found.
+- **Facade Implementation Check**: PASS — Genuine implementations for all spells, movement mechanics, physics, and charms.
+- **Pre-populated Artifact Check**: PASS — No pre-populated logs or test artifacts present.
+- **Build Verification**: PASS — `npm run build` compiled cleanly in 208ms with 0 errors.
+- **Automated Test Suite Execution**: FAIL — `npx vitest run src/games/hollow-clash` had 5 test failures out of 160 tests (155 passed, 5 failed).
 
 ---
 
 ## 5. Verification Method
 
-To independently verify this audit:
-1. Run build and tests:
+To independently reproduce and verify this audit verdict:
+
+1. **Run Vitest Test Suite**:
    ```bash
-   cd /home/viv/Projects/PartyPlay/src/games/hollow-clash && npm run build && npm run test
+   cd /home/viv/Projects/PartyPlay
+   npx vitest run src/games/hollow-clash
    ```
-2. Inspect source code files for structural integrity:
-   - `/home/viv/Projects/PartyPlay/src/games/hollow-clash/systems/PlatformPhysics.ts`
-   - `/home/viv/Projects/PartyPlay/src/games/hollow-clash/entities/Knight.ts`
-   - `/home/viv/Projects/PartyPlay/src/games/hollow-clash/types.ts`
-   - `/home/viv/Projects/PartyPlay/src/games/hollow-clash/HollowClash.test.ts`
-3. Invalidation conditions: Any addition of hardcoded result constants, short-circuited boolean flags, or failure of `npm run test` or `npm run build`.
+   Observe 2 test files failing (`HollowClashM2Challenger2.test.ts` and `HollowClashM2Stress.test.ts`), with 5 total failed tests.
+
+2. **Run Build Verification**:
+   ```bash
+   cd /home/viv/Projects/PartyPlay
+   npm run build
+   ```
+   Confirm clean compilation.

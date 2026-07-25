@@ -9,9 +9,10 @@ export const GameResults: React.FC = () => {
   if (!lastResults) return null;
 
   const isTeamLoss = lastResults.isTeamLoss || lastResults.winnerId === 0;
+  const isTeamVictory = lastResults.isTeamVictory === true;
   const winner = players.find((p) => p.id === lastResults.winnerId) ?? players[0];
 
-  const teamScore = lastResults.standings[0]?.score ?? 0;
+  const teamScore = lastResults.standings.reduce((total, item) => total + item.score, 0);
 
   return (
     <div className="screen-transition" style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -20,17 +21,17 @@ export const GameResults: React.FC = () => {
       <div style={{ textAlign: 'center', marginBottom: '40px', zIndex: 10 }}>
         <div style={{ fontSize: '4rem', marginBottom: '12px' }}>{isTeamLoss ? '💀' : '🏆'}</div>
         <h1 style={{ fontSize: '2.6rem', color: isTeamLoss ? 'var(--pixel-red)' : winner.color, textShadow: '2px 2px 0 var(--pixel-text)' }}>
-          {isTeamLoss ? 'GAME OVER — TEAM LOST!' : `${winner.name.toUpperCase()} WINS!`}
+          {isTeamLoss ? 'GAME OVER — TEAM LOST!' : isTeamVictory ? 'TEAM VICTORY!' : `${winner.name.toUpperCase()} WINS!`}
         </h1>
         <p className="blink-text" style={{ color: 'var(--pixel-muted)', fontSize: '1.2rem', fontFamily: 'var(--font-pixel-heading)', marginTop: '14px' }}>
-          {isTeamLoss ? 'CO-OP SURVIVAL RECORD' : 'MATCH OVER'}
+          {isTeamLoss ? 'CO-OP SURVIVAL RECORD' : isTeamVictory ? `${winner.name.toUpperCase()} IS THE MVP` : 'MATCH OVER'}
         </p>
       </div>
 
       {/* Standings / Team Score Panel */}
       <div className="pixel-panel" style={{ width: '420px', marginBottom: '36px', zIndex: 10 }}>
         <h3 style={{ fontSize: '1.2rem', color: 'var(--pixel-yellow)', marginBottom: '20px', textAlign: 'center' }}>
-          {isTeamLoss ? 'FINAL TEAM SCORE' : 'FINAL STANDINGS'}
+          {isTeamLoss ? 'FINAL TEAM SCORE' : isTeamVictory ? 'TEAM CONTRIBUTIONS' : 'FINAL STANDINGS'}
         </h3>
 
         {isTeamLoss ? (

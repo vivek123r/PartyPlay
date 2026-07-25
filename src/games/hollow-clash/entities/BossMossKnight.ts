@@ -21,8 +21,9 @@ export class BossMossKnight implements BossState {
   public phase = 1;
   public isEnraged = false;
 
-  public state: 'idle' | 'cleaving' | 'guarding' | 'spore_explosion' | 'vine_slam' | 'leap' = 'idle';
+  public state: 'idle' | 'cleaving' | 'guarding' | 'spore_explosion' | 'vine_slam' | 'leap' | 'summon_swarm' = 'idle';
   public timer = 0;
+  public animTimer = 0;
   public facing: 'left' | 'right' = 'left';
 
   public isStunned = false;
@@ -36,16 +37,22 @@ export class BossMossKnight implements BossState {
     this.y = y;
   }
 
-  public update(dt: number, knights: Knight[]): { triggerVineShockwave?: boolean; shockwaves?: ShockwaveData[] } {
-    const result: { triggerVineShockwave?: boolean; shockwaves?: ShockwaveData[] } = {};
+  public update(dt: number, knights: Knight[]): { triggerVineShockwave?: boolean; shockwaves?: ShockwaveData[]; spawnMinions?: boolean } {
+    const result: { triggerVineShockwave?: boolean; shockwaves?: ShockwaveData[]; spawnMinions?: boolean } = {};
+
+    this.animTimer += dt;
 
     // Hit flash timer
     if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt;
 
-    // Phase 2 transition check at 50% HP threshold
+    // Phase 2 transition at 50% HP
     if (this.hp <= this.maxHp * 0.5 && this.phase === 1) {
       this.phase = 2;
       this.isEnraged = true;
+    }
+    // Phase 3 transition at 25% HP — death throes!
+    if (this.hp <= this.maxHp * 0.25 && this.phase === 2) {
+      this.phase = 3;
     }
 
     const activeKnights = knights.filter((k) => k.state.hp > 0);
@@ -69,12 +76,19 @@ export class BossMossKnight implements BossState {
           else if (rand < 0.65) this.state = 'leap';
           else if (rand < 0.85) this.state = 'vine_slam';
           else this.state = 'guarding';
-        } else {
+        } else if (this.phase === 2) {
           // Phase 2 (Enraged): Melee slash, leap strike, double vine shockwave, spore explosion
           if (rand < 0.35) this.state = 'cleaving';
           else if (rand < 0.65) this.state = 'leap';
           else if (rand < 0.85) this.state = 'vine_slam';
           else this.state = 'spore_explosion';
+        } else {
+          // Phase 3 (Death Throes): Ultra-aggressive — summon swarm, double spore, spam leaps
+          if (rand < 0.25) this.state = 'cleaving';
+          else if (rand < 0.50) this.state = 'leap';
+          else if (rand < 0.70) this.state = 'vine_slam';
+          else if (rand < 0.85) this.state = 'spore_explosion';
+          else this.state = 'summon_swarm';
         }
       }
     } else if (this.state === 'cleaving') {
@@ -113,6 +127,12 @@ export class BossMossKnight implements BossState {
       if (this.timer >= 1.0) {
         this.state = 'idle';
         this.timer = 0;
+      }
+    } else if (this.state === 'summon_swarm') {
+      if (this.timer >= 1.2) {
+        this.state = 'idle';
+        this.timer = 0;
+        result.spawnMinions = true;
       }
     } else if (this.state === 'vine_slam') {
       if (this.timer >= 0.9) {
@@ -179,16 +199,19 @@ export class BossMossKnight implements BossState {
     }
 
     // Update Enraged Visual Particles
+    // Update Enraged Visual Particles
     if (this.isEnraged) {
-      if (Math.random() < 0.4) {
+      if (Math.random() < 0.5) {
+        const auraColors = [0x4c1d95, 0x15803d, 0x0f172a, 0xe67e22];
+        const color = auraColors[Math.floor(Math.random() * auraColors.length)];
         this.auraParticles.push({
-          x: this.x + (Math.random() - 0.5) * 30,
-          y: this.y - Math.random() * 40,
-          vx: (Math.random() - 0.5) * 20,
+          x: this.x + (Math.random() - 0.5) * 32,
+          y: this.y - Math.random() * 45,
+          vx: (Math.random() - 0.5) * 30,
           vy: -30 - Math.random() * 30,
           life: 0.5,
           maxLife: 0.5,
-          color: 0xe67e22,
+          color,
         });
       }
     }
@@ -214,6 +237,9 @@ export class BossMossKnight implements BossState {
       this.phase = 2;
       this.isEnraged = true;
     }
+    if (this.hp <= this.maxHp * 0.25 && this.phase === 2) {
+      this.phase = 3;
+    }
   }
 
   public render(g: Graphics): void {
@@ -221,7 +247,7 @@ export class BossMossKnight implements BossState {
     const y = Math.round(this.y);
     const faceDir = this.facing === 'right' ? 1 : -1;
 
-    // Enraged Aura Particles
+    // Enraged Purple/Green Slime Aura Particles
     for (const p of this.auraParticles) {
       g.circle(p.x, p.y, 3).fill({ color: p.color, alpha: p.life / p.maxLife });
     }
@@ -235,13 +261,28 @@ export class BossMossKnight implements BossState {
       return;
     }
 
-    // Mossy Cloak & Giant Armor Body
-    const armorColor = this.phase === 1 ? 0x27ae60 : 0xe67e22;
-    g.rect(x - 14, y - 32, 28, 32).fill({ color: armorColor });
-    g.rect(x - 16, y - 30, 32, 8).fill({ color: 0x1e272e }); // Shoulder Guards
+    // Multi-layered chitin armor & body
+    const baseArmorColor = this.phase === 1 ? 0x14532d : 0x4c1d95; // Deep forest chitin or abyssal purple
+    const plateColor = this.phase === 1 ? 0x15803d : 0x6b21a8;
 
-    // Horned Helmet
-    g.rect(x - 10, y - 44, 20, 14).fill({ color: 0x2c3e50 });
+    // Chitin Body & Rib Armor Plates
+    g.rect(x - 14, y - 32, 28, 32).fill({ color: baseArmorColor });
+    g.poly([x - 14, y - 28, x + 14, y - 28, x + 10, y - 16, x - 10, y - 16]).fill({ color: plateColor });
+    g.poly([x - 12, y - 16, x + 12, y - 16, x + 8, y - 4, x - 8, y - 4]).fill({ color: baseArmorColor });
+    g.rect(x - 17, y - 32, 34, 9).fill({ color: 0x0f172a }); // Dark Abyssal Shoulder Guards
+
+    // Fungal Spores & Bio-Pustules on Armor
+    g.circle(x - 8, y - 26, 4).fill({ color: 0xa855f7 }); // Purple spore cap
+    g.circle(x + 6, y - 24, 3.5).fill({ color: 0x22c55e }); // Bio-green spore cap
+    g.circle(x - 3, y - 12, 3).fill({ color: 0x15803d });
+
+    // Bio-Sludge Tentacles (twitching underneath cloak)
+    const tentacleSwing = Math.sin(this.animTimer * 8) * 4;
+    g.poly([x - 12, y - 6, x - 18 + tentacleSwing, y + 2, x - 9, y + 2]).fill({ color: 0x15803d });
+    g.poly([x + 12, y - 6, x + 18 - tentacleSwing, y + 2, x + 9, y + 2]).fill({ color: 0x15803d });
+
+    // Horned Helmet with Chitin Spikes
+    g.rect(x - 10, y - 44, 20, 14).fill({ color: 0x0f172a });
     g.poly([x - 10, y - 44, x - 18, y - 56, x - 6, y - 44]).fill({ color: 0xf1c40f });
     g.poly([x + 10, y - 44, x + 18, y - 56, x + 6, y - 44]).fill({ color: 0xf1c40f });
 
@@ -272,6 +313,21 @@ export class BossMossKnight implements BossState {
     if (this.state === 'spore_explosion') {
       g.circle(x, y - 16, 40).fill({ color: 0xe74c3c, alpha: 0.5 });
       g.circle(x, y - 16, 40).stroke({ color: 0xff4757, width: 2 });
+    }
+    // Phase 3 death throes: cracked armor bleeding sludge
+    if (this.phase === 3) {
+      // Cracked chitin overlay
+      g.poly([x - 10, y - 32, x - 2, y - 20, x + 6, y - 28]).stroke({ color: 0xe74c3c, width: 1 });
+      g.poly([x + 4, y - 30, x - 3, y - 16]).stroke({ color: 0xff0055, width: 1 });
+      // Bleeding sludge drips from cracks
+      g.ellipse(x - 5, y - 15 + Math.sin(this.animTimer * 6) * 2, 2, 4).fill({ color: 0xe74c3c, alpha: 0.8 });
+      g.ellipse(x + 7, y - 25 + Math.sin(this.animTimer * 5 + 1) * 2, 1.5, 3).fill({ color: 0xff0055, alpha: 0.8 });
+      // Summon swarm telegraph flash
+      if (this.state === 'summon_swarm') {
+        const flashAlpha = Math.min(1, this.timer / 1.2);
+        g.circle(x, y - 24, 30 + flashAlpha * 20).fill({ color: 0x9333ea, alpha: 0.5 * flashAlpha });
+        g.circle(x, y - 24, 20 + flashAlpha * 10).fill({ color: 0xffffff, alpha: 0.3 * flashAlpha });
+      }
     }
   }
 }

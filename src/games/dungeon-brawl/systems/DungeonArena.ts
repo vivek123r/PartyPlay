@@ -1,93 +1,21 @@
 import { Graphics } from 'pixi.js';
-import type { TrapEntity } from '../types';
+import type { RoomTheme, TrapEntity } from '../types';
 import { ARENA_CONFIG } from '../config';
 
+const PALETTES: Record<RoomTheme, { floorA: number; floorB: number; wall: number; trim: number; glow: number }> = {
+  chains: { floorA: 0x1a1630, floorB: 0x231d3a, wall: 0x100d20, trim: 0x6ff7ff, glow: 0x7558aa }, crypt: { floorA: 0x18202e, floorB: 0x202b39, wall: 0x0d121c, trim: 0x7de38a, glow: 0x4c8a76 }, ember: { floorA: 0x2b1927, floorB: 0x382033, wall: 0x160c17, trim: 0xff884a, glow: 0xba4a4f }, court: { floorA: 0x29152b, floorB: 0x341d38, wall: 0x140a1a, trim: 0xe05263, glow: 0x9a3c75 }, throne: { floorA: 0x21152a, floorB: 0x2e1b34, wall: 0x100913, trim: 0xf2c14e, glow: 0xc04b5e },
+};
+
 export class DungeonArena {
-  public traps: TrapEntity[] = [];
-  private animTimer = 0;
-
-  constructor() {
-    this.initTraps();
-  }
-
-  private initTraps(): void {
-    // 4 Corner Spike Pits
-    this.traps.push(
-      { id: 'spike-1', type: 'spikes', x: 60, y: 50, w: 24, h: 24, isActive: false, timer: 0, damage: 15 },
-      { id: 'spike-2', type: 'spikes', x: ARENA_CONFIG.width - 84, y: 50, w: 24, h: 24, isActive: false, timer: 1.0, damage: 15 },
-      { id: 'spike-3', type: 'spikes', x: 60, y: ARENA_CONFIG.height - 74, w: 24, h: 24, isActive: false, timer: 2.0, damage: 15 },
-      { id: 'spike-4', type: 'spikes', x: ARENA_CONFIG.width - 84, y: ARENA_CONFIG.height - 74, w: 24, h: 24, isActive: false, timer: 3.0, damage: 15 }
-    );
-
-    // 2 Center Fire Braziers
-    this.traps.push(
-      { id: 'brazier-1', type: 'fire_brazier', x: ARENA_CONFIG.width / 2 - 50, y: ARENA_CONFIG.height / 2, w: 16, h: 16, isActive: true, timer: 0, damage: 20 },
-      { id: 'brazier-2', type: 'fire_brazier', x: ARENA_CONFIG.width / 2 + 50, y: ARENA_CONFIG.height / 2, w: 16, h: 16, isActive: true, timer: 0, damage: 20 }
-    );
-  }
-
-  public update(dt: number): void {
-    this.animTimer += dt;
-
-    // Update Trap Timers
-    for (const trap of this.traps) {
-      if (trap.type === 'spikes') {
-        trap.timer += dt;
-        if (trap.timer >= 4.0) trap.timer = 0;
-        // Spikes pop up between 3.0s and 4.0s
-        trap.isActive = trap.timer > 3.0;
-      }
+  public traps: TrapEntity[] = []; public theme: RoomTheme = 'chains'; public clock = 0;
+  public setTheme(theme: RoomTheme): void { this.theme = theme; this.traps = []; if (theme !== 'chains') this.traps.push({ id: `${theme}-spikes-left`, type: 'spikes', x: 62, y: 80, w: 42, h: 18, isActive: false, timer: 0, damage: 16 }, { id: `${theme}-spikes-right`, type: 'spikes', x: 376, y: 164, w: 42, h: 18, isActive: false, timer: 1.6, damage: 16 }); if (theme === 'ember' || theme === 'court' || theme === 'throne') this.traps.push({ id: `${theme}-vent`, type: 'fire_vent', x: 240, y: 145, w: 38, h: 26, isActive: false, timer: .7, damage: 19 }, { id: `${theme}-brazier`, type: 'fire_brazier', x: 87, y: 181, w: 18, h: 18, isActive: true, timer: 0, damage: 12 }); }
+  public update(dt: number): void { this.clock += dt; for (const trap of this.traps) { if (trap.type === 'fire_brazier') continue; trap.timer = (trap.timer + dt) % (trap.type === 'spikes' ? 3.4 : 3.8); trap.isActive = trap.type === 'spikes' ? trap.timer > 2.55 : trap.timer > 2.75; } }
+  public hurtAt(x: number, y: number): number { for (const trap of this.traps) { const inside = x >= trap.x - trap.w / 2 && x <= trap.x + trap.w / 2 && y >= trap.y - trap.h / 2 && y <= trap.y + trap.h / 2; if (inside && trap.isActive) return trap.damage; } return 0; }
+  public render(g: Graphics): void { const { width: w, height: h, boundsPadding: p } = ARENA_CONFIG; const palette = PALETTES[this.theme]; g.rect(0, 0, w, h).fill({ color: palette.wall }); g.rect(p, p, w - p * 2, h - p * 2).fill({ color: palette.floorA }); for (let x = p; x < w - p; x += 16) for (let y = p; y < h - p; y += 16) { const alt = (x / 16 + y / 16) % 2 === 0; g.rect(x + 1, y + 1, 14, 14).fill({ color: alt ? palette.floorB : palette.floorA }); if ((x * 13 + y * 7) % 64 === 0) g.rect(x + 5, y + 8, 5, 1).fill({ color: palette.glow, alpha: .28 }); }
+    g.rect(p - 2, p - 2, w - p * 2 + 4, h - p * 2 + 4).stroke({ color: palette.trim, width: 2, alpha: .8 }); for (const x of [33, 447]) { g.rect(x - 4, 38, 8, 190).fill({ color: palette.wall }); g.rect(x - 6, 40, 12, 8).fill({ color: palette.floorB }); }
+    for (const trap of this.traps) { if (trap.type === 'spikes') { g.rect(trap.x - trap.w / 2, trap.y - trap.h / 2, trap.w, trap.h).fill({ color: 0x241d2d }); g.rect(trap.x - trap.w / 2, trap.y - trap.h / 2, trap.w, trap.h).stroke({ color: trap.isActive ? 0xff526b : 0x5f4a6d, width: 1 }); if (trap.isActive) for (let s = trap.x - trap.w / 2 + 2; s < trap.x + trap.w / 2 - 2; s += 8) g.poly([s, trap.y + trap.h / 2 - 2, s + 3, trap.y - trap.h / 2 + 2, s + 6, trap.y + trap.h / 2 - 2]).fill({ color: 0xe7e9ef }); }
+      else if (trap.type === 'fire_brazier') { const flicker = Math.sin(this.clock * 14) * 2; g.rect(trap.x - 6, trap.y - 3, 12, 8).fill({ color: 0x4c3541 }); g.circle(trap.x, trap.y - 5, 5 + flicker).fill({ color: 0xff884a, alpha: .85 }); g.circle(trap.x, trap.y - 7, 2 + flicker * .3).fill({ color: 0xffe08a }); }
+      else { const active = trap.isActive; g.ellipse(trap.x, trap.y, trap.w / 2, trap.h / 2).fill({ color: active ? 0xff526b : 0x392032, alpha: active ? .72 : .45 }); g.ellipse(trap.x, trap.y, trap.w / 2, trap.h / 2).stroke({ color: active ? 0xffd36b : 0x7b4c63, width: 2 }); if (active) g.circle(trap.x, trap.y - 6, 9 + Math.sin(this.clock * 18) * 2).fill({ color: 0xff884a, alpha: .8 }); }
     }
-  }
-
-  public render(g: Graphics): void {
-    const w = ARENA_CONFIG.width;
-    const h = ARENA_CONFIG.height;
-    const p = ARENA_CONFIG.boundsPadding;
-
-    // 1. Dark Dungeon Background
-    g.rect(0, 0, w, h).fill({ color: 0x0f0e17 });
-
-    // 2. Stone Floor Grid
-    for (let x = p; x < w - p; x += 16) {
-      for (let y = p; y < h - p; y += 16) {
-        const alt = (Math.floor(x / 16) + Math.floor(y / 16)) % 2 === 0;
-        g.rect(x, y, 16, 16).fill({ color: alt ? 0x1e272e : 0x2f3542 });
-      }
-    }
-
-    // 3. Border Walls & Columns
-    g.rect(0, 0, w, p).fill({ color: 0x111116 });
-    g.rect(0, h - p, w, p).fill({ color: 0x111116 });
-    g.rect(0, 0, p, h).fill({ color: 0x111116 });
-    g.rect(w - p, 0, p, h).fill({ color: 0x111116 });
-
-    // Wall Trim Outline
-    g.rect(p, p, w - p * 2, h - p * 2).stroke({ color: 0x00f0ff, width: 1.5, alpha: 0.7 });
-
-    // 4. Render Interactive Traps
-    for (const trap of this.traps) {
-      if (trap.type === 'spikes') {
-        // Spike Trap Base
-        g.rect(trap.x, trap.y, trap.w, trap.h).fill({ color: 0x353b48 });
-
-        if (trap.isActive) {
-          // Sharp Metal Spikes
-          g.rect(trap.x + 3, trap.y + 3, trap.w - 6, trap.h - 6).fill({ color: 0xe74c3c });
-          for (let s = trap.x + 4; s < trap.x + trap.w - 4; s += 6) {
-            g.poly([s, trap.y + trap.h, s + 3, trap.y + 2, s + 6, trap.y + trap.h]).fill({ color: 0xecf0f1 });
-          }
-        }
-      } else if (trap.type === 'fire_brazier') {
-        // Brazier Iron Stand
-        g.rect(trap.x - 6, trap.y - 6, 12, 12).fill({ color: 0x2d3436 });
-        g.rect(trap.x - 4, trap.y - 4, 8, 8).fill({ color: 0x636e72 });
-
-        // Flickering Fire Flame Core
-        const flicker = Math.sin(this.animTimer * 12 + trap.x) * 2;
-        g.circle(trap.x, trap.y, 5 + flicker).fill({ color: 0xe67e22 });
-        g.circle(trap.x, trap.y - 2, 3 + flicker * 0.5).fill({ color: 0xf1c40f });
-      }
-    }
-  }
+    const vignette = 14; g.rect(0, 0, w, vignette).fill({ color: 0x05030a, alpha: .35 }); g.rect(0, h - vignette, w, vignette).fill({ color: 0x05030a, alpha: .35 }); }
 }

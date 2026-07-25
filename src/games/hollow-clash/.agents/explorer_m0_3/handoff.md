@@ -1,137 +1,205 @@
-# Handoff Report — Explorer 3 (Milestone 0 Audit: R3 & R4 Analysis)
-
-**Working Directory**: `/home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3`  
-**Target Milestone**: Milestone 0 — Exploration & Baseline Audit (Focus: Requirement R3 & R4 baseline audit)  
-**Date**: 2026-07-25  
-
----
+# Explorer 3 Exploration Report & Handoff — Enemies, Boss, Map & Upgrade Architecture
 
 ## 1. Observation
 
-Direct observations from codebase inspection across `/home/viv/Projects/PartyPlay/src/games/hollow-clash`:
+### Codebase Scope & Structure
+The codebase for "HOLLOW CLASH: SHADOW METROIDVANIA" at `/home/viv/Projects/PartyPlay/src/games/hollow-clash` comprises the following key files:
+- `types.ts`: Type definitions for `EnemyUnit`, `SoulSpell`, `CollectibleItem`, `KnightState`, `PlatformTile`, `BossState`.
+- `entities/Enemy.ts`: Enemy unit class, constructor stats, AI update behavior (`spore_bug`, `mantis_crawler`, `shielded_husk`), `takeDamage()` blocking logic, hit rendering.
+- `entities/BossMossKnight.ts`: Boss state machine, 600 HP, Phase 1 & Phase 2 enraged transition at 50% HP threshold, attack state machine (`idle`, `cleaving`, `guarding`, `spore_explosion`, `vine_slam`, `leap`), shockwave emission, player hitboxes, enraged aura particles.
+- `systems/CavernTilemap.ts`: Level geometry layout (width 960px), moss platforms, 2 spike pits (x=280..400, x=580..660), stone ledges, totem pillars, right boundary wall at x=944.
+- `systems/PlatformPhysics.ts`: Physics update engine for gravity, horizontal/vertical AABB collisions, moss wall sliding, and spike pit hazard damage/respawn to `lastSafeGroundPosition`.
+- `entities/Collectible.ts`: Collectible items (`geo_coin`, `soul_orb`, `mask_shard`).
+- `entities/Knight.ts`: Player knight entity, combat slashes (forward, up, down), pogo bouncing on enemies/spikes, soul gain (+11), shadow dash, visual rendering.
+- `entities/SoulSpell.ts`: Vengeful Spirit soul wave projectile and Focus Heal ring.
+- `systems/SideHUDManager.ts`: Player Side HUD with Mask HP containers, Geo count, Cyan Soul Vessel meter (0..100), and top-center Boss Health bar (600 HP, enraged indicator).
+- `systems/ParallaxCavern.ts`: 3-layer subterranean cavern parallax backdrop with positive modulo wrap math `((val % wrap) + wrap) % wrap`.
+- `index.ts`: Game module orchestrator managing loop, lounge transition, enemy updates, boss updates, collectible pickups, and victory/defeat triggers.
 
-- **Build Check Command & Output**:
-  - Executed `npx tsc --noEmit` from `/home/viv/Projects/PartyPlay`.
-  - Result: Exit code 0 (Clean TypeScript compilation).
+---
 
-- **Melee Slash AABB Hitboxes (`entities/Knight.ts`:248-257 & `index.ts`:179)**:
-  - `Knight.ts`:
-    ```ts
-    let hitEnemy = false;
-    for (const enemy of enemies) {
-      const dx = enemy.x - this.state.x;
-      const dy = enemy.y - this.state.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 40) {
-        hitEnemy = true;
-      }
-    }
-    ```
-  - `index.ts`:179:
-    ```ts
-    knight.update(dt, inputObj, this.tilemap.tiles, this.boss ? [this.boss] : []);
-    ```
-  - Observed: Radial distance check ignores `attackDirection` ('up', 'down', 'forward') and `facing`. Regular enemies (`this.enemies`) are completely omitted from `knight.update()`. `enemy.takeDamage()` is never called.
+### Detailed Direct Observations by Sub-System
 
-- **Airborne Pogo & Spike Pit Collision (`entities/Knight.ts`:259-264 & `systems/PlatformPhysics.ts`:33-36)**:
-  - `Knight.ts`:
-    ```ts
-    if (this.attackDirection === 'down' && hitEnemy) {
-      this.state.vy = PLATFORM_PHYSICS.POGO_BOUNCE_VELOCITY;
-      this.canDoubleJump = true;
-    }
-    ```
-  - `PlatformPhysics.ts`:
-    ```ts
-    for (const tile of tiles) {
-      if (!tile.isSolid) continue;
-    ```
-  - Observed: Spike tiles (`isSolid: false`) are ignored in physics updates. Players fall through spike pits into the void. Downward slash over spike pits does not pogo.
+#### Area 1: Grotesque Mutant Enemies (AI, Hit Behaviors & Visual Identity)
+1. **Types Definition** (`types.ts` line 3):
+   ```ts
+   export type EnemyUnit = 'spore_bug' | 'mantis_crawler' | 'shielded_husk' | 'boss_moss_knight';
+   ```
+2. **Current Enemy AI & Mechanics** (`entities/Enemy.ts` lines 29-88):
+   - `'spore_bug'`: maxHp=30, moveSpeed=110. Sine wave flying AI:
+     ```ts
+     this.vx = dirX * this.moveSpeed * 0.8;
+     this.vy = Math.sin(this.animTimer * 5) * 60;
+     ```
+   - `'mantis_crawler'`: maxHp=50, moveSpeed=130. Ground lunge AI (lunge speed 1.5x when `minDist < 100`, else 0.6x).
+   - `'shielded_husk'`: maxHp=70, moveSpeed=70. Slow march AI. Blocks frontal attacks in `takeDamage()` (lines 91-95):
+     ```ts
+     if (this.type === 'shielded_husk' && attackDir && attackDir !== 'down') {
+       const isFrontal = (this.facing === 'left' && attackDir === 'right') || (this.facing === 'right' && attackDir === 'left');
+       if (isFrontal) return; // Blocked!
+     }
+     ```
+3. **Enemy Death & Drop Behavior** (`index.ts` lines 207-213):
+   ```ts
+   if (enemy.hp <= 0) {
+     this.collectibles.push(new Collectible(`geo-${Date.now()}`, 'geo_coin', enemy.x, enemy.y));
+     this.enemies.splice(i, 1);
+     continue;
+   }
+   ```
+4. **Hit Particle FX** (`Knight.ts` lines 313-327): Currently spawns plain white particles `color: 0xffffff` when striking enemies.
+5. **Required Grotesque Mutant Enemies** (`ORIGINAL_REQUEST.md` lines 50-63, 69-72, 80-82):
+   - Grotesque dark subterranean aesthetics (asymmetrical cracked skull masks, dripping bio-sludge, jagged thorn appendages, twitching mandibles).
+   - 3 specific mutant types required:
+     - **Mutant Spore Husks**: Infested crawling husks that release toxic spore cloud AoE on death (`hp <= 0`).
+     - **Jagged Thorn Crawlers**: Wall/ceiling crawling insects that drop down or strike with thorn slashes.
+     - **Acid Spitters**: Stationary/hovering insectoid enemies with twitching mandibles that spit dark green acid sludge projectiles at players.
+   - Dark slime/sludge particle emissions (green/purple/dark-cyan sludge) when struck or killed.
 
-- **Map Bounds & Level Width (`config.ts`:21-25 & `systems/CavernTilemap.ts`:27 & `entities/Enemy.ts`:86)**:
-  - `config.ts`: `width: 480`.
-  - `CavernTilemap.ts`: `{ x: w - 16, y: 0, width: 16, height: h, isSolid: true, type: 'moss' }` (Right wall placed at x=464).
-  - `Enemy.ts`: `this.x = Math.max(20, Math.min(CAVERN_CONFIG.width - 20, this.x));` (Enemies clamped to x=460).
-  - Observed: Level map bounds blocked at x=464 instead of extending to x=960.
+---
 
-- **Boss Encounter & Attacks (`entities/BossMossKnight.ts`:84-88, 132-138 & `index.ts`:215-217, 251)**:
-  - `BossMossKnight.ts`:
-    ```ts
-    public takeDamage(amount: number): void {
-      if (this.state === 'guarding') return;
-      this.hp = Math.max(0, this.hp - amount);
-    }
-    ```
-  - `index.ts`:215-217:
-    ```ts
-    if (bRes.triggerVineShockwave && bRes.shockwaveX && bRes.shockwaveY) {
-      this.spells.push(new SoulSpell(`boss-wave-${Date.now()}`, 'vengeful_spirit', bRes.shockwaveX, bRes.shockwaveY, true));
-    }
-    ```
-  - Observed: Boss attacks execute no collision check against players (0 damage). Boss is stationary. Vine shockwave spawns player spell. Boss Health Bar rendered inside camera-panned `worldGraphics` container.
+#### Area 2: Multi-Phase Boss Fight State Machine (Moss Knight / Grotesque Boss)
+1. **Current Boss Implementation** (`entities/BossMossKnight.ts` lines 19-49):
+   - Health & Phase properties: `hp = 600`, `maxHp = 600`, `phase = 1`, `isEnraged = false`.
+   - Phase transition check (lines 46-49 & 213-216):
+     ```ts
+     if (this.hp <= this.maxHp * 0.5 && this.phase === 1) {
+       this.phase = 2;
+       this.isEnraged = true;
+     }
+     ```
+   - Attack State Machine: `state: 'idle' | 'cleaving' | 'guarding' | 'spore_explosion' | 'vine_slam' | 'leap'`.
+   - Attack Timers: `idleDuration` is 1.8s in Phase 1, 0.9s in Phase 2.
+   - Phase 1 attacks: `cleaving` (35%), `leap` (30%), `vine_slam` (20%), `guarding` (15%). `vine_slam` emits 1 directional shockwave.
+   - Phase 2 attacks: `cleaving` (35%), `leap` (30%), `vine_slam` (20%), `spore_explosion` (15%). `vine_slam` emits 2 directional shockwaves (left & right).
+   - `spore_explosion` hitbox (lines 169-175): distance check `< 45` around boss, deals 1 damage.
+   - Guard Stance (lines 207-208): `if (this.state === 'guarding') return;` blocks all frontal damage.
+2. **Required Boss State Machine Expansion** (`ORIGINAL_REQUEST.md` lines 19, 61-62, 80-82):
+   - **Minion Summon Wave**: A `'summon_minions'` state that spawns minion waves (e.g. 2 Mutant Spore Husks or Acid Spitters) during Phase 2 transition or periodically in Phase 2.
+   - **Acid Spore Bursts**: Radial acid spore projectile bursts (8 directions) spawned across the arena during `spore_explosion`.
+   - **Phase Transition Sequence**: An explicit `'phase_transition'` state when HP drops below 50%, with roar animation, invulnerability, screenshake event, and minion summon wave.
+   - **Enhanced Vine Shockwaves**: Rising thorn/vine graphics along the ground terrain as shockwaves move.
 
-- **Side HUD Soul Meter (`systems/SideHUDManager.ts`:19-49)**:
-  - Observed: `SideHUDManager.ts` renders P1 tag, Mask HP rounded rects, and Geo count. Cyan Soul Vessel meter is 100% missing.
+---
 
-- **Parallax Background Modulo Math (`systems/ParallaxCavern.ts`:47-69)**:
-  - Observed: Layer calculations use `(val - cameraX * factor) % w` where `w = 480`. Negative result in JS `%` produces visual seams and gaps. Polygon silhouette evaluates `% w` per vertex, distorting layer geometry.
+#### Area 3: Cavern Level Map Expansion & Environmental Hazards
+1. **Current Level Map Configuration** (`config.ts` line 21, `systems/CavernTilemap.ts` lines 12-47):
+   - `CAVERN_CONFIG`: width = 960, height = 270.
+   - Tile map tiles:
+     - Bottom main floor: moss platform (x=0..280), spike pit 1 (x=280..400), moss platform (x=400..580), spike pit 2 (x=580..660), moss platform (x=660..960).
+     - Ceilings & Borders: top ceiling (x=0..960 y=0..24 stone), left moss wall (x=0..16), right moss wall (x=944..960).
+     - Multi-tier floating ledges: 6 ledges at y=130..220.
+     - Totem pillars: x=180..204 y=174..238, x=640..668 y=158..238.
+   - `PlatformTile` definition (`types.ts` lines 29-36):
+     ```ts
+     export interface PlatformTile {
+       x: number;
+       y: number;
+       width: number;
+       height: number;
+       isSolid: boolean;
+       type?: 'stone' | 'moss' | 'spikes';
+     }
+     ```
+2. **Current Physics & Hazards** (`systems/PlatformPhysics.ts` lines 37-143):
+   - AABB collision for solid tiles.
+   - Moss wall slide on `tile.type === 'moss'`.
+   - Spike pit hazard on `tile.type === 'spikes'`: takes 1 damage, teleports knight to `lastSafeGroundPosition`.
+3. **Required Level Expansion & Environmental Mechanics** (`ORIGINAL_REQUEST.md` lines 64-65, 81-82):
+   - **Extend `PlatformTile.type`**: Add `'breakable' | 'crumbling' | 'secret_wall'`.
+   - **Secret Rooms / Hidden Upgrade Chambers**:
+     - Upper Secret Chamber (x=360..480, y=40..120) behind a breakable wall at x=340.
+     - Boss Stash / Shrine Chamber (x=880..940, y=60..140) behind a breakable wall at x=860.
+   - **Breakable Walls (`'breakable'`)**:
+     - Destructible stone/vine blocks with hit HP (or destroyed by nail hits / `Vengeful Spirit` / `Desolate Dive`).
+     - Plays crumbling debris particles and disables collision (`isSolid = false`), revealing secret passages.
+   - **Crumbling Platforms (`'crumbling'`)**:
+     - Temporary stone/moss ledges over spike chasms.
+     - When landed on, trigger 0.4s shaking jitter, after which platform crumbles (`isSolid = false`), dropping player. Platform respawns after 3.0 seconds.
+   - **Spike Pit Hazards**: Expanded spike pit chasms beneath crumbling platform parkour routes.
+
+---
+
+#### Area 4: Health/Soul Upgrades & Geo Drops Interaction
+1. **Current Collectible Items** (`types.ts` line 7, `entities/Collectible.ts` lines 1-42):
+   - Types: `'geo_coin'` (value 5), `'soul_orb'` (value 15), `'mask_shard'` (value 1).
+2. **Current Item Pickup Logic** (`index.ts` lines 243-259):
+   ```ts
+   if (col.type === 'geo_coin') k.state.geoCount += col.value;
+   if (col.type === 'soul_orb') k.state.soul = Math.min(k.state.maxSoul, k.state.soul + col.value);
+   ```
+   *Note: `'mask_shard'` pickup is NOT implemented in `index.ts`!*
+3. **Current HUD Rendering** (`systems/SideHUDManager.ts` lines 51-100):
+   - Renders 5 Mask HP containers (`hp` vs `maxHp`).
+   - Renders `GEO: count`.
+   - Renders cyan Soul Vessel meter (`SOUL` 0..100 fill bar).
+4. **Required Upgrade & Drop Systems** (`ORIGINAL_REQUEST.md` lines 56-65, 70-73):
+   - **Mask Shard Upgrades (`'mask_shard'`)**:
+     - Located in hidden upgrade chambers or awarded on boss defeat.
+     - Pickup increases `maxHp` permanently (`k.state.maxHp += 1; k.state.hp = k.state.maxHp;`), dynamically adding extra Mask HP containers on HUD.
+   - **Vessel Fragments / Soul Upgrades (`'vessel_fragment'`)**:
+     - Add `'vessel_fragment'` to `CollectibleItem` and `Collectible.ts`.
+     - Pickup permanently increases `maxSoul` (e.g., 100 -> 133 -> 166), expanding Soul Vessel capacity on HUD.
+   - **Geo Drops & Breakable Geo Deposits**:
+     - Enemies drop Geo coins (+5 Geo).
+     - Breakable Geo Deposits / Relic Chests placed in secret chambers that spill multiple Geo coins (3-5 coins) when smashed.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Melee Combat Defect**:
-   - Observation: `Knight.ts` checks radial distance `dist < 40` and `index.ts` only passes `[this.boss]`.
-   - Reasoning: Because directional attack vectors are ignored and `this.enemies` is omitted, player slash cannot target directional hitboxes, cannot hit regular enemies, and never calls `takeDamage()`.
-   - Conclusion: Melee combat must be refactored to use directional AABB boxes and invoke `takeDamage()` on all enemy types.
+1. **Observation**: `types.ts` defines `EnemyUnit = 'spore_bug' | 'mantis_crawler' | 'shielded_husk' | 'boss_moss_knight';` and `Enemy.ts` implements simple flying sine wave, ground lunge, and slow march AI.
+   **Deduction**: The codebase currently lacks the requested Grotesque Mutant Enemies (`mutant_spore_husk`, `jagged_thorn_crawler`, `acid_spitter`). To fulfill R3 and grotesque dark subterranean aesthetic requirements, `EnemyUnit` must be updated, AI routines for acid projectile spitters and ceiling/wall crawling thorn insects added, and death spore cloud AoE implemented.
 
-2. **Spike Pit & Pogo Defect**:
-   - Observation: Spike tiles have `isSolid: false`, skipped by `PlatformPhysics.ts`, and not checked in `performAttack()`.
-   - Reasoning: Players pass through spike pits without taking damage or triggering safe ground respawn, and downward slashes over spikes fail to trigger pogo bounce.
-   - Conclusion: Spike tiles need trigger collision handling, damage deduction, safe respawn tracking, and downward pogo recognition.
+2. **Observation**: `entities/BossMossKnight.ts` has a state machine with 6 basic states, 50% HP threshold for enraged mode, and double vine shockwaves, but lacks minion summons, radial acid spore bursts, and explicit phase transition animations.
+   **Deduction**: To meet R3's multi-phase boss fight specification, `BossMossKnight` needs a `'summon_minions'` state that spawns minion waves (`Mutant Spore Husk` or `Acid Spitter`), a radial spore burst projectile attack (`spore_explosion` spawning 8-way acid projectiles), and an invulnerable `'phase_transition'` roar sequence.
 
-3. **Map Expansion Defect**:
-   - Observation: `CAVERN_CONFIG.width` is 480, right wall is placed at x=464 in `CavernTilemap.ts`, and enemy AI clamps to x=460.
-   - Reasoning: Level geometry and entity bounds physically restrict players and enemies to x <= 464, preventing exploration of the x=464 to x=960 region.
-   - Conclusion: `CAVERN_CONFIG.width` must be updated to 960, right wall moved to x=944, enemy clamp updated, and camera pan max bound set to `960 - 480 = 480`.
+3. **Observation**: `systems/CavernTilemap.ts` contains a linear floor layout with 2 spike pits, 6 floating ledges, and 2 totem pillars. `PlatformTile.type` only supports `'stone' | 'moss' | 'spikes'`.
+   **Deduction**: The map currently lacks secret rooms, breakable walls, and crumbling platforms required by R4. Extending `PlatformTile.type` with `'breakable'`, `'crumbling'`, and `'secret_wall'` and modifying `CavernTilemap.ts` and `PlatformPhysics.ts` will allow adding upper/lower secret chambers, destructible walls, and crumbling platform chasms.
 
-4. **Boss & UI/HUD Defect**:
-   - Observation: Boss attacks carry no hitboxes, Boss HP bar is rendered inside camera-panned `worldGraphics`, and Side HUD lacks Soul meter logic.
-   - Reasoning: Players take 0 damage from boss, boss health bar scrolls offscreen during camera panning, and player cannot see current Soul reserves.
-   - Conclusion: Boss health bar must move to screen-space UI layer, boss attacks given AABB hitboxes, and cyan Soul Vessel meter implemented in `SideHUDManager.ts`.
-
-5. **Parallax Seams Defect**:
-   - Observation: JS `%` operator yields negative numbers when `cameraX * factor > x`, and polygon vertices wrap independently.
-   - Reasoning: Negative offsets cause background gaps and vertex coordinate misalignment during camera scrolling.
-   - Conclusion: Modulo wrap math must be corrected to positive modulo (`((val % wrap) + wrap) % wrap`) and background layers tiled across the full 960px width.
+4. **Observation**: `Collectible.ts` has `'mask_shard'`, but `index.ts` lines 243-259 only handle `'geo_coin'` and `'soul_orb'` pickups. `'mask_shard'` pickup is ignored, and `'vessel_fragment'` does not exist.
+   **Deduction**: To support Health/Soul upgrade mechanics in secret chambers, `index.ts` pickup handling must be updated so collecting Mask Shards increases `maxHp` and collecting Vessel Fragments increases `maxSoul`. `SideHUDManager.ts` already dynamically renders containers based on `maxHp` and `maxSoul`, making UI integration seamless.
 
 ---
 
 ## 3. Caveats
 
-- **Scope Boundary**: This report is a read-only investigation for Milestone 0. No source code modifications in `src/games/hollow-clash` were performed by Explorer 3.
-- **Physics Engine Unification**: Detailed single-physics engine refactoring (AABB unification, moss wall slide, shadow dash wall stopping) is mapped out in R2/M2 plan and supported by these findings.
-- **Audio Assets**: Audio feedback triggers use `this.ctx.audio.playTone()`; sound asset files were not audited in this milestone.
+1. **Read-Only Scope Constraint**: As Explorer 3, no source files outside `.agents/explorer_m0_3/` were modified during this investigation.
+2. **Backward Compatibility with Tests**: All 82 existing unit and integration tests in `vitest` currently pass. Refactoring `EnemyUnit` and level maps must maintain or alias legacy unit types (`'spore_bug'`, `'mantis_crawler'`, `'shielded_husk'`) to prevent test breakage.
 
 ---
 
 ## 4. Conclusion
 
-The audit of HOLLOW CLASH Requirements R3 & R4 reveals 9 key defect areas across combat, hazard mechanics, map bounds, boss logic, HUD rendering, and parallax scrolling. The codebase compiles cleanly, providing a solid foundation for sequential implementation across Milestones M1 through M4.
+The existing "HOLLOW CLASH" codebase provides a solid, highly reliable core engine with unified physics, pogo bouncing, moss wall sliding, spike hazards, smooth parallax scrolling, and HUD rendering. All 82 existing test cases pass.
 
-All findings, exact code locations, and proposed remediation specifications have been documented in `/home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/explorer_m0_3/analysis.md`.
+To achieve complete alignment with R3 & R4 specifications, the following architectural implementations are required:
+1. **Grotesque Mutant Enemies**: Update `EnemyUnit` to add `mutant_spore_husk`, `jagged_thorn_crawler`, and `acid_spitter`. Add acid projectile AI, death spore cloud AoE, dark sludge particle FX, and grotesque pixel art rendering.
+2. **Multi-Phase Boss Encounter**: Expand `BossMossKnight.ts` state machine to include `'phase_transition'`, `'summon_minions'`, and 8-way radial acid spore projectile bursts during Phase 2.
+3. **Cavern Level Map Expansion**: Extend `PlatformTile` with `'breakable'`, `'crumbling'`, and `'secret_wall'`. Add upper and right secret upgrade chambers, destructible stone walls, and crumbling platform parkour over spike pits in `CavernTilemap.ts` and `PlatformPhysics.ts`.
+4. **Health/Soul Upgrades & Geo Drops**: Add `'vessel_fragment'` item type, implement `mask_shard` (+1 maxHp) and `vessel_fragment` (+33 maxSoul) pickup logic in `index.ts`, place upgrade shrines and breakable Geo deposits in secret chambers.
 
 ---
 
 ## 5. Verification Method
 
-- **TypeScript Compilation Verification**:
-  - Run: `npx tsc --noEmit` from `/home/viv/Projects/PartyPlay`.
-  - Expected: Exit code 0.
+### Test Commands
+Run the vitest test suite to verify baseline stability:
+```bash
+npx vitest run src/games/hollow-clash/
+```
+Expected output: 4 test files passed, 82 tests passed.
 
-- **Inspection of Findings**:
-  - Inspect `analysis.md` in `.agents/explorer_m0_3/` for exact file lines and proposed code snippets.
-  - Review `Knight.ts` (lines 248-257), `Enemy.ts` (line 86), `BossMossKnight.ts` (lines 132-138), `SideHUDManager.ts` (lines 19-49), and `ParallaxCavern.ts` (lines 47-69).
+### Implementation Blueprint & Inspection Paths
 
-- **Invalidation Conditions**:
-  - If any identified line numbers change or existing code is modified prior to M1-M4 dispatch, re-verify line references in `analysis.md`.
+| Sub-System | Target Files | Key Lines / Functions to Inspect / Modify |
+|---|---|---|
+| **Enemy Types & AI** | `types.ts`, `entities/Enemy.ts`, `index.ts` | `EnemyUnit` union (types.ts:3); constructor & AI `update()` (Enemy.ts:23-88); death drop & sludge particles (index.ts:207-222, Knight.ts:313-327) |
+| **Multi-Phase Boss State Machine** | `entities/BossMossKnight.ts`, `systems/SideHUDManager.ts` | Boss state machine `state` & `update()` (BossMossKnight.ts:24-136); Phase 2 enraged transition (line 46); Boss HUD (SideHUDManager.ts:102-135) |
+| **Cavern Map & Hazards** | `types.ts`, `systems/CavernTilemap.ts`, `systems/PlatformPhysics.ts` | `PlatformTile` type definition (types.ts:29-36); `buildLevelLayout()` layout & secret rooms (CavernTilemap.ts:12-47); Crumbling & Breakable tile physics (PlatformPhysics.ts:37-80) |
+| **Upgrades & Geo Drops** | `entities/Collectible.ts`, `index.ts`, `systems/SideHUDManager.ts` | Collectible types (Collectible.ts:5); Pickup handler loop (index.ts:243-259); Player Side HUD (SideHUDManager.ts:51-100) |
+
+### Invalidation Conditions
+- Any changes to `EnemyUnit` breaking legacy test cases in `HollowClashM3Challenger.test.ts` or `HollowClash.test.ts`.
+- Boss HP or state machine logic causing Phase 2 enraged state to trigger out of sync with 50% HP threshold.
+- Crumbling platforms or breakable walls causing player physics position NaNs or boundary leaks.

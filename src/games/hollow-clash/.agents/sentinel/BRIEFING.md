@@ -1,4 +1,4 @@
-# BRIEFING — 2026-07-25T06:48:10Z
+# BRIEFING — 2026-07-25T08:23:50Z
 
 ## Mission
 Monitor project progress, run sentinel crons, manage orchestrator lifecycle, and dispatch victory auditor upon completion claim.
@@ -6,7 +6,7 @@ Monitor project progress, run sentinel crons, manage orchestrator lifecycle, and
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/sentinel
-- Orchestrator: ef7a73b1-8f84-4bed-aaba-63e7e2de3a98
+- Orchestrator: 2ddcd3d4-a150-49c2-9f40-9fe9bfb9a4ee
 - Victory Auditor: to be spawned on victory claim
 
 ## 🔒 Key Constraints
@@ -15,7 +15,7 @@ Monitor project progress, run sentinel crons, manage orchestrator lifecycle, and
 - Must not write code or analyze problems
 
 ## User Context
-- **Last user request**: Complete overhaul and polish of HOLLOW CLASH: SHADOW METROIDVANIA
+- **Last user request**: Transform "HOLLOW CLASH: SHADOW METROIDVANIA" into a deep single-player dark Metroidvania experience inspired by Hollow Knight
 - **Pending clarifications**: none
 - **Delivered results**: none
 

@@ -4,97 +4,11 @@ import { HERO_CONFIGS, ARENA_CONFIG } from '../config';
 import { PixelFont } from '../../turbo-rider/render/PixelFont';
 
 export class CharacterSelectScreen {
-  public container = new Container();
-  private g = new Graphics();
-
-  public selections: Record<number, { classType: HeroClassType; isReady: boolean }> = {
-    1: { classType: 'knight', isReady: false },
-    2: { classType: 'wizard', isReady: false },
-    3: { classType: 'rogue', isReady: false },
-    4: { classType: 'barbarian', isReady: false },
-  };
-
-  private classOrder: HeroClassType[] = ['knight', 'wizard', 'rogue', 'barbarian'];
-
-  constructor() {
-    this.container.addChild(this.g);
-  }
-
-  public updateInput(playerId: number, navLeft: boolean, navRight: boolean, toggleReady: boolean): void {
-    const sel = this.selections[playerId];
-    if (!sel || sel.isReady) return;
-
-    if (navLeft || navRight) {
-      const curIdx = this.classOrder.indexOf(sel.classType);
-      const nextIdx = navRight
-        ? (curIdx + 1) % this.classOrder.length
-        : (curIdx - 1 + this.classOrder.length) % this.classOrder.length;
-      sel.classType = this.classOrder[nextIdx];
-    }
-
-    if (toggleReady) {
-      sel.isReady = true;
-    }
-  }
-
-  public isAllReady(playerCount: number): boolean {
-    for (let i = 1; i <= playerCount; i++) {
-      if (!this.selections[i]?.isReady) return false;
-    }
-    return true;
-  }
-
-  public render(playerCount: number): void {
-    this.g.clear();
-    const w = ARENA_CONFIG.width;
-    const h = ARENA_CONFIG.height;
-
-    // Background
-    this.g.rect(0, 0, w, h).fill({ color: 0x0f0e17 });
-
-    // Title
-    PixelFont.drawText(this.g, 'DUNGEON BRAWL: HERO SELECT', w / 2 - 110, 16, 0xf1c40f, 1);
-    PixelFont.drawText(this.g, 'PRESS ACTION TO LOCK IN HERO', w / 2 - 100, 32, 0x00f0ff, 1);
-
-    const cardW = 100;
-    const cardH = 180;
-    const spacing = Math.floor((w - playerCount * cardW) / (playerCount + 1));
-
-    for (let i = 0; i < playerCount; i++) {
-      const pId = i + 1;
-      const sel = this.selections[pId];
-      const cfg = HERO_CONFIGS[sel.classType];
-      const cardX = spacing + i * (cardW + spacing);
-      const cardY = 56;
-
-      // Card Container Box
-      const borderColor = sel.isReady ? 0x2ecc71 : 0x3498db;
-      this.g.rect(cardX, cardY, cardW, cardH).fill({ color: 0x1e272e });
-      this.g.rect(cardX, cardY, cardW, cardH).stroke({ color: borderColor, width: 2 });
-
-      // Player Tag
-      PixelFont.drawText(this.g, `P${pId}`, cardX + 8, cardY + 8, 0xfffffe, 1);
-
-      // Hero Name
-      PixelFont.drawText(this.g, cfg.name.toUpperCase(), cardX + 8, cardY + 24, cfg.primaryColor, 1);
-      PixelFont.drawText(this.g, cfg.role.substring(0, 14), cardX + 8, cardY + 38, 0xbdc3c7, 1);
-
-      // Skill Names
-      PixelFont.drawText(this.g, `SKILL:`, cardX + 8, cardY + 110, 0xf1c40f, 1);
-      PixelFont.drawText(this.g, cfg.specialSkillName.substring(0, 12), cardX + 8, cardY + 124, 0xecf0f1, 1);
-
-      // Ready Status
-      if (sel.isReady) {
-        this.g.rect(cardX + 10, cardY + 150, cardW - 20, 20).fill({ color: 0x2ecc71 });
-        PixelFont.drawText(this.g, 'READY!', cardX + cardW / 2 - 18, cardY + 156, 0xfffffe, 1);
-      } else {
-        PixelFont.drawText(this.g, '< CHOOSE >', cardX + cardW / 2 - 30, cardY + 156, 0x7f8c8d, 1);
-      }
-    }
-  }
-
-  public destroy(): void {
-    this.g.destroy();
-    this.container.destroy();
-  }
+  public container = new Container(); private g = new Graphics(); public selections: Record<number, { classType: HeroClassType; isReady: boolean }> = { 1: { classType: 'knight', isReady: false }, 2: { classType: 'wizard', isReady: false }, 3: { classType: 'rogue', isReady: false }, 4: { classType: 'barbarian', isReady: false } }; private readonly order: HeroClassType[] = ['knight', 'wizard', 'rogue', 'barbarian']; private clock = 0;
+  constructor() { this.container.addChild(this.g); }
+  public updateInput(id: number, left: boolean, right: boolean, action: boolean): void { const selection = this.selections[id]; if (!selection) return; if ((left || right) && !selection.isReady) { const current = this.order.indexOf(selection.classType); selection.classType = this.order[(current + (right ? 1 : -1) + this.order.length) % this.order.length]; } if (action) selection.isReady = !selection.isReady; }
+  public isAllReady(count: number): boolean { return Array.from({ length: count }, (_, index) => this.selections[index + 1].isReady).every(Boolean); }
+  public render(count: number, dt = 1 / 60): void { this.clock += dt; const { width: w, height: h } = ARENA_CONFIG; this.g.clear(); this.g.rect(0, 0, w, h).fill({ color: 0x090611 }); for (let x = 0; x < w; x += 24) for (let y = 0; y < h; y += 24) if ((x + y) % 48 === 0) this.g.rect(x, y, 1, 1).fill({ color: 0x6ff7ff, alpha: .25 }); PixelFont.drawText(this.g, 'DUNGEON BRAWL', 160, 10, 0xf2c14e, 2); PixelFont.drawText(this.g, 'CHOOSE YOUR CHAMPION', 154, 29, 0x6ff7ff, 1); const twoRows = count > 2; const cardW = twoRows ? 212 : 205; const cardH = twoRows ? 91 : 164; for (let i = 0; i < count; i++) { const id = i + 1; const sel = this.selections[id]; const cfg = HERO_CONFIGS[sel.classType]; const col = twoRows ? i % 2 : i; const row = twoRows ? Math.floor(i / 2) : 0; const x = twoRows ? 26 + col * 216 : 32 + col * 220; const y = twoRows ? 51 + row * 98 : 52; const border = sel.isReady ? 0x7de38a : cfg.primaryColor; this.g.rect(x, y, cardW, cardH).fill({ color: 0x171025 }); this.g.rect(x, y, cardW, cardH).stroke({ color: border, width: 2 }); this.g.rect(x + 10, y + 25, 45, cardH - 35).fill({ color: cfg.primaryColor, alpha: .32 }); this.g.circle(x + 32, y + 49, 17 + Math.sin(this.clock * 5 + id) * 1).stroke({ color: cfg.secondaryColor, width: 3 }); this.g.rect(x + 25, y + 39, 14, 22).fill({ color: cfg.primaryColor }); this.g.rect(x + 27, y + 30, 10, 9).fill({ color: cfg.secondaryColor }); PixelFont.drawText(this.g, `P${id} ${cfg.name}`, x + 65, y + 10, cfg.primaryColor, 1); PixelFont.drawText(this.g, cfg.role, x + 65, y + 25, 0xa48ba8, 1); PixelFont.drawText(this.g, `ATK ${cfg.attackPower} HP ${cfg.maxHp}`, x + 65, y + 39, 0xeaf6ff, 1); PixelFont.drawText(this.g, cfg.specialSkillName, x + 65, y + 54, cfg.secondaryColor, 1); PixelFont.drawText(this.g, cfg.ultimateSkillName, x + 65, y + 68, 0xf2c14e, 1); PixelFont.drawText(this.g, sel.isReady ? 'READY' : '< > CHOOSE  ATTACK READY', x + 8, y + cardH - 13, sel.isReady ? 0x7de38a : 0xeaf6ff, 1); }
+    PixelFont.drawText(this.g, 'SMART TARGETING ON  SKILL IS SPECIAL  HOLD ONE + PRESS OTHER FOR ULT', 52, 250, 0xa48ba8, 1); }
+  public destroy(): void { this.g.destroy(); this.container.destroy(); }
 }

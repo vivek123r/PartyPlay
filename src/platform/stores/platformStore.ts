@@ -14,6 +14,7 @@ export type ScreenState =
 export interface StandingsResult {
   winnerId?: number;
   isTeamLoss?: boolean;
+  isTeamVictory?: boolean;
   standings: Array<{ playerId: number; score: number }>;
 }
 
