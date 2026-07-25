@@ -9,10 +9,10 @@ export class HeroLoungeScreen {
   public startRequested = false;
 
   public selections: Record<number, { mask: KnightMaskType; isReady: boolean }> = {
-    1: { mask: 'vessel', isReady: true },
-    2: { mask: 'hornet', isReady: true },
-    3: { mask: 'mantis', isReady: true },
-    4: { mask: 'grimm', isReady: true },
+    1: { mask: 'vessel', isReady: false },
+    2: { mask: 'hornet', isReady: false },
+    3: { mask: 'mantis', isReady: false },
+    4: { mask: 'grimm', isReady: false },
   };
 
   private maskOrder: KnightMaskType[] = ['vessel', 'hornet', 'mantis', 'grimm'];
@@ -41,7 +41,7 @@ export class HeroLoungeScreen {
     }
 
     if (toggleReady) {
-      this.startRequested = true;
+      sel.isReady = !sel.isReady;
     }
   }
 
@@ -54,8 +54,8 @@ export class HeroLoungeScreen {
 
   public render(playerCount: number): void {
     this.g.clear();
-    const w = CAVERN_CONFIG.width;
-    const h = CAVERN_CONFIG.height;
+    const w = 480;
+    const h = 270;
 
     // Dark Cavern Background
     this.g.rect(0, 0, w, h).fill({ color: 0x070b19 });
@@ -74,7 +74,7 @@ export class HeroLoungeScreen {
       const cardY = 36;
 
       this.g.rect(cardX, cardY, cardW, cardH).fill({ color: 0x112240 });
-      this.g.rect(cardX, cardY, cardW, cardH).stroke({ color: 0x00f0ff, width: 2 });
+      this.g.rect(cardX, cardY, cardW, cardH).stroke({ color: sel.isReady ? 0x2ecc71 : 0x00f0ff, width: 2 });
 
       PixelFont.drawText(this.g, `KNIGHT ${pId}`, cardX + 8, cardY + 8, 0xffffff, 1);
       PixelFont.drawText(this.g, `MASK: ${sel.mask.toUpperCase()}`, cardX + 8, cardY + 24, 0x00f0ff, 1);
@@ -84,7 +84,9 @@ export class HeroLoungeScreen {
       this.g.ellipse(cardX + cardW / 2 - 4, cardY + 66, 3, 4).fill({ color: 0x000000 });
       this.g.ellipse(cardX + cardW / 2 + 4, cardY + 66, 3, 4).fill({ color: 0x000000 });
 
-      PixelFont.drawText(this.g, '< CHOOSE >', cardX + cardW / 2 - 30, cardY + 120, 0x7f8c8d, 1);
+      const statusText = sel.isReady ? 'READY!' : '< CHOOSE >';
+      const statusColor = sel.isReady ? 0x2ecc71 : 0x7f8c8d;
+      PixelFont.drawText(this.g, statusText, cardX + cardW / 2 - 30, cardY + 120, statusColor, 1);
     }
 
     // Giant Glowing START GAME Button at Bottom Center

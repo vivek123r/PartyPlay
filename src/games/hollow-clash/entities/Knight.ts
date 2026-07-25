@@ -1,6 +1,7 @@
 import { Graphics, Container } from 'pixi.js';
 import { PLATFORM_PHYSICS, COMBAT_STATS } from '../config';
 import type { KnightState, KnightMaskType, PlatformTile, BossState } from '../types';
+import { PlatformPhysics } from '../systems/PlatformPhysics';
 
 export interface Particle {
   x: number;
@@ -42,10 +43,13 @@ export class Knight {
   public attackDirection: 'up' | 'down' | 'forward' = 'forward';
   public attackTimer = 0;
 
+  public lastSafeGroundPosition: { x: number; y: number };
   public shadowDashDuration = 0;
 
   public trailParticles: Particle[] = [];
   public slashArcs: SlashArc[] = [];
+
+  private physics = new PlatformPhysics();
 
   constructor(initialState: Partial<KnightState>) {
     this.state = {
@@ -67,6 +71,8 @@ export class Knight {
       geoCount: 0,
       ...initialState,
     };
+    this.lastSafeGroundPosition = { x: this.state.x, y: this.state.y };
+    this.state.lastSafeGroundPosition = this.lastSafeGroundPosition;
 
     this.container = new Container();
     this.container.x = this.state.x;
@@ -76,7 +82,7 @@ export class Knight {
     this.container.addChild(this.graphics);
   }
 
-  public update(dt: number, input: any, platforms: PlatformTile[], enemies: BossState[]) {
+  public update(dt: number, input: any, platforms: PlatformTile[], enemies: any[]) {
     // Cooldowns and Timers
     if (this.state.dashCooldownTimer > 0) this.state.dashCooldownTimer -= dt;
     if (this.attackCooldown > 0) this.attackCooldown -= dt;
@@ -117,66 +123,20 @@ export class Knight {
       } else {
         this.state.vx = 0;
       }
-
-      // Gravity
-      this.state.vy += PLATFORM_PHYSICS.GRAVITY * dt;
-    }
-
-    // Physics and collisions
-    this.state.isGrounded = false;
-    this.state.isWallSliding = false;
-    let touchingWallDir: 'left' | 'right' | null = null;
-    let onMoss = false;
-
-    // Collision detection against platforms
-    for (const p of platforms) {
-      const isIntersecting =
-        this.state.x < p.x + p.width &&
-        this.state.x + this.width > p.x &&
-        this.state.y < p.y + p.height &&
-        this.state.y + this.height > p.y;
-
-      if (isIntersecting) {
-        // Resolve Y (ground)
-        if (this.state.vy > 0 && this.state.y + this.height - this.state.vy * dt <= p.y) {
-          this.state.y = p.y - this.height;
-          this.state.vy = 0;
-          this.state.isGrounded = true;
-          this.canDoubleJump = true;
-        }
-
-        // Resolve X (walls)
-        if (!this.state.isGrounded) {
-          if (this.state.vx > 0 && this.state.x + this.width - this.state.vx * dt <= p.x) {
-            this.state.x = p.x - this.width;
-            this.state.vx = 0;
-            touchingWallDir = 'right';
-            if (p.type === 'moss') onMoss = true;
-          } else if (this.state.vx < 0 && this.state.x - this.state.vx * dt >= p.x + p.width) {
-            this.state.x = p.x + p.width;
-            this.state.vx = 0;
-            touchingWallDir = 'left';
-            if (p.type === 'moss') onMoss = true;
-          }
-        }
-      }
-    }
-
-    // Wall Slide Logic
-    if (touchingWallDir && this.state.vy > 0 && !this.state.isGrounded && onMoss) {
-      this.state.isWallSliding = true;
-      this.state.vy = Math.min(this.state.vy, PLATFORM_PHYSICS.WALL_SLIDE_SPEED);
     }
 
     // Jump Inputs
     if (input.jumpJustPressed) {
       if (this.state.isGrounded) {
         this.state.vy = PLATFORM_PHYSICS.JUMP_VELOCITY;
-      } else if (this.state.isWallSliding && touchingWallDir) {
+        this.state.isGrounded = false;
+      } else if (this.state.isWallSliding) {
         // Wall Jump
         this.state.vy = PLATFORM_PHYSICS.JUMP_VELOCITY;
-        this.state.vx = touchingWallDir === 'left' ? PLATFORM_PHYSICS.MOVE_SPEED : -PLATFORM_PHYSICS.MOVE_SPEED;
-        this.state.facing = touchingWallDir === 'left' ? 'right' : 'left';
+        this.state.vx = this.state.facing === 'left' ? PLATFORM_PHYSICS.MOVE_SPEED : -PLATFORM_PHYSICS.MOVE_SPEED;
+        this.state.facing = this.state.facing === 'left' ? 'right' : 'left';
+        this.state.isWallSliding = false;
+        this.canDoubleJump = true;
       } else if (this.canDoubleJump) {
         // Double Jump
         this.state.vy = PLATFORM_PHYSICS.JUMP_VELOCITY;
@@ -197,23 +157,28 @@ export class Knight {
       this.isInvulnerable = true;
     }
 
+    // Unified Physics Update
+    this.physics.update(this, platforms, dt);
+
+    if (this.state.isGrounded || this.state.isWallSliding) {
+      this.canDoubleJump = true;
+    }
+
     // Combat: Attack
     if (input.attackJustPressed && this.attackCooldown <= 0 && !this.state.isShadowDashing) {
-      this.performAttack(input, enemies);
+      this.performAttack(input, enemies, platforms);
     }
 
     // Update Particles & Arcs
     this.updateParticles(dt);
 
     // Update Positions
-    this.state.x += this.state.vx * dt;
-    this.state.y += this.state.vy * dt;
     this.container.position.set(this.state.x, this.state.y);
 
     this.render();
   }
 
-  private performAttack(input: any, enemies: BossState[]) {
+  private performAttack(input: any, enemies: any[], platforms: PlatformTile[] = []) {
     this.isAttacking = true;
     this.attackTimer = 0.2;
     this.attackCooldown = 0.3;
@@ -245,32 +210,119 @@ export class Knight {
       scale: 1.0 + this.comboCounter * 0.2,
     });
 
-    // Hitbox logic against enemies
+    // 1. Directional AABB Hitbox ('forward', 'up', 'down')
+    let hitbox = { x: 0, y: 0, width: 0, height: 0 };
+    if (this.attackDirection === 'up') {
+      hitbox = {
+        x: this.state.x - 8,
+        y: this.state.y - 28,
+        width: 32,
+        height: 28,
+      };
+    } else if (this.attackDirection === 'down') {
+      hitbox = {
+        x: this.state.x - 8,
+        y: this.state.y + this.height,
+        width: 32,
+        height: 28,
+      };
+    } else {
+      // forward
+      hitbox = {
+        x: this.state.facing === 'right' ? this.state.x + this.width : this.state.x - 28,
+        y: this.state.y - 4,
+        width: 28,
+        height: 32,
+      };
+    }
+
+    // 2. Check hit against targets (regular enemies and boss)
     let hitEnemy = false;
-    for (const enemy of enemies) {
-      const dx = enemy.x - this.state.x;
-      const dy = enemy.y - this.state.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 40) {
-        hitEnemy = true;
+    const attackDirParam = this.attackDirection === 'down' ? 'down' : this.state.facing;
+
+    if (enemies && enemies.length > 0) {
+      for (const enemy of enemies) {
+        if (!enemy || (enemy.hp !== undefined && enemy.hp <= 0)) continue;
+
+        let tLeft = enemy.x - 12;
+        let tRight = enemy.x + 12;
+        let tTop = enemy.y - 20;
+        let tBottom = enemy.y + 10;
+
+        if (enemy.type === 'boss_moss_knight' || enemy.type === 'boss') {
+          tLeft = enemy.x - 16;
+          tRight = enemy.x + 16;
+          tTop = enemy.y - 44;
+          tBottom = enemy.y + 8;
+        }
+
+        const overlaps =
+          hitbox.x < tRight &&
+          hitbox.x + hitbox.width > tLeft &&
+          hitbox.y < tBottom &&
+          hitbox.y + hitbox.height > tTop;
+
+        if (overlaps) {
+          hitEnemy = true;
+          if (typeof enemy.takeDamage === 'function') {
+            enemy.takeDamage(COMBAT_STATS.NAIL_DAMAGE, attackDirParam);
+          }
+          this.spawnHitParticles(enemy.x, enemy.y);
+        }
       }
     }
 
-    // Pogo bounce
-    if (this.attackDirection === 'down' && hitEnemy) {
-      this.state.vy = PLATFORM_PHYSICS.POGO_BOUNCE_VELOCITY;
-      this.canDoubleJump = true; // reset double jump on successful pogo
+    // 3. Spike Pit Pogo check if downward attack
+    let hitSpikes = false;
+    if (this.attackDirection === 'down' && platforms) {
+      for (const tile of platforms) {
+        if (tile.type === 'spikes') {
+          const overlapsSpike =
+            hitbox.x < tile.x + tile.width &&
+            hitbox.x + hitbox.width > tile.x &&
+            hitbox.y < tile.y + tile.height &&
+            hitbox.y + hitbox.height > tile.y;
+
+          if (overlapsSpike) {
+            hitSpikes = true;
+            this.spawnHitParticles(hitbox.x + hitbox.width / 2, tile.y);
+            break;
+          }
+        }
+      }
     }
 
+    // 4. Airborne Pogo Bounce & Double Jump restore
+    if (this.attackDirection === 'down' && (hitEnemy || hitSpikes)) {
+      this.state.vy = PLATFORM_PHYSICS.POGO_BOUNCE_VELOCITY;
+      this.canDoubleJump = true; // restores double jump!
+    }
+
+    // 5. Soul Gain & Nail Recoil
     if (hitEnemy) {
       this.addSoul(COMBAT_STATS.SOUL_PER_HIT);
-      // Nail Recoil
       if (this.attackDirection === 'forward') {
         this.state.vx =
           this.state.facing === 'right'
             ? -PLATFORM_PHYSICS.NAIL_RECOIL_VELOCITY
             : PLATFORM_PHYSICS.NAIL_RECOIL_VELOCITY;
       }
+    }
+  }
+
+  private spawnHitParticles(x: number, y: number) {
+    for (let i = 0; i < 5; i++) {
+      this.trailParticles.push({
+        x: x + (Math.random() - 0.5) * 10,
+        y: y + (Math.random() - 0.5) * 10,
+        vx: (Math.random() - 0.5) * 80,
+        vy: (Math.random() - 0.5) * 80,
+        life: 0.2,
+        maxLife: 0.2,
+        color: 0xffffff,
+        alpha: 0.9,
+        size: 3,
+      });
     }
   }
 
@@ -302,6 +354,8 @@ export class Knight {
   private updateParticles(dt: number) {
     for (let i = this.trailParticles.length - 1; i >= 0; i--) {
       const p = this.trailParticles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
       p.life -= dt;
       if (p.life <= 0) this.trailParticles.splice(i, 1);
     }

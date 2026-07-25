@@ -10,24 +10,26 @@ export class CavernTilemap {
   }
 
   private buildLevelLayout(): void {
-    const w = CAVERN_CONFIG.width;
+    const w = CAVERN_CONFIG.width; // 960
     const h = CAVERN_CONFIG.height;
 
-    // 1. Bottom Main Floor Platforms with Spike Gap
+    // 1. Bottom Main Floor Platforms with Spike Gaps
     this.tiles.push(
       { x: 0, y: h - 32, width: 280, height: 32, isSolid: true, type: 'moss' },
-      { x: 280, y: h - 16, width: 120, height: 16, isSolid: false, type: 'spikes' }, // Spike pit
-      { x: 400, y: h - 32, width: 560, height: 32, isSolid: true, type: 'moss' }
+      { x: 280, y: h - 16, width: 120, height: 16, isSolid: false, type: 'spikes' }, // Spike pit 1
+      { x: 400, y: h - 32, width: 180, height: 32, isSolid: true, type: 'moss' },
+      { x: 580, y: h - 16, width: 80, height: 16, isSolid: false, type: 'spikes' },  // Spike pit 2 (expanded section)
+      { x: 660, y: h - 32, width: 300, height: 32, isSolid: true, type: 'moss' }
     );
 
     // 2. Ceiling & Side Border Walls
     this.tiles.push(
       { x: 0, y: 0, width: w, height: 24, isSolid: true, type: 'stone' },
       { x: 0, y: 0, width: 16, height: h, isSolid: true, type: 'moss' }, // Mossy left wall for wall jump!
-      { x: w - 16, y: 0, width: 16, height: h, isSolid: true, type: 'moss' }  // Mossy right wall for wall jump!
+      { x: 944, y: 0, width: 16, height: h, isSolid: true, type: 'moss' } // Right wall boundary at x=944 (width 16)
     );
 
-    // 3. Multi-Tier Floating Stone & Moss Ledges (matching ref_sideview.jpg)
+    // 3. Multi-Tier Floating Stone & Moss Ledges
     this.tiles.push(
       { x: 60, y: 180, width: 110, height: 16, isSolid: true, type: 'moss' },
       { x: 210, y: 140, width: 140, height: 16, isSolid: true, type: 'stone' },

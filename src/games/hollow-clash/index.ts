@@ -91,9 +91,9 @@ export default class HollowClashGame implements GameModule {
     const count = Math.min(4, Math.max(2, this.ctx.players.length));
     const startPositions = [
       { x: 50, y: 200 },
-      { x: 90, y: 200 },
-      { x: 130, y: 200 },
-      { x: 170, y: 200 },
+      { x: 80, y: 200 },
+      { x: 110, y: 200 },
+      { x: 140, y: 200 },
     ];
 
     this.knights = this.ctx.players.slice(0, count).map((p, idx) => {
@@ -107,13 +107,15 @@ export default class HollowClashGame implements GameModule {
       return knight;
     });
 
-    // Spawn Initial Enemies
+    // Spawn Initial Enemies across the expanded level (x=0..960)
     this.enemies.push(new Enemy('spore-1', 'spore_bug', 300, 150));
-    this.enemies.push(new Enemy('mantis-1', 'mantis_crawler', 500, 360));
-    this.enemies.push(new Enemy('husk-1', 'shielded_husk', 650, 360));
+    this.enemies.push(new Enemy('mantis-1', 'mantis_crawler', 500, 200));
+    this.enemies.push(new Enemy('husk-1', 'shielded_husk', 650, 210));
+    this.enemies.push(new Enemy('spore-2', 'spore_bug', 720, 120));
+    this.enemies.push(new Enemy('mantis-2', 'mantis_crawler', 850, 200));
 
-    // Spawn Moss Knight Boss at end of cavern
-    this.boss = new BossMossKnight(780, 340);
+    // Spawn Moss Knight Boss in expanded section (x=750..850)
+    this.boss = new BossMossKnight(780, 200);
   }
 
   public update(dt: number): void {
@@ -146,18 +148,21 @@ export default class HollowClashGame implements GameModule {
     this.cavern.update(dt);
     this.hud.update(dt);
 
-    // Smooth Camera Tracking
+    // Smooth Camera Tracking (max cameraX = 960 - 480 = 480)
     const activeKnights = this.knights.filter((k) => k.state.hp > 0);
+    const viewportW = 480;
     if (activeKnights.length > 0) {
       const avgX = activeKnights.reduce((acc, k) => acc + k.state.x, 0) / activeKnights.length;
-      this.cameraX += (avgX - CAVERN_CONFIG.width / 2 - this.cameraX) * 4.0 * dt;
-      this.cameraX = Math.max(0, Math.min(CAVERN_CONFIG.width, this.cameraX));
+      const maxCameraX = CAVERN_CONFIG.width - viewportW; // 960 - 480 = 480
+      this.cameraX += (avgX - viewportW / 2 - this.cameraX) * 4.0 * dt;
+      this.cameraX = Math.max(0, Math.min(maxCameraX, this.cameraX));
       
       // Apply camera panning to the world
       this.worldContainer.x = -this.cameraX;
     }
 
     // Update Knights
+    const targets = [...this.enemies, ...(this.boss ? [this.boss] : [])];
     this.knights.forEach((knight) => {
       if (knight.state.hp <= 0) return;
 
@@ -177,7 +182,7 @@ export default class HollowClashGame implements GameModule {
         dashJustPressed: input.isJustPressed('skill'),
       };
 
-      knight.update(dt, inputObj, this.tilemap.tiles, this.boss ? [this.boss] : []);
+      knight.update(dt, inputObj, this.tilemap.tiles, targets);
 
       // Focus Soul Spell
       if (input.isJustPressed('focus') && knight.state.soul >= 33) {
@@ -188,12 +193,9 @@ export default class HollowClashGame implements GameModule {
         this.spells.push(new SoulSpell(`spell-${Date.now()}`, 'vengeful_spirit', knight.state.x, knight.state.y - 12, knight.state.facing === 'right'));
         this.ctx.audio.playTone(520, 'sine', 0.3);
       }
-
-      // Physics AABB Collision vs Tilemap
-      this.physics.update(knight.state, this.tilemap.tiles, dt);
     });
 
-    // Update Enemies
+    // Update Enemies & Check Enemy Contact Damage
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
       if (enemy.hp <= 0) {
@@ -202,6 +204,13 @@ export default class HollowClashGame implements GameModule {
         continue;
       }
       enemy.update(dt, this.knights);
+
+      // Contact damage to player
+      for (const k of activeKnights) {
+        if (!k.isInvulnerable && Math.abs(k.state.x - enemy.x) < 16 && Math.abs(k.state.y - enemy.y) < 16) {
+          k.takeDamage(enemy.damage);
+        }
+      }
     }
 
     // Update Boss Moss Knight
@@ -212,8 +221,10 @@ export default class HollowClashGame implements GameModule {
         return;
       }
       const bRes = this.boss.update(dt, this.knights);
-      if (bRes.triggerVineShockwave && bRes.shockwaveX && bRes.shockwaveY) {
-        this.spells.push(new SoulSpell(`boss-wave-${Date.now()}`, 'vengeful_spirit', bRes.shockwaveX, bRes.shockwaveY, true));
+      if (bRes.triggerVineShockwave && bRes.shockwaves) {
+        for (const sw of bRes.shockwaves) {
+          this.spells.push(new SoulSpell(`boss-wave-${Date.now()}-${Math.random()}`, 'vengeful_spirit', sw.x, sw.y, sw.dir > 0));
+        }
       }
     }
 
@@ -251,7 +262,7 @@ export default class HollowClashGame implements GameModule {
     if (this.boss) this.boss.render(this.worldGraphics);
     
     this.knights.forEach((k) => k.render());
-    this.hud.render(this.knights.map((k) => k.state));
+    this.hud.render(this.knights.map((k) => k.state), this.boss);
   }
 
   private triggerMatchOver(): void {

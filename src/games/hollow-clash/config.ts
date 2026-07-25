@@ -19,7 +19,7 @@ export const COMBAT_STATS = {
 };
 
 export const CAVERN_CONFIG = {
-  width: 480,
+  width: 960,
   height: 270,
   tileSize: 16,
 };

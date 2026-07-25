@@ -23,6 +23,7 @@ export interface KnightState {
   facing: 'left' | 'right';
   dashCooldownTimer: number;
   geoCount: number;
+  lastSafeGroundPosition?: { x: number; y: number };
 }
 
 export interface PlatformTile {

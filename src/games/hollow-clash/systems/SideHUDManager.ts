@@ -1,6 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import type { KnightState } from '../types';
-import { COMBAT_STATS, CAVERN_CONFIG } from '../config';
+import type { KnightState, BossState } from '../types';
 import { PixelFont } from '../../turbo-rider/render/PixelFont';
 
 export class SideHUDManager {
@@ -16,10 +15,17 @@ export class SideHUDManager {
     this.animTimer += dt;
   }
 
-  public render(knights: KnightState[]): void {
+  public render(knights: KnightState[], boss?: BossState | null): void {
     this.graphics.clear();
-    if (!knights || knights.length === 0) return;
+    if (knights && knights.length > 0) {
+      this.renderPlayerHUD(knights);
+    }
+    if (boss && boss.hp > 0) {
+      this.renderBossHUD(boss);
+    }
+  }
 
+  private renderPlayerHUD(knights: KnightState[]): void {
     const PLAYER_COLORS = [0x38bdf8, 0xf43f5e, 0x10b981, 0xf59e0b];
 
     for (let i = 0; i < knights.length; i++) {
@@ -44,7 +50,64 @@ export class SideHUDManager {
       }
 
       // Geo Count
-      PixelFont.drawText(this.graphics, `GEO:${knight.geoCount || 0}`, startX, startY + 16, 0xf59e0b, 1);
+      PixelFont.drawText(this.graphics, `GEO:${knight.geoCount || 0}`, startX, startY + 15, 0xf59e0b, 1);
+
+      // Cyan Soul Vessel Meter (0 to 100) (#00e5ff / #00b0ff)
+      const soulVal = Math.max(0, Math.min(100, knight.soul ?? 0));
+      const maxSoul = knight.maxSoul || 100;
+      const vesselX = startX;
+      const vesselY = startY + 27;
+      const vesselW = 55;
+      const vesselH = 6;
+
+      // Soul Vessel Label
+      PixelFont.drawText(this.graphics, `SOUL`, vesselX, vesselY - 1, 0x00b0ff, 1);
+
+      // Vessel Frame (Dark background + Cyan Accent outline)
+      const barX = vesselX + 22;
+      this.graphics.roundRect(barX - 1, vesselY - 1, vesselW + 2, vesselH + 2, 2).stroke({ color: 0x00b0ff, width: 1 });
+      this.graphics.roundRect(barX, vesselY, vesselW, vesselH, 1).fill({ color: 0x0f172a });
+
+      // Cyan Soul Fill Bar (#00e5ff)
+      const fillW = Math.round((soulVal / maxSoul) * vesselW);
+      if (fillW > 0) {
+        this.graphics.roundRect(barX, vesselY, fillW, vesselH, 1).fill({ color: 0x00e5ff });
+      }
+    }
+  }
+
+  public renderBossHUD(boss: BossState): void {
+    const barW = 180;
+    const viewportW = 480;
+    const barX = viewportW / 2 - barW / 2; // Top-center in screen space (x=150)
+    const barY = 16;
+
+    const bossName = boss.type === 'boss_moss_knight' ? 'MOSS KNIGHT' : 'MOSS KNIGHT';
+    const isEnraged = boss.isEnraged || boss.hp <= boss.maxHp * 0.5;
+
+    // Boss Name Label (Centered top-center)
+    const nameX = Math.floor(viewportW / 2 - (bossName.length * 4) / 2);
+    const nameColor = isEnraged ? 0xe67e22 : 0xf8fafc;
+    PixelFont.drawText(this.graphics, bossName, nameX, barY - 10, nameColor, 1);
+
+    // Enraged State Indicator Badge
+    if (isEnraged) {
+      PixelFont.drawText(this.graphics, 'ENRAGED', barX + barW - 32, barY - 10, 0xe67e22, 1);
+    }
+
+    // Outer Frame Background & Border
+    this.graphics.roundRect(barX - 2, barY - 2, barW + 4, 10, 2).fill({ color: 0x0f0e17 });
+    const borderColor = isEnraged ? 0xe67e22 : 0x334155;
+    const borderWidth = isEnraged ? 2 : 1;
+    this.graphics.roundRect(barX - 2, barY - 2, barW + 4, 10, 2).stroke({ color: borderColor, width: borderWidth });
+
+    // Boss HP Fill Bar (reflecting current vs max 600 HP)
+    const hpRatio = Math.max(0, Math.min(1, boss.hp / boss.maxHp));
+    const fillW = Math.round(hpRatio * barW);
+    const hpColor = isEnraged ? 0xe74c3c : 0x2ecc71;
+
+    if (fillW > 0) {
+      this.graphics.roundRect(barX, barY, fillW, 6, 1).fill({ color: hpColor });
     }
   }
 
@@ -53,3 +116,4 @@ export class SideHUDManager {
     this.container.destroy();
   }
 }
+

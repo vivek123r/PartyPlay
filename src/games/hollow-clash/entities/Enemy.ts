@@ -82,14 +82,14 @@ export class Enemy {
     this.x += this.vx * dt;
     this.y += this.vy * dt;
 
-    // Bounds clamp
-    this.x = Math.max(20, Math.min(CAVERN_CONFIG.width - 20, this.x));
+    // Bounds clamp (x max = 940)
+    this.x = Math.max(20, Math.min(Math.min(940, CAVERN_CONFIG.width - 20), this.x));
     this.y = Math.max(20, Math.min(CAVERN_CONFIG.height - 40, this.y));
   }
 
-  public takeDamage(amount: number, attackDir: 'left' | 'right' | 'down'): void {
+  public takeDamage(amount: number, attackDir?: 'left' | 'right' | 'down'): void {
     // Shielded Husk blocks frontal strikes! Must be pogoed from above or hit from behind!
-    if (this.type === 'shielded_husk' && attackDir !== 'down') {
+    if (this.type === 'shielded_husk' && attackDir && attackDir !== 'down') {
       const isFrontal = (this.facing === 'left' && attackDir === 'right') || (this.facing === 'right' && attackDir === 'left');
       if (isFrontal) return; // Blocked!
     }
