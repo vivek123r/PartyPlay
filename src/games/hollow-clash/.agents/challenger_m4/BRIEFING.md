@@ -1,4 +1,4 @@
-# BRIEFING — 2026-07-25T01:27:25Z
+# BRIEFING — 2026-07-25T07:01:30Z
 
 ## Mission
 Empirical adversarial verification of Milestone 4 (Requirement R4: UI & Visual FX Polish) for HOLLOW CLASH: SHADOW METROIDVANIA.
@@ -17,7 +17,7 @@ Empirical adversarial verification of Milestone 4 (Requirement R4: UI & Visual F
 
 ## Current Parent
 - Conversation ID: ef7a73b1-8f84-4bed-aaba-63e7e2de3a98
-- Updated: 2026-07-25T01:27:25Z
+- Updated: 2026-07-25T07:01:30Z
 
 ## Review Scope
 - **Files to review**: UI components, HUD, Boss Health Bar, Parallax Cavern background math/rendering, soul vessel meter.
@@ -27,16 +27,26 @@ Empirical adversarial verification of Milestone 4 (Requirement R4: UI & Visual F
   3. Parallax Cavern wrap math functions cleanly for arbitrary camera offsets (including negative and large positive offsets up to cameraX = 480) without polygon distortion, coordinate overflow, or seam artifacts.
 
 ## Attack Surface
-- **Hypotheses tested**: TBD
-- **Vulnerabilities found**: TBD
-- **Untested angles**: TBD
+- **Hypotheses tested**:
+  - Soul Vessel Meter boundary values (<0, 0, 50, 100, >100) & lifecycle (+11 per hit, -33 per spell): Verified PASS.
+  - Boss Health Bar top-center calculation (x=150) & screen space invariance during camera panning (cameraX 0..480): Verified PASS.
+  - Boss Enraged visual indicator transition at HP <= 300 (50%): Verified PASS.
+  - Parallax Cavern `posMod` wrap math for negative, positive, floating, and extreme camera values: Verified PASS.
+  - Polygon rendering vertex validity (no NaN/Infinity) and seamless layer wrapping: Verified PASS.
+- **Vulnerabilities found**: None.
+- **Untested angles**: None.
 
 ## Loaded Skills
 - None
 
 ## Key Decisions Made
-- Initialized briefing and request tracker.
+- Executed `npm run build && npm run test` — all existing test suites passed.
+- Created `HollowClashM4Challenger.test.ts` containing 12 empirical stress test cases covering all M4 requirements.
+- Confirmed full test suite (69 tests) passes cleanly.
 
 ## Artifact Index
 - ORIGINAL_REQUEST.md — Original request description
 - BRIEFING.md — Persistent briefing state
+- progress.md — Heartbeat & status log
+- handoff.md — Final handoff report & verdict
+- HollowClashM4Challenger.test.ts — Empirical test suite for M4 requirements

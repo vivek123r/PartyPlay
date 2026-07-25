@@ -1,5 +1,5 @@
-## 2026-07-25T01:27:22Z
-You are teamwork_preview_auditor assigned to conduct a Forensic Integrity Audit on Milestone 4 (Requirement R4) for HOLLOW CLASH: SHADOW METROIDVANIA.
+## 2026-07-25T01:30:08Z
+You are teamwork_preview_auditor assigned to conduct a Forensic Integrity Audit on Milestone 4 (Requirement R4: UI & Visual FX Polish) for HOLLOW CLASH: SHADOW METROIDVANIA.
 Working Directory: /home/viv/Projects/PartyPlay/src/games/hollow-clash/.agents/auditor_m4
 
 Task:

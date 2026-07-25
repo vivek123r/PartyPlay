@@ -12,8 +12,8 @@ Current iteration: 1 / 32
 - [x] Milestone 1: Single-Keyboard Controls & Lounge Bypass (R1)
 - [x] Milestone 2: Physics Engine Unification & Hazard Mechanics (R2)
 - [x] Milestone 3: Combat System & Level Expansion (960px) & Moss Knight Boss (R3)
-- [/] Milestone 4: UI & Visual FX Polish (R4)
-- [ ] Milestone 5: Final E2E Audit & Build Verification
+- [x] Milestone 4: UI & Visual FX Polish (R4)
+- [/] Milestone 5: Final E2E Audit & Build Verification
 
 ## Subagent Activity Log
 | Timestamp | Agent ID | Role / Task | Output / Result |
@@ -44,7 +44,12 @@ Current iteration: 1 / 32
 | 2026-07-25T06:53:17Z | f1c1fc2b | Challenger 5: M3 Stress Test | Completed (PASS, 54/54 tests passed) |
 | 2026-07-25T06:53:17Z | d62770d4 | Forensic Auditor 5: M3 Forensic Audit | Completed (CLEAN) |
 | 2026-07-25T06:55:04Z | 727c9def | Worker 6: M4 UI & Visual FX | Completed (R4a-c implemented, 57/57 unit tests passed) |
-| 2026-07-25T06:57:22Z | 25060f9c | Reviewer 6: M4 Review | Dispatched |
-| 2026-07-25T06:57:22Z | c0fb5cdb | Challenger 6: M4 Stress Test | Dispatched |
-| 2026-07-25T06:57:22Z | 70dc5929 | Forensic Auditor 6: M4 Forensic Audit | Dispatched |
-
+| 2026-07-25T06:57:22Z | 25060f9c | Reviewer 6: M4 Review | Failed (RESOURCE_EXHAUSTED 429) |
+| 2026-07-25T06:57:22Z | c0fb5cdb | Challenger 6: M4 Stress Test | Failed (RESOURCE_EXHAUSTED 429) |
+| 2026-07-25T06:57:22Z | 70dc5929 | Forensic Auditor 6: M4 Forensic Audit | Failed (RESOURCE_EXHAUSTED 429) |
+| 2026-07-25T07:00:04Z | d5196bfc | Reviewer 6 (flash): M4 Review | Completed (PASS) |
+| 2026-07-25T07:00:08Z | ac05eb38 | Forensic Auditor 6 (flash): M4 Forensic Audit | Completed (CLEAN) |
+| 2026-07-25T07:00:10Z | 7827dbc0 | Challenger 6 (flash): M4 Stress Test | Completed (PASS, 69/69 tests passed) |
+| 2026-07-25T07:01:47Z | a06cb7ee | Reviewer 7: M5 Final E2E Review | Dispatched |
+| 2026-07-25T07:01:47Z | 8096fd82 | Challenger 7: M5 Final E2E Stress Test | Dispatched |
+| 2026-07-25T07:01:47Z | 39ddeb36 | Forensic Auditor 7: M5 Final E2E Audit | Dispatched |

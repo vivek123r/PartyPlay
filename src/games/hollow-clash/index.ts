@@ -36,6 +36,7 @@ export default class HollowClashGame implements GameModule {
 
   private isLoungePhase = true;
   private cameraX = 0;
+  private isVictory = false;
 
   public async init(context: GameContext): Promise<void> {
     this.state = 'Loading';
@@ -150,6 +151,13 @@ export default class HollowClashGame implements GameModule {
 
     // Smooth Camera Tracking (max cameraX = 960 - 480 = 480)
     const activeKnights = this.knights.filter((k) => k.state.hp > 0);
+    
+    // Check if ALL players have fallen! Trigger Defeat Game Over!
+    if (activeKnights.length === 0 && this.knights.length > 0) {
+      this.triggerMatchOver(false);
+      return;
+    }
+
     const viewportW = 480;
     if (activeKnights.length > 0) {
       const avgX = activeKnights.reduce((acc, k) => acc + k.state.x, 0) / activeKnights.length;
@@ -217,7 +225,7 @@ export default class HollowClashGame implements GameModule {
     if (this.boss) {
       if (this.boss.hp <= 0) {
         this.boss = null;
-        this.triggerMatchOver();
+        this.triggerMatchOver(true);
         return;
       }
       const bRes = this.boss.update(dt, this.knights);
@@ -262,14 +270,15 @@ export default class HollowClashGame implements GameModule {
     if (this.boss) this.boss.render(this.worldGraphics);
     
     this.knights.forEach((k) => k.render());
-    this.hud.render(this.knights.map((k) => k.state), this.boss);
+    this.hud.render(this.knights.map((k) => k.state), this.boss, (this.state as string) === 'Finished', this.isVictory);
   }
 
-  private triggerMatchOver(): void {
+  private triggerMatchOver(isVictory: boolean = true): void {
     if (this.state !== 'Playing') return;
 
     this.state = 'Finished';
-    this.ctx.audio.playTone(660, 'sine', 0.5);
+    this.isVictory = isVictory;
+    this.ctx.audio.playTone(isVictory ? 660 : 220, 'sine', 0.5);
 
     const standings = [...this.knights]
       .sort((a, b) => b.state.geoCount - a.state.geoCount)
@@ -277,11 +286,11 @@ export default class HollowClashGame implements GameModule {
 
     setTimeout(() => {
       this.ctx.events.emit('game:over', {
-        winnerId: standings[0]?.playerId ?? 1,
-        isTeamLoss: false,
+        winnerId: isVictory ? (standings[0]?.playerId ?? 1) : 1,
+        isTeamLoss: !isVictory,
         standings,
       });
-    }, 50);
+    }, 2000);
   }
 
   public pause(): void { this.state = 'Paused'; }

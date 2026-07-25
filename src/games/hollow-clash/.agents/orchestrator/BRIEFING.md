@@ -72,14 +72,17 @@ Complete overhaul and polish of "HOLLOW CLASH: SHADOW METROIDVANIA" across contr
 | Challenger 5 | teamwork_preview_challenger | M3 Stress Test | completed (PASS) | f1c1fc2b-cf90-4848-9139-e7d6c51d1e5a |
 | Forensic Auditor 5 | teamwork_preview_auditor | M3 Forensic Audit | completed (CLEAN) | d62770d4-8ed0-429a-b0a3-e2ee8167fdfa |
 | Worker 6 | teamwork_preview_worker | M4 UI & Visual FX | completed | 727c9def-de75-49e3-93f6-a0f056177d8f |
-| Reviewer 6 | teamwork_preview_reviewer | M4 Review | in-progress | 25060f9c-f97e-4941-9711-75ef093c8d91 |
-| Challenger 6 | teamwork_preview_challenger | M4 Stress Test | in-progress | c0fb5cdb-7c3e-4ba6-8ddd-bde7176aa6af |
-| Forensic Auditor 6 | teamwork_preview_auditor | M4 Forensic Audit | in-progress | 70dc5929-327b-4293-bf73-76ffdffdffcf |
+| Reviewer 6 (b) | teamwork_preview_reviewer | M4 Review | in-progress | d5196bfc-2087-41dd-a9f9-c2db0557cc41 |
+| Forensic Auditor 6 (b) | teamwork_preview_auditor | M4 Forensic Audit | in-progress | ac05eb38-3b4b-4908-9433-a783f8864c9e |
+| Challenger 6 (b) | teamwork_preview_challenger | M4 Stress Test | completed (PASS) | 7827dbc0-28e8-46d0-89cd-dbea9b31168a |
+| Reviewer 7 | teamwork_preview_reviewer | M5 Final E2E Review | in-progress | a06cb7ee-70c6-4818-b960-47f59240c847 |
+| Challenger 7 | teamwork_preview_challenger | M5 Final E2E Stress Test | in-progress | 8096fd82-6389-453f-a075-ffc76697c19f |
+| Forensic Auditor 7 | teamwork_preview_auditor | M5 Final E2E Audit | in-progress | 39ddeb36-2cdc-47b1-9609-7306094fee8c |
 
 ## Succession Status
-- Succession required: no
-- Spawn count: 11 / 16
-- Pending subagents: 25060f9c-f97e-4941-9711-75ef093c8d91, c0fb5cdb-7c3e-4ba6-8ddd-bde7176aa6af, 70dc5929-327b-4293-bf73-76ffdffdffcf
+- Succession required: yes (spawn count 17 >= 16)
+- Spawn count: 17 / 16
+- Pending subagents: a06cb7ee-70c6-4818-b960-47f59240c847, 8096fd82-6389-453f-a075-ffc76697c19f, 39ddeb36-2cdc-47b1-9609-7306094fee8c
 - Predecessor: Gen 1 (16 spawns)
 - Successor: not yet spawned
 

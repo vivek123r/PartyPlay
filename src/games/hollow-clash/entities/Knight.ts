@@ -375,13 +375,23 @@ export class Knight {
       this.graphics.rect(p.x - this.state.x, p.y - this.state.y, p.size, p.size * 1.5).fill({ color: p.color, alpha: p.alpha * (p.life / p.maxLife) });
     }
 
+    const cx = this.width / 2;
+    const cy = this.height / 2;
+
+    // Dead Knight: Render broken mask & ghost grave
+    if (this.state.hp <= 0) {
+      this.graphics.ellipse(cx, cy + 6, 7, 5).fill({ color: 0x334155 });
+      this.graphics.ellipse(cx - 2, cy + 5, 2, 2).fill({ color: 0x0f172a });
+      this.graphics.ellipse(cx + 2, cy + 5, 2, 2).fill({ color: 0x0f172a });
+      this.graphics.poly([cx - 4, cy + 2, cx - 6, cy - 4, cx - 2, cy]).fill({ color: 0x64748b });
+      return;
+    }
+
     // Flicker if invulnerable
     if (this.invulnerabilityTimer > 0 && !this.state.isShadowDashing) {
       if (Math.floor(this.invulnerabilityTimer * 10) % 2 === 0) return;
     }
 
-    const cx = this.width / 2;
-    const cy = this.height / 2;
     const faceDir = this.state.facing === 'right' ? 1 : -1;
 
     // Dark Cloak

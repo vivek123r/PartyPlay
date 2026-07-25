@@ -12,8 +12,8 @@
 | M1 | R1: Single-Keyboard Controls & Lounge Bypass | P1/P2 single-keyboard controls, Enter/Space lounge bypass, clean knight spawn y=200 | M0 | DONE |
 | M2 | R2: Physics Unification & Hazard Mechanics | Single physics engine (AABB, moss wall slide, spike pit damage & safe respawn, Shadow Dash wall collision) | M1 | DONE |
 | M3 | R3: Combat System & Level Expansion & Moss Knight Boss | Melee AABB boxes (Fwd/Up/Dn), takeDamage(), airborne pogo, level expansion to x=960, 2-phase Moss Knight Boss | M2 | DONE |
-| M4 | R4: UI & Visual FX Polish | Cyan Soul Vessel meter in Side HUD, top-center Boss Health Bar, Parallax Cavern wrap math | M3 | IN_PROGRESS |
-| M5 | Final E2E Audit & Hardening | Full build, verification of all acceptance criteria, forensic audit | M4 | PLANNED |
+| M4 | R4: UI & Visual FX Polish | Cyan Soul Vessel meter in Side HUD, top-center Boss Health Bar, Parallax Cavern wrap math | M3 | DONE |
+| M5 | Final E2E Audit & Hardening | Full build, verification of all acceptance criteria, forensic audit | M4 | IN_PROGRESS |
 
 ## Interface Contracts
 ### Player Input & Control Mapping

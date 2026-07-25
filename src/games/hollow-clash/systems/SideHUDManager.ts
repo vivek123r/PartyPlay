@@ -15,7 +15,7 @@ export class SideHUDManager {
     this.animTimer += dt;
   }
 
-  public render(knights: KnightState[], boss?: BossState | null): void {
+  public render(knights: KnightState[], boss?: BossState | null, isFinished?: boolean, isVictory?: boolean): void {
     this.graphics.clear();
     if (knights && knights.length > 0) {
       this.renderPlayerHUD(knights);
@@ -23,6 +23,29 @@ export class SideHUDManager {
     if (boss && boss.hp > 0) {
       this.renderBossHUD(boss);
     }
+    if (isFinished) {
+      this.renderGameOverOverlay(!!isVictory);
+    }
+  }
+
+  private renderGameOverOverlay(isVictory: boolean): void {
+    const w = 480;
+    const h = 270;
+
+    // Dark semi-transparent backdrop
+    this.graphics.rect(0, 0, w, h).fill({ color: 0x070b19, alpha: 0.85 });
+
+    if (isVictory) {
+      PixelFont.drawText(this.graphics, 'VICTORY ACHIEVED!', w / 2 - 70, h / 2 - 25, 0x2ecc71, 1);
+      PixelFont.drawText(this.graphics, 'MOSS KNIGHT VANQUISHED', w / 2 - 85, h / 2 - 5, 0x00f0ff, 1);
+    } else {
+      PixelFont.drawText(this.graphics, 'GAME OVER', w / 2 - 35, h / 2 - 25, 0xe74c3c, 1);
+      PixelFont.drawText(this.graphics, 'ALL KNIGHTS HAVE FALLEN', w / 2 - 85, h / 2 - 5, 0x94a3b8, 1);
+    }
+
+    const pulse = Math.floor(Date.now() * 0.005) % 2 === 0;
+    const promptColor = pulse ? 0xffffff : 0x7f8c8d;
+    PixelFont.drawText(this.graphics, 'MATCH CONCLUDING...', w / 2 - 60, h / 2 + 20, promptColor, 1);
   }
 
   private renderPlayerHUD(knights: KnightState[]): void {
