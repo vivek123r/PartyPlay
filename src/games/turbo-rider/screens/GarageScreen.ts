@@ -2,32 +2,10 @@ import { Container, Graphics, Ticker } from 'pixi.js';
 import type { BikePhysics } from '../core/BikePhysics';
 import type { BikeCustomization, BikeStats } from '../types';
 import { PixelFont } from '../render/PixelFont';
+import type { AudioService } from '@services/audio/AudioService';
 
 function hexToInt(hexStr: string): number {
   return parseInt(hexStr.replace('#', ''), 16) || 0xffffff;
-}
-
-let audioCtx: AudioContext | null = null;
-function playRevSound(pitchMult = 1.0) {
-  try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(160 * pitchMult, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(340 * pitchMult, audioCtx.currentTime + 0.1);
-    osc.frequency.exponentialRampToValueAtTime(70 * pitchMult, audioCtx.currentTime + 0.3);
-
-    gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.3);
-  } catch (e) {
-    // Audio context fallback
-  }
 }
 
 class Particle {
@@ -75,8 +53,6 @@ export class BikeShowcase extends Container {
     ft.maxLife = ft.life = 1.4;
     ft.color = 0x55efc4;
     this.floatingTexts.push(ft);
-
-    playRevSound(1.0 + Math.random() * 0.4);
   }
 
   public update(deltaSeconds: number, customization: BikeCustomization): void {
@@ -187,6 +163,11 @@ export class GarageScreen {
   private showcases: BikeShowcase[] = [];
   private ticker: Ticker;
   public startButtonBounds = { x: 130, y: 242, w: 220, h: 22 };
+  private audio: AudioService | null = null;
+
+  public setAudioService(audio: AudioService): void {
+    this.audio = audio;
+  }
 
   constructor() {
     this.container = new Container();
@@ -214,7 +195,7 @@ export class GarageScreen {
 
   public forceStartAll(): void {
     this.playerReady = [true, true, true, true];
-    playRevSound(1.5);
+    this.audio?.playTone(659, 'triangle', 0.12);
   }
 
   private getTotalTokens(c: BikeCustomization): number {
@@ -234,13 +215,14 @@ export class GarageScreen {
 
     if (toggleReady) {
       this.playerReady[playerId] = !this.playerReady[playerId];
-      playRevSound(1.2);
+      this.audio?.playTone(659, 'triangle', 0.12);
       return;
     }
 
     if (this.playerReady[playerId]) return;
 
     if (navLeft || navRight) {
+      this.audio?.playTone(440, 'sine', 0.03);
       const dir = navRight ? 1 : -1;
       const row = this.selectedRow[playerId];
       const totalTokens = this.getTotalTokens(c);
@@ -259,6 +241,7 @@ export class GarageScreen {
         if (dir === 1 && totalTokens < 10 && c[part] < 3) {
           c[part]++;
           this.showcases[playerId].triggerUpgrade(partNames[row - 1]);
+          this.audio?.playSweep({ type: 'square', startFreq: 440, endFreq: 880, duration: 0.15 });
         } else if (dir === -1 && c[part] > 0) {
           c[part]--;
         }
@@ -272,9 +255,10 @@ export class GarageScreen {
     } else if (actionSelect) {
       if (this.selectedRow[playerId] === 7) {
         this.playerReady[playerId] = true;
-        playRevSound(1.2);
+        this.audio?.playTone(659, 'triangle', 0.12);
       } else {
         this.selectedRow[playerId] = (this.selectedRow[playerId] + 1) % 8;
+        this.audio?.playTone(440, 'sine', 0.03);
       }
     }
   }
@@ -365,18 +349,23 @@ export class GarageScreen {
     }
 
     const btnX = viewW / 2 - 110;
-    const btnY = viewH - 26;
+    const btnY = viewH - 28;
     const btnW = 220;
     const btnH = 22;
-    this.startButtonBounds = { x: btnX, y: btnY, w: btnW, h: btnH };
+    this.startButtonBounds = { x: btnX, y: btnY - 14, w: btnW, h: btnH + 14 };
 
     const pulseGlow = 0.85 + Math.sin(this.ticker.lastTime * 0.01) * 0.15;
     this.graphics.rect(btnX, btnY, btnW, btnH).fill({ color: 0x55efc4, alpha: pulseGlow });
     this.graphics.rect(btnX + 2, btnY + 2, btnW - 4, btnH - 4).fill({ color: 0x0f0e17 });
-    PixelFont.drawText(this.graphics, 'START RACE  CLICK OR ENTER', btnX + 8, btnY + 7, 0x55efc4, 1);
+    PixelFont.drawText(this.graphics, 'START RACE', btnX + 36, btnY + 7, 0x55efc4, 1);
+
+    // Controls legend
+    const legendY = viewH - 12;
+    PixelFont.drawText(this.graphics, 'A/D NAV  W SELECT  S READY', viewW / 2 - 80, legendY, 0x74b9ff, 1);
   }
 
   private renderStatRadar(centerX: number, centerY: number, radius: number, stats: BikeStats, color: number): void {
+    const labels = ['SPD', 'ACC', 'TOR', 'GRP', 'BRK'];
     const angles = [
       -Math.PI / 2,
       -Math.PI / 2 + (Math.PI * 2) / 5,
@@ -406,6 +395,14 @@ export class GarageScreen {
     });
 
     this.graphics.poly(radarPoints).fill({ color, alpha: 0.45 }).stroke({ color, width: 1.5 });
+
+    // Stat labels
+    angles.forEach((ang, idx) => {
+      const lx = centerX + Math.cos(ang) * (radius + 8);
+      const ly = centerY + Math.sin(ang) * (radius + 6);
+      const lw = labels[idx].length * 4;
+      PixelFont.drawText(this.graphics, labels[idx], Math.round(lx) - lw / 2, Math.round(ly) - 3, 0x74b9ff, 1);
+    });
   }
 
   public destroy(): void {

@@ -63,6 +63,22 @@ export interface TrackSprite {
   speed?: number;
 }
 
+/** Render-facing DTO for another human player's bike — see ProjectionEngine's opponent render loop. */
+export interface OpponentSprite {
+  id: number;
+  laneX: number; // same units as BikePhysics.x / AITrafficVehicle.laneX
+  z: number;
+  leanAngle: number;
+  colorHex: number;
+  suitColorHex: number;
+  helmetColorHex: number;
+  isNitroActive: boolean;
+  isCrashed: boolean;
+  eliminated: boolean;
+  isInvulnerable: boolean;
+  label: string;
+}
+
 export interface TrackSegment {
   index: number;
   p1: Point3D;
@@ -76,5 +92,6 @@ export interface TrackSegment {
     lane: number;
   };
   phaseName: string;
+  phaseIndex: number;
   sprites: TrackSprite[];
 }
