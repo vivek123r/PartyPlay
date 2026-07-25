@@ -254,8 +254,8 @@ function drawHazardWarningRing(g: Graphics, x: number, groundY: number, w: numbe
 }
 
 function drawCone(g: Graphics, x: number, groundY: number, ppm: number, a: number): void {
-  const w = Math.max(1, Math.round(ppm * 0.4));
-  const h = Math.max(2, Math.round(ppm * 0.7));
+  const w = Math.max(1, Math.round(ppm * 0.5));
+  const h = Math.max(2, Math.round(ppm * 0.85));
   shadow(g, x, groundY, w * 2, a);
   g.poly([x, groundY - h, x - w / 2, groundY, x + w / 2, groundY]).fill({ color: 0xff7043, alpha: a });
   g.poly([x, groundY - h, x - w / 2, groundY, x + w / 2, groundY]).stroke({ width: 1, color: 0x1e272e, alpha: a * 0.7 });
@@ -274,8 +274,8 @@ function drawCone(g: Graphics, x: number, groundY: number, ppm: number, a: numbe
 }
 
 function drawBarrel(g: Graphics, x: number, groundY: number, ppm: number, a: number): void {
-  const w = Math.max(1, Math.round(ppm * 0.6));
-  const h = Math.max(2, Math.round(ppm * 0.9));
+  const w = Math.max(1, Math.round(ppm * 0.7));
+  const h = Math.max(2, Math.round(ppm * 1.05));
   shadow(g, x, groundY, w, a);
   // Rounded barrel profile — a body rect with elliptical top/bottom caps rather than a flat box
   g.rect(x - w / 2, groundY - h + h * 0.1, w, h * 0.8).fill({ color: 0xff9500, alpha: a });
@@ -293,8 +293,8 @@ function drawBarrel(g: Graphics, x: number, groundY: number, ppm: number, a: num
 }
 
 function drawBarrier(g: Graphics, x: number, groundY: number, ppm: number, a: number): void {
-  const w = Math.max(2, Math.round(ppm * 1.8));
-  const h = Math.max(2, Math.round(ppm * 1.0));
+  const w = Math.max(2, Math.round(ppm * 2.0));
+  const h = Math.max(2, Math.round(ppm * 1.15));
   shadow(g, x, groundY, w, a);
 
   const boardH = Math.max(1, Math.round(h * 0.55));
@@ -337,6 +337,7 @@ function drawOilSlick(g: Graphics, x: number, groundY: number, ppm: number, a: n
   const sheenColor = mixColorLocal(OIL_SHEEN_COLORS[sheenIdx], sheenNext, t % 1);
   g.ellipse(x + w * 0.1, groundY + h * 0.05, w * 0.16, h * 0.11).fill({ color: sheenColor, alpha: (0.3 + 0.15 * Math.sin(t * 4)) * a });
   g.ellipse(x - w * 0.15, groundY - h * 0.02, w * 0.08, h * 0.05).fill({ color: mixColorLocal(sheenColor, 0xffffff, 0.4), alpha: (0.25 + 0.1 * Math.cos(t * 5)) * a });
+  drawHazardWarningRing(g, x, groundY, w, ppm, a);
 }
 
 /** Rear and front face projections for a boxed vehicle — the caller (ProjectionEngine) computes
@@ -383,6 +384,23 @@ function drawDepthShell(
     xFar + wFar / 2, yFar,
     xFar - wFar / 2, yFar,
   ]).fill({ color: 0x000000, alpha: a * 0.3 });
+
+  // Front cap — closes the box's open far end. Never a literal photographed grille (the camera
+  // never sees oncoming traffic on this straight one-way track), but a closed silhouette reads
+  // as a solid vehicle from any angle — including the ~8.5m window where an overtaken vehicle
+  // keeps rendering after being passed, which used to show an open-ended shell with nothing at
+  // the front. A pair of light accents + a bumper line is enough to sell "this is a front".
+  if (wFar > 2) {
+    g.rect(xFar - wFar / 2, roofFarY, wFar, yFar - roofFarY).fill({ color: mixColorLocal(color, 0x000000, 0.3), alpha: a * 0.8 });
+    if (wFar > 4) {
+      const lampSize = Math.max(1, Math.round(wFar * 0.12));
+      const lampY = roofFarY + Math.round((yFar - roofFarY) * 0.35);
+      g.rect(xFar - wFar * 0.4, lampY, lampSize, lampSize).fill({ color: 0xfffde7, alpha: a * 0.7 });
+      g.rect(xFar + wFar * 0.4 - lampSize, lampY, lampSize, lampSize).fill({ color: 0xfffde7, alpha: a * 0.7 });
+      const bumperH = Math.max(1, Math.round(wFar * 0.06));
+      g.rect(xFar - wFar / 2, yFar - bumperH, wFar, bumperH).fill({ color: 0x1e272e, alpha: a * 0.7 });
+    }
+  }
 
   // Side face — back-face culled: only the side actually facing the camera is drawn, chosen
   // from which side of the camera's forward axis the vehicle sits. Drawing both (or always

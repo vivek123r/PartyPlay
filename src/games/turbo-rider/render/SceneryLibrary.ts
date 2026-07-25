@@ -1,4 +1,5 @@
 import { Graphics } from 'pixi.js';
+import { PixelFont } from './PixelFont';
 
 type PropDraw = (g: Graphics, x: number, groundY: number, ppm: number, alpha: number, hash: number, side: 1 | -1) => void;
 
@@ -326,6 +327,83 @@ function gridLampPost(g: Graphics, x: number, groundY: number, ppm: number, alph
 }
 
 // ---------------------------------------------------------------------------
+// Phase 5 — DESERT HIGHWAY
+// ---------------------------------------------------------------------------
+
+function cactus(g: Graphics, x: number, groundY: number, ppm: number, alpha: number, hash: number, side: 1 | -1): void {
+  const h = Math.max(6, Math.round(ppm * (2.5 + (hash % 3))));
+  const w = Math.max(2, Math.round(ppm * 0.5));
+  const bx = side > 0 ? x + 3 : x - 3 - w;
+  g.rect(bx, groundY - h, w, h).fill({ color: 0x2d6a4f, alpha });
+  g.rect(bx + w * 0.2, groundY - h * 0.85, Math.max(1, Math.round(w * 0.15)), h * 0.5).fill({ color: 0x1e4d38, alpha: alpha * 0.6 });
+  if (hash % 2 === 0) {
+    const armH = Math.max(2, Math.round(h * 0.4));
+    const armW = Math.max(1, Math.round(w * 0.8));
+    const armY = groundY - h * 0.55;
+    g.rect(bx - armW, armY - armH, armW, armH + armW).fill({ color: 0x2d6a4f, alpha });
+  }
+}
+
+function duneMound(g: Graphics, x: number, groundY: number, ppm: number, alpha: number, hash: number, side: 1 | -1): void {
+  const w = Math.max(6, Math.round(ppm * (3 + (hash % 3))));
+  const h = Math.max(3, Math.round(w * 0.35));
+  const bx = side > 0 ? x + 4 : x - 4 - w;
+  g.ellipse(bx + w / 2, groundY - h * 0.3, w / 2, h / 2).fill({ color: 0xd9b382, alpha });
+  g.ellipse(bx + w * 0.35, groundY - h * 0.45, w * 0.22, h * 0.3).fill({ color: 0xe8c99a, alpha: alpha * 0.7 });
+}
+
+function oasisPalm(g: Graphics, x: number, groundY: number, ppm: number, alpha: number, hash: number, side: 1 | -1): void {
+  palm(g, x, groundY, ppm, alpha, hash, side);
+  const poolW = Math.max(4, Math.round(ppm * 1.2));
+  const bx = side > 0 ? x + 2 : x - 2 - poolW;
+  g.ellipse(bx + poolW / 2, groundY + 1, poolW / 2, poolW * 0.18).fill({ color: 0x2596be, alpha: alpha * 0.6 });
+}
+
+function mileMarker(g: Graphics, x: number, groundY: number, ppm: number, alpha: number, _hash: number, side: 1 | -1): void {
+  const h = Math.max(4, Math.round(ppm * 1.0));
+  const w = Math.max(1, Math.round(ppm * 0.25));
+  const bx = side > 0 ? x + 1 : x - 1 - w;
+  g.rect(bx, groundY - h, w, h).fill({ color: 0xc9a66b, alpha });
+  g.rect(bx - w * 0.5, groundY - h * 0.85, w * 2, Math.max(1, Math.round(h * 0.18))).fill({ color: 0xd35400, alpha: alpha * 0.9 });
+}
+
+// ---------------------------------------------------------------------------
+// Phase 6 — OPEN SEA CAUSEWAY
+// ---------------------------------------------------------------------------
+
+function boatSilhouette(g: Graphics, x: number, groundY: number, ppm: number, alpha: number, hash: number, side: 1 | -1): void {
+  const w = Math.max(5, Math.round(ppm * (2 + (hash % 2))));
+  const h = Math.max(2, Math.round(w * 0.3));
+  const bx = side > 0 ? x + 4 : x - 4 - w;
+  g.poly([bx, groundY, bx + w, groundY, bx + w * 0.8, groundY - h, bx + w * 0.2, groundY - h]).fill({ color: 0x1e272e, alpha });
+  g.rect(bx + w * 0.45, groundY - h - Math.round(h * 1.5), Math.max(1, Math.round(w * 0.06)), Math.round(h * 1.5)).fill({ color: 0x2f3542, alpha: alpha * 0.8 });
+}
+
+function lighthouse(g: Graphics, x: number, groundY: number, ppm: number, alpha: number, _hash: number, side: 1 | -1): void {
+  const h = Math.max(10, Math.round(ppm * 4.5));
+  const w = Math.max(2, Math.round(ppm * 0.8));
+  const bx = side > 0 ? x + 4 : x - 4 - w;
+  g.rect(bx, groundY - h, w, h).fill({ color: 0xf5f5f5, alpha });
+  for (let i = 0; i < 3; i++) {
+    g.rect(bx, groundY - h + i * (h / 3), w, Math.max(1, Math.round(h * 0.08))).fill({ color: 0xff4757, alpha: alpha * 0.85 });
+  }
+  const capH = Math.round(h * 0.18);
+  g.poly([bx - 1, groundY - h, bx + w + 1, groundY - h, bx + w / 2, groundY - h - capH]).fill({ color: 0xff4757, alpha });
+  g.circle(bx + w / 2, groundY - h + capH * 0.4, Math.max(1, Math.round(w * 0.4))).fill({ color: 0xfff176, alpha: alpha * (0.6 + 0.3 * Math.sin(Date.now() * 0.005)) });
+}
+
+function gullPost(g: Graphics, x: number, groundY: number, ppm: number, alpha: number, hash: number, side: 1 | -1): void {
+  const h = Math.max(4, Math.round(ppm * 1.4));
+  const w = Math.max(1, Math.round(ppm * 0.15));
+  const bx = side > 0 ? x + 1 : x - 1 - w;
+  g.rect(bx, groundY - h, w, h).fill({ color: 0x5a6069, alpha });
+  const gy = groundY - h - Math.round(ppm * 0.3);
+  const gx = bx + w / 2 + (hash % 2 === 0 ? -Math.round(ppm * 0.5) : Math.round(ppm * 0.5));
+  const wing = Math.max(2, Math.round(ppm * 0.4));
+  g.poly([gx - wing, gy + wing * 0.4, gx, gy, gx + wing, gy + wing * 0.4]).stroke({ width: 1, color: 0xffffff, alpha: alpha * 0.8 });
+}
+
+// ---------------------------------------------------------------------------
 
 const PHASE_PROPS: PropDraw[][] = [
   [palm, beachHut, rockStack, guardRail],
@@ -333,6 +411,8 @@ const PHASE_PROPS: PropDraw[][] = [
   [bridgeTower, buoy, lampPostBridge, railingPost],
   [tunnelRib, neonSign, pipeConduit, serviceDoor],
   [synthPalm, billboard, neonPylon, gridLampPost],
+  [cactus, duneMound, oasisPalm, mileMarker],
+  [boatSilhouette, lighthouse, buoy, gullPost],
 ];
 
 /** Deterministically draws one roadside prop for the given phase, position hash and side. */
@@ -352,7 +432,7 @@ export function drawSceneryProp(
   propFn(g, x, groundY, pxPerMetre, alpha, hash, side);
 }
 
-const GANTRY_ACCENT: number[] = [0xffa502, 0xdfe6e9, 0x00cec9, 0x00f0ff, 0xff2d95];
+const GANTRY_ACCENT: number[] = [0xffa502, 0xdfe6e9, 0x00cec9, 0x00f0ff, 0xff2d95, 0xd35400, 0x00cec9];
 
 /** Overhead structure spanning the road — sign gantry / bridge span / tunnel ring, depending on phase. */
 export function drawOverheadGantry(
@@ -386,4 +466,52 @@ export function drawOverheadGantry(
     g.rect(centerX - signW / 2, beamY + 1, signW, Math.max(2, Math.round(pxPerMetre * 0.6)))
       .stroke({ width: 1, color: accent, alpha: alpha * 0.7 });
   }
+}
+
+/** The finish line — a single one-off gate at the end of the track (not a repeating loop like
+ * drawOverheadGantry). Checkered beam, blinking marquee bulbs, and a hanging "FINISH" banner. */
+export function drawFinishGate(
+  g: Graphics,
+  centerX: number,
+  groundY: number,
+  roadHalfWidthPx: number,
+  pxPerMetre: number,
+  alpha: number
+): void {
+  if (alpha <= 0 || roadHalfWidthPx < 2) return;
+  const clearance = Math.max(6, Math.round(pxPerMetre * 4.5));
+  const beamY = groundY - clearance;
+  const beamH = Math.max(2, Math.round(pxPerMetre * 0.6));
+  const legW = Math.max(1, Math.round(pxPerMetre * 0.25));
+  const spanL = centerX - roadHalfWidthPx * 1.05;
+  const spanR = centerX + roadHalfWidthPx * 1.05;
+  const beamW = spanR - spanL;
+
+  // Legs
+  g.rect(spanL, beamY, legW, groundY - beamY).fill({ color: 0x2f3542, alpha });
+  g.rect(spanR - legW, beamY, legW, groundY - beamY).fill({ color: 0x2f3542, alpha });
+
+  // Checkered beam — alternating black/white squares
+  const squares = Math.max(4, Math.round(beamW / Math.max(2, pxPerMetre * 0.8)));
+  const squareW = beamW / squares;
+  for (let i = 0; i < squares; i++) {
+    g.rect(spanL + i * squareW, beamY, squareW, beamH).fill({ color: i % 2 === 0 ? 0xfffffe : 0x0f0e17, alpha });
+  }
+
+  // Blinking marquee bulbs along the beam's lower edge
+  const bulbCount = Math.max(6, Math.round(beamW / Math.max(3, pxPerMetre * 0.7)));
+  for (let i = 0; i < bulbCount; i++) {
+    const bx = spanL + (beamW / (bulbCount - 1)) * i;
+    const on = Math.floor(Date.now() * 0.006 + i) % 2 === 0;
+    g.circle(bx, beamY + beamH + 1, Math.max(1, pxPerMetre * 0.06)).fill({ color: on ? 0xf4d160 : 0xff0055, alpha: alpha * (on ? 0.95 : 0.5) });
+  }
+
+  // Hanging "FINISH" banner
+  const bannerText = 'FINISH';
+  const bannerScale = Math.max(1, Math.round(pxPerMetre * 0.12));
+  const bannerW = bannerText.length * 4 * bannerScale;
+  const bannerH = 5 * bannerScale;
+  const bannerY = beamY + beamH + Math.max(3, pxPerMetre * 0.5);
+  g.rect(centerX - bannerW / 2 - 2, bannerY - 2, bannerW + 4, bannerH + 4).fill({ color: 0x0f0e17, alpha: alpha * 0.85 });
+  PixelFont.drawText(g, bannerText, Math.round(centerX - bannerW / 2), Math.round(bannerY), 0xf4d160, bannerScale, alpha);
 }

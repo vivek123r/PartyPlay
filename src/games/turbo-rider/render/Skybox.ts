@@ -1,8 +1,8 @@
 import { Graphics, Texture } from 'pixi.js';
 
 // Sky top colour per phase — index matches TrackPhase in core/HandcraftedTrack.ts
-const SKY_TOP: number[] = [0x3a7bd5, 0x2c3e6b, 0x1a3a5c, 0x05050a, 0x1a1033];
-const SKY_HORIZON: number[] = [0x8fd3f4, 0x5a6a8a, 0x3a5a7a, 0x0f0e17, 0x4a2a6a];
+const SKY_TOP: number[] = [0x3a7bd5, 0x2c3e6b, 0x1a3a5c, 0x05050a, 0x1a1033, 0xe8a33d, 0x1a6b8a];
+const SKY_HORIZON: number[] = [0x8fd3f4, 0x5a6a8a, 0x3a5a7a, 0x0f0e17, 0x4a2a6a, 0xffe0b3, 0x6dd5ed];
 
 function lerpColor(c1: number, c2: number, t: number): number {
   const r1 = (c1 >> 16) & 0xff, g1 = (c1 >> 8) & 0xff, b1 = c1 & 0xff;
@@ -192,8 +192,40 @@ function drawSunset(g: Graphics, viewW: number, horizonY: number, parallaxX: num
   }
 }
 
+function drawDesert(g: Graphics, viewW: number, horizonY: number, parallaxX: number): void {
+  skyGradient(g, viewW, horizonY, SKY_TOP[5], SKY_HORIZON[5]);
+  drawSun(g, viewW - 80, horizonY - 50, 0xffd580, 0xffcc66);
+  // Heat-shimmer band just above the horizon
+  const shimmer = Math.sin(Date.now() * 0.003) * 2;
+  g.rect(0, horizonY - 4 + shimmer, viewW, 4).fill({ color: 0xffe0b3, alpha: 0.12 });
+  // Distant mesa silhouettes
+  const px = ((parallaxX * 0.35) % (viewW + 400)) - 200;
+  g.poly([
+    (0 + px), horizonY, (40 + px), horizonY - 10, (70 + px), horizonY - 10, (90 + px), horizonY - 2,
+    (160 + px), horizonY - 2, (180 + px), horizonY - 16, (220 + px), horizonY - 16, (240 + px), horizonY,
+    (viewW + 300 + px), horizonY,
+  ]).fill({ color: 0xb5652e, alpha: 0.55 });
+}
+
+function drawOpenSea(g: Graphics, viewW: number, horizonY: number, parallaxX: number): void {
+  skyGradient(g, viewW, horizonY, SKY_TOP[6], SKY_HORIZON[6]);
+  drawSun(g, viewW - 70, horizonY - 40, 0xfff9e6, 0xbdf0ff);
+  drawClouds(g, viewW, horizonY, parallaxX, 0xffffff, 0.6);
+  g.rect(0, horizonY - 6, viewW, 6).fill({ color: 0x0a8ab8, alpha: 0.5 });
+  // Distant island silhouette
+  const px = ((parallaxX * 0.25) % (viewW + 400)) - 200;
+  g.poly([(60 + px), horizonY, (100 + px), horizonY - 9, (150 + px), horizonY - 4, (190 + px), horizonY]).fill({ color: 0x1a4a5c, alpha: 0.55 });
+  // Gulls
+  const gOff = ((parallaxX * 0.6) % (viewW + 200)) - 100;
+  for (let i = 0; i < 3; i++) {
+    const gx = (gOff + i * 90) % viewW;
+    const gy = horizonY - 20 - (i % 2) * 6;
+    g.poly([gx - 4, gy + 2, gx, gy, gx + 4, gy + 2]).stroke({ width: 1, color: 0x1e272e, alpha: 0.5 });
+  }
+}
+
 const PHASE_SKIES: ((g: Graphics, viewW: number, horizonY: number, parallaxX: number) => void)[] = [
-  drawCoastal, drawMountain, drawBridge, drawTunnel, drawSunset,
+  drawCoastal, drawMountain, drawBridge, drawTunnel, drawSunset, drawDesert, drawOpenSea,
 ];
 
 /** Draws the phase-specific procedural backdrop, or the loaded video skybox if available. */

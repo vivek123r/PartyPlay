@@ -1,16 +1,26 @@
 import type { BikePhysics } from './BikePhysics';
 
+export type PowerUpType = 'boost' | 'shield' | 'coin' | 'nitroFull' | 'extraLife';
+
 export interface PowerUp {
   id: number;
   laneX: number;
   z: number;
-  type: 'boost' | 'shield' | 'coin';
+  type: PowerUpType;
   collected: boolean;
   respawnTimer: number;
 }
 
 const LANES = [-0.7, -0.3, 0.3, 0.7];
-const TYPES: ('boost' | 'shield' | 'coin')[] = ['boost', 'boost', 'shield', 'coin'];
+// Weighted spawn pool (3:3:2:2:1) — boost/coin common, shield/nitroFull moderate,
+// extraLife rare and higher-value.
+const TYPES: PowerUpType[] = [
+  'boost', 'boost', 'boost',
+  'coin', 'coin', 'coin',
+  'shield', 'shield',
+  'nitroFull', 'nitroFull',
+  'extraLife',
+];
 
 export class PowerUpManager {
   public pickups: PowerUp[] = [];
@@ -38,7 +48,7 @@ export class PowerUpManager {
     dt: number,
     bikes: BikePhysics[],
     trackLength: number,
-    onCollect?: (bike: BikePhysics, type: PowerUp['type']) => void
+    onCollect?: (bike: BikePhysics, type: PowerUpType) => void
   ): void {
     // Respawn collected pickups
     this.pickups.forEach((pu) => {
@@ -72,14 +82,21 @@ export class PowerUpManager {
     });
   }
 
-  private applyPickup(bike: BikePhysics, type: string): void {
+  private applyPickup(bike: BikePhysics, type: PowerUpType): void {
     if (type === 'boost') {
       bike.speed = Math.min(bike.stats.topSpeed * 1.45, bike.speed * 1.3 + 60);
     } else if (type === 'shield') {
+      // Redefined now that health exists: temporary invulnerability + full health restore.
+      // No longer also grants a life — extraLife is the dedicated (rarer) pickup for that.
       bike.shieldTimer = 10;
-      bike.lives = Math.min(3, bike.lives + 1);
+      bike.health = 100;
     } else if (type === 'coin') {
       bike.coinsCollected++;
+      bike.nitroGauge = Math.min(100, bike.nitroGauge + 15);
+    } else if (type === 'nitroFull') {
+      bike.nitroGauge = 100;
+    } else if (type === 'extraLife') {
+      bike.lives = Math.min(3, bike.lives + 1);
     }
   }
 }

@@ -38,12 +38,11 @@ function drawExhaustFlame(g: Graphics, x: number, y: number, s: (n: number) => n
 /**
  * Rear-view pixel-art superbike + rider, scale-driven so the same art works for the
  * local player (pinned to a fixed screen position) and for opponents at arbitrary
- * projected distance (see ProjectionEngine's opponent render loop).
- *
- * `detail=false` draws only the core silhouette (tyre + tail) for distant/low-rank
- * opponents — a cheaper draw, not a different SIZE law. Sizing is entirely controlled
- * by `scale`, computed identically for every opponent regardless of detail level, so
- * there is never a size jump when detail toggles on/off (see ProjectionEngine.ts).
+ * projected distance (see ProjectionEngine's opponent render loop). Always drawn at full
+ * detail — a prior "core silhouette only" cheap-draw mode for distant opponents was removed
+ * because it silently cut the sprite's visible height by ~39% (no rider/helmet) at the exact
+ * same numeric scale, which read as "opponent is way smaller than the player" even though
+ * sizing itself was correct. At most 3 opponents are ever on screen, so full detail is cheap.
  */
 export function drawSuperbikeRear(
   g: Graphics,
@@ -53,7 +52,6 @@ export function drawSuperbikeRear(
   leanAngle: number,
   isNitroActive: boolean,
   colors: BikeSpriteColors,
-  detail = true,
   flamePhase = 0
 ): void {
   const leanRot = Math.max(-25, Math.min(25, leanAngle * 25));
@@ -73,11 +71,9 @@ export function drawSuperbikeRear(
   g.rect(bikeScreenX - s(3), bikeScreenY - s(8), s(1), s(8)).fill({ color: 0x0f0e17, alpha: 0.5 });
   g.rect(bikeScreenX + s(1), bikeScreenY - s(8), s(1), s(8)).fill({ color: 0x0f0e17, alpha: 0.5 });
 
-  if (detail) {
-    // 2. Dual chrome exhaust pipes
-    g.rect(bikeScreenX - s(7) + leanOffset * 0.2, bikeScreenY - s(5), s(2), s(4)).fill({ color: 0xdcdde1 });
-    g.rect(bikeScreenX + s(5) + leanOffset * 0.2, bikeScreenY - s(5), s(2), s(4)).fill({ color: 0xdcdde1 });
-  }
+  // 2. Dual chrome exhaust pipes
+  g.rect(bikeScreenX - s(7) + leanOffset * 0.2, bikeScreenY - s(5), s(2), s(4)).fill({ color: 0xdcdde1 });
+  g.rect(bikeScreenX + s(5) + leanOffset * 0.2, bikeScreenY - s(5), s(2), s(4)).fill({ color: 0xdcdde1 });
 
   if (isNitroActive) {
     drawExhaustFlame(g, bikeScreenX - s(6) + leanOffset * 0.2, bikeScreenY - s(1), s, hexColor, flamePhase);
@@ -90,8 +86,6 @@ export function drawSuperbikeRear(
 
   // 4. Red LED Brake Light Unit
   g.rect(bikeScreenX - s(4) + leanOffset * 0.5, bikeScreenY - s(10), s(8), s(3)).fill({ color: 0xff4757 });
-
-  if (!detail) return;
 
   // 5. Leaning Rider
   g.rect(bikeScreenX - s(8) + leanOffset * 0.3, bikeScreenY - s(12), s(4), s(5)).fill({ color: 0x0f0e17 });

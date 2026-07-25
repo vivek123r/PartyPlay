@@ -39,6 +39,12 @@ export class BikePhysics {
   public shieldTimer = 0;
   public coinsCollected = 0;
 
+  // Health — a continuous per-life damage buffer. Depletes by a hit-specific amount on
+  // every impact (see applyDamage); reaching 0 triggers the existing crash/life-loss
+  // sequence via triggerCrash(), then resets to 100 for the next life.
+  public health = 100;
+  public slipTimer = 0; // oil-slick steering impairment, seconds remaining
+
   constructor(id: number, playerColor: string) {
     this.id = id;
     this.playerColor = playerColor;
@@ -50,6 +56,21 @@ export class BikePhysics {
   public registerComboEvent(): void {
     this.comboCount = Math.min(BikePhysics.COMBO_MAX, this.comboCount + 1);
     this.comboTimer = BikePhysics.COMBO_WINDOW_S;
+  }
+
+  /** The gate in front of triggerCrash(): every hit (vehicle, hazard, off-road, player bump)
+   * routes through here with a severity-specific damage amount and immediate speed penalty,
+   * rather than every hit producing the identical full-crash outcome. Shield/invulnerability
+   * block ALL damage, not just the final crash — matching triggerCrash()'s own shield-absorb
+   * behaviour, so a shielded player can't be worn down by a rapid string of small hits either. */
+  public applyDamage(amount: number, speedFactor = 1): void {
+    if (this.shieldTimer > 0 || this.invulnerabilityTimer > 0 || this.isCrashed || this.eliminated) return;
+    if (speedFactor !== 1) this.speed *= speedFactor;
+    this.health = Math.max(0, this.health - amount);
+    if (this.health <= 0) {
+      this.triggerCrash();
+      this.health = 100;
+    }
   }
 
   public updateStats(): void {
@@ -123,6 +144,9 @@ export class BikePhysics {
 
     // 1. Off-Road Check (|x| > 1.0)
     this.isOffRoad = Math.abs(this.x) > 1.0;
+    if (this.isOffRoad) this.applyDamage(3 * dt); // "hitting the wall" — a continuous scrape, not a one-shot impact
+
+    if (this.slipTimer > 0) this.slipTimer = Math.max(0, this.slipTimer - dt);
 
     // 2. Nitro Activation (continuous holding supported)
     if (triggerNitro && this.nitroGauge > 0) {
@@ -160,7 +184,7 @@ export class BikePhysics {
 
     // 4. Steering with speed-scaled responsiveness
     const baseTurn = this.stats.cornerGrip / 40;
-    const turnSpeed = baseTurn * (this.isOffRoad ? 0.4 : 1.0);
+    const turnSpeed = baseTurn * (this.isOffRoad ? 0.4 : 1.0) * (this.slipTimer > 0 ? 0.5 : 1.0);
     const speedFactor = Math.min(1.0, Math.max(0.15, this.speed / 120));
 
     if (moveLeft && !brake) {

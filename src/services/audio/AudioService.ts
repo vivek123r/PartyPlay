@@ -3,6 +3,7 @@ interface EngineVoice {
   osc2: OscillatorNode;
   filter: BiquadFilterNode;
   gain: GainNode;
+  panner: StereoPannerNode;
 }
 
 const NOTE_SMOOTH_TIME = 0.05;
@@ -110,13 +111,16 @@ export class AudioService {
     this.masterGain.gain.setValueAtTime(targetMaster, this.ctx?.currentTime ?? 0);
   }
 
-  /** Synthesizes simple audio tones when audio files are not provided. */
+  /** Synthesizes simple audio tones when audio files are not provided.
+   * `pan` (-1 left .. +1 right) is optional — omit for centred/mono, which is what every
+   * existing call site does; only new per-player sounds need to pass it. */
   public playTone(
     freq: number,
     type: OscillatorType = 'sine',
     duration = 0.15,
     channel: 'sfx' | 'music' = 'sfx',
-    volume = 0.2
+    volume = 0.2,
+    pan = 0
   ): void {
     const output = channel === 'music' ? this.musicGain : this.sfxGain;
     if (!this.ctx || !output || this.isMutedState) return;
@@ -128,12 +132,21 @@ export class AudioService {
       gain.gain.setValueAtTime(Math.max(0.001, Math.min(1, volume)), this.ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
 
-      osc.connect(gain);
+      let last: AudioNode = osc;
+      let panner: StereoPannerNode | null = null;
+      if (pan !== 0) {
+        panner = this.ctx.createStereoPanner();
+        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), this.ctx.currentTime);
+        last.connect(panner);
+        last = panner;
+      }
+      last.connect(gain);
       gain.connect(output);
       osc.start();
       osc.stop(this.ctx.currentTime + duration);
       osc.onended = () => {
         osc.disconnect();
+        panner?.disconnect();
         gain.disconnect();
       };
     } catch {
@@ -150,10 +163,14 @@ export class AudioService {
     });
   }
 
-  /** One-shot pitch-swept tone (nitro whoosh, pickup rise, elimination stinger) */
-  public playSweep(opts: { type?: OscillatorType; startFreq: number; endFreq: number; duration: number; gain?: number }): void {
+  /** One-shot pitch-swept tone (nitro whoosh, pickup rise, elimination stinger). `pan` (-1..+1)
+   * is optional, for spreading simultaneous per-player sounds — e.g. two players activating
+   * nitro in the same frame previously played the identical sweep twice with no separation
+   * at all, which summed into what sounded like a single event; pass a per-player pan (and
+   * ideally a slightly different startFreq/endFreq too) to keep them audibly distinct. */
+  public playSweep(opts: { type?: OscillatorType; startFreq: number; endFreq: number; duration: number; gain?: number; pan?: number }): void {
     if (!this.ctx || !this.sfxGain || this.isMutedState) return;
-    const { type = 'sawtooth', startFreq, endFreq, duration, gain = 0.25 } = opts;
+    const { type = 'sawtooth', startFreq, endFreq, duration, gain = 0.25, pan = 0 } = opts;
     try {
       const now = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
@@ -164,12 +181,21 @@ export class AudioService {
       g.gain.setValueAtTime(gain, now);
       g.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
-      osc.connect(g);
+      let last: AudioNode = osc;
+      let panner: StereoPannerNode | null = null;
+      if (pan !== 0) {
+        panner = this.ctx.createStereoPanner();
+        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        last.connect(panner);
+        last = panner;
+      }
+      last.connect(g);
       g.connect(this.sfxGain);
       osc.start(now);
       osc.stop(now + duration);
       osc.onended = () => {
         osc.disconnect();
+        panner?.disconnect();
         g.disconnect();
       };
     } catch {
@@ -225,7 +251,7 @@ export class AudioService {
 
   // ---- continuous per-player engine drone ----
 
-  public startEngineVoice(voiceId: number): void {
+  public startEngineVoice(voiceId: number, pan = 0): void {
     if (!this.ctx || !this.sfxGain) return;
     if (this.engineVoices.has(voiceId)) return;
     try {
@@ -245,15 +271,19 @@ export class AudioService {
       const gain = this.ctx.createGain();
       gain.gain.setValueAtTime(0.0001, now);
 
+      const panner = this.ctx.createStereoPanner();
+      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+
       osc1.connect(filter);
       osc2.connect(filter);
       filter.connect(gain);
-      gain.connect(this.sfxGain);
+      gain.connect(panner);
+      panner.connect(this.sfxGain);
 
       osc1.start(now);
       osc2.start(now);
 
-      this.engineVoices.set(voiceId, { osc1, osc2, filter, gain });
+      this.engineVoices.set(voiceId, { osc1, osc2, filter, gain, panner });
     } catch {
       // Ignore audio synthesis errors
     }
@@ -288,6 +318,7 @@ export class AudioService {
         voice.osc2.disconnect();
         voice.filter.disconnect();
         voice.gain.disconnect();
+        voice.panner.disconnect();
       };
     } catch {
       // Ignore audio synthesis errors

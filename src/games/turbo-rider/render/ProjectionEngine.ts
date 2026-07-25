@@ -5,7 +5,7 @@ import type { PowerUp } from '../core/PowerUpManager';
 import { HandcraftedTrack } from '../core/HandcraftedTrack';
 import { ROAD_HALF_WIDTH_METERS, SEGMENT_LENGTH_METERS } from '../core/TrackConstants';
 import { drawSkybox } from './Skybox';
-import { drawSceneryProp, drawOverheadGantry } from './SceneryLibrary';
+import { drawSceneryProp, drawOverheadGantry, drawFinishGate } from './SceneryLibrary';
 import { drawVehicle, drawVehicleDepth, isBoxedVehicleKind, VEHICLE_DIMENSIONS_M, type VehicleKind } from './VehicleSprites';
 import { drawSuperbikeRear, drawPlayerTag, type BikeSpriteColors } from './BikeSprite';
 
@@ -62,12 +62,11 @@ export class ProjectionEngine {
   public static readonly SCENERY_DRAW_METERS = 1500;
   public static readonly SCENERY_SPACING = 18; // metres between candidate prop slots, per side
   public static readonly GANTRY_SPACING = 150;
+  public static readonly FINISH_DRAW_METERS = 500;
   public static readonly VEH_DRAW_METERS = 420;
   public static readonly PU_DRAW_METERS = 260;
   public static readonly OPP_DRAW_METERS = 420;
-  public static readonly OPP_DETAIL_METERS = 55; // closer than this: full pixel-art rider (art only — see A)
   public static readonly OPP_TAG_METERS = 150; // closer than this: floating player-number tag
-  public static readonly OPP_MAX_DETAILED = 2; // hard cap on detailed-art opponent sprites per viewport
   public static readonly OPP_MIN_PX = 3; // readability floor — the fixed-size tag carries ID below this
 
   public static project(
@@ -270,6 +269,29 @@ export class ProjectionEngine {
       });
     }
 
+    // ---- Finish line — a single one-off gate at the fixed absolute end of the track, not a
+    // repeating loop like gantries. No wraparound: the race is a straight point-to-point run,
+    // so trackLength IS the one and only finish point, and it culls naturally once passed
+    // (camDist goes negative, same as everything else).
+    {
+      const finishCamDist = trackLength - cameraZ;
+      if (finishCamDist > ProjectionEngine.NEAR_PLANE && finishCamDist < ProjectionEngine.FINISH_DRAW_METERS) {
+        const scale = effectiveCameraDepth / finishCamDist;
+        const halfW = viewW / 2;
+        const ppm = scale * halfW;
+        const centerX = Math.round(halfW - scale * cameraX * halfW);
+        const groundY = Math.round(horizonY + scale * ProjectionEngine.CAMERA_HEIGHT * halfW);
+        const roadHalfWidthPx = ppm * ProjectionEngine.ROAD_WIDTH;
+        const alpha = clamp01((ProjectionEngine.FINISH_DRAW_METERS - finishCamDist) / 250) * clamp01(finishCamDist / 10);
+        if (alpha > 0) {
+          sprites.push({
+            z: finishCamDist,
+            draw: () => drawFinishGate(g, centerX, groundY, roadHalfWidthPx, ppm, alpha),
+          });
+        }
+      }
+    }
+
     // ---- Roadside scenery — independent of road stride, runs much further out ----
     const sceneryDrawDist = playerCount >= 3 ? ProjectionEngine.SCENERY_DRAW_METERS * 0.65 : ProjectionEngine.SCENERY_DRAW_METERS;
     const scenerySpacing = playerCount >= 3 ? ProjectionEngine.SCENERY_SPACING * 1.5 : ProjectionEngine.SCENERY_SPACING;
@@ -366,15 +388,17 @@ export class ProjectionEngine {
       if (camDist <= ProjectionEngine.NEAR_PLANE || camDist > ProjectionEngine.OPP_DRAW_METERS) continue;
       visibleOpponents.push({ opp, camDist });
     }
-    // Nearest-first so only the closest few get the expensive detailed art (LOD + perf cap)
     visibleOpponents.sort((a, b) => a.camDist - b.camDist);
 
-    // One inverse-distance size law for every opponent, at every distance — the LOD switch
-    // below only changes how much art detail is drawn (a cost cap), never the size formula,
-    // so there is no discontinuity: this is what was reported as "near opponents look small,
-    // far ones look big" (they were actually two different, uncalibrated scale systems before).
+    // One inverse-distance size law for every opponent, at every distance, ALWAYS drawn at
+    // full detail. A prior LOD toggle (simplified/rider-less art beyond 55m or while crashed)
+    // kept the numeric scale correct but silently dropped the sprite's visible top extent
+    // from 28 to 17 "units" (helmet+rider omitted) at the exact same scale — a ~39% apparent
+    // height cut that read as "opponent is way smaller than the player" even though the size
+    // law itself was correct. With at most 3 opponents ever on screen and each draw being a
+    // handful of cheap Graphics calls, the LOD wasn't saving anything worth that inconsistency.
     const baseBikeScale = viewH / 135;
-    visibleOpponents.forEach(({ opp, camDist }, rank) => {
+    visibleOpponents.forEach(({ opp, camDist }) => {
       const scale = effectiveCameraDepth / camDist;
       const halfW = viewW / 2;
       const ppm = scale * halfW;
@@ -390,7 +414,6 @@ export class ProjectionEngine {
       const floorScale = ProjectionEngine.OPP_MIN_PX / 28; // ~28px is the sprite's native height at scale=1
       const oppScale = Math.min(baseBikeScale * 3, Math.max(floorScale, rawOppScale));
 
-      const useDetail = rank < ProjectionEngine.OPP_MAX_DETAILED && camDist < ProjectionEngine.OPP_DETAIL_METERS && !opp.isCrashed;
       const showTag = camDist < ProjectionEngine.OPP_TAG_METERS;
       const flamePhase = opp.id * 1.7;
 
@@ -403,7 +426,7 @@ export class ProjectionEngine {
             hull: opp.colorHex,
             suit: opp.suitColorHex,
             helmet: opp.helmetColorHex,
-          }, useDetail, flamePhase);
+          }, flamePhase);
           if (showTag) drawPlayerTag(g, drawX, groundYRounded, opp.colorHex, opp.label, alpha, horizonY + 2);
         },
       });
@@ -440,7 +463,7 @@ export class ProjectionEngine {
         z: effectiveCameraBack,
         draw: () => drawSuperbikeRear(
           g, selfBike.screenX, selfBike.screenY, selfBike.scale,
-          selfBike.leanAngle, selfBike.isNitroActive, selfBike.colors, true, selfBike.id * 1.7
+          selfBike.leanAngle, selfBike.isNitroActive, selfBike.colors, selfBike.id * 1.7
         ),
       });
     }
@@ -452,15 +475,77 @@ export class ProjectionEngine {
 
   private static renderPickup(g: Graphics, x: number, groundY: number, ppm: number, type: string, id: number, fadeAlpha: number): void {
     const floatH = ppm * 0.9;
-    const size = Math.max(2, Math.round(ppm * 0.35));
+    const size = Math.max(3, Math.round(ppm * 0.5));
     const y = groundY - floatH - Math.sin(Date.now() * 0.004 + id) * ppm * 0.15;
-    const color = type === 'boost' ? 0x00f0ff : type === 'shield' ? 0x55efc4 : 0xf4d160;
+    const color = PICKUP_COLORS[type] ?? 0xf4d160;
     const pulse = (0.7 + Math.sin(Date.now() * 0.005 + id) * 0.3) * fadeAlpha;
 
-    g.circle(x, y, size * 1.7).fill({ color, alpha: pulse * 0.15 });
-    g.poly([x, y - size, x + size, y, x, y + size, x - size, y]).fill({ color, alpha: pulse });
-    g.poly([x, y - size, x + size, y, x, y + size, x - size, y]).stroke({ width: 1, color: 0xffffff, alpha: pulse * 0.5 });
+    // Halo, shared by every type
+    g.circle(x, y, size * 1.8).fill({ color, alpha: pulse * 0.15 });
+
+    switch (type) {
+      case 'boost': drawBoostIcon(g, x, y, size, color, pulse); break;
+      case 'shield': drawShieldIcon(g, x, y, size, color, pulse); break;
+      case 'nitroFull': drawNitroPickupIcon(g, x, y, size, color, pulse); break;
+      case 'extraLife': drawHeartIcon(g, x, y, size, color, pulse); break;
+      default: drawCoinIcon(g, x, y, size, color, pulse); break;
+    }
   }
+}
+
+const PICKUP_COLORS: Record<string, number> = {
+  boost: 0x00f0ff,
+  shield: 0x55efc4,
+  coin: 0xf4d160,
+  nitroFull: 0xff8c00,
+  extraLife: 0xff4757,
+};
+
+function drawBoostIcon(g: Graphics, x: number, y: number, size: number, color: number, a: number): void {
+  for (const dy of [-size * 0.5, size * 0.15]) {
+    g.poly([
+      x - size * 0.8, y + dy + size * 0.5,
+      x, y + dy - size * 0.1,
+      x + size * 0.8, y + dy + size * 0.5,
+      x, y + dy + size * 0.15,
+    ]).fill({ color, alpha: a });
+  }
+}
+
+function drawShieldIcon(g: Graphics, x: number, y: number, size: number, color: number, a: number): void {
+  const pts: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    const ang = -Math.PI / 2 + i * (Math.PI / 3);
+    pts.push(x + Math.cos(ang) * size, y + Math.sin(ang) * size);
+  }
+  g.poly(pts).fill({ color, alpha: a });
+  g.poly(pts).stroke({ width: 1, color: 0xffffff, alpha: a * 0.6 });
+}
+
+function drawCoinIcon(g: Graphics, x: number, y: number, size: number, color: number, a: number): void {
+  g.circle(x, y, size).fill({ color, alpha: a });
+  g.circle(x, y, size * 0.6).stroke({ width: 1, color: 0xffffff, alpha: a * 0.7 });
+}
+
+function drawNitroPickupIcon(g: Graphics, x: number, y: number, size: number, color: number, a: number): void {
+  g.poly([
+    x, y - size * 1.2,
+    x + size * 0.7, y + size * 0.3,
+    x, y + size * 0.9,
+    x - size * 0.7, y + size * 0.3,
+  ]).fill({ color, alpha: a });
+  g.poly([
+    x, y - size * 0.5,
+    x + size * 0.3, y + size * 0.3,
+    x, y + size * 0.6,
+    x - size * 0.3, y + size * 0.3,
+  ]).fill({ color: 0xfff3b0, alpha: a * 0.85 });
+}
+
+function drawHeartIcon(g: Graphics, x: number, y: number, size: number, color: number, a: number): void {
+  g.circle(x - size * 0.5, y - size * 0.2, size * 0.55).fill({ color, alpha: a });
+  g.circle(x + size * 0.5, y - size * 0.2, size * 0.55).fill({ color, alpha: a });
+  g.poly([x - size, y, x + size, y, x, y + size * 1.1]).fill({ color, alpha: a });
 }
 
 function mixColor(a: number, b: number, t: number): number {

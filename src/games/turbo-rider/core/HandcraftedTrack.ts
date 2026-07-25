@@ -7,6 +7,9 @@ export const TrackPhase = {
   OCEAN_BRIDGE: 2,
   NEON_TUNNEL: 3,
   SUNSET_SPRINT: 4,
+  // Appended rather than inserted — Skybox.ts/SceneryLibrary.ts index by this numeric value.
+  DESERT_HIGHWAY: 5,
+  OPEN_SEA: 6,
 } as const;
 
 export type TrackPhaseType = typeof TrackPhase[keyof typeof TrackPhase];
@@ -63,6 +66,18 @@ export class HandcraftedTrack {
           grassColor = 0x6c5ce7;
           rumbleColor = 0xfd79a8;
           break;
+        case TrackPhase.DESERT_HIGHWAY:
+          phaseName = 'DESERT HIGHWAY';
+          grassColor = 0xd4a574;
+          rumbleColor = 0xd35400;
+          roadColor = 0x4a3728;
+          break;
+        case TrackPhase.OPEN_SEA:
+          phaseName = 'OPEN SEA CAUSEWAY';
+          grassColor = 0x00b8d4;
+          rumbleColor = 0xffeaa7;
+          roadColor = 0x1e272e;
+          break;
       }
 
       segments.push({
@@ -86,10 +101,12 @@ export class HandcraftedTrack {
   // split stays correct if the track length is ever retuned again.
   public static getPhaseForDistance(z: number): TrackPhaseType {
     const total = HandcraftedTrack.TOTAL_LENGTH_METERS;
-    if (z < total * 0.15) return TrackPhase.COASTAL_INTRO;
-    if (z < total * 0.35) return TrackPhase.MOUNTAIN_CLIMB;
+    if (z < total * 0.13) return TrackPhase.COASTAL_INTRO;
+    if (z < total * 0.28) return TrackPhase.DESERT_HIGHWAY;
+    if (z < total * 0.45) return TrackPhase.MOUNTAIN_CLIMB;
     if (z < total * 0.60) return TrackPhase.OCEAN_BRIDGE;
-    if (z < total * 0.85) return TrackPhase.NEON_TUNNEL;
+    if (z < total * 0.72) return TrackPhase.OPEN_SEA;
+    if (z < total * 0.90) return TrackPhase.NEON_TUNNEL;
     return TrackPhase.SUNSET_SPRINT;
   }
 }

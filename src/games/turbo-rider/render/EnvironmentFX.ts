@@ -88,6 +88,28 @@ export class EnvironmentFX {
     }
   }
 
+  /** Multi-colour confetti burst fired the moment a bike crosses the finish line. */
+  public spawnFinishBurst(x: number, y: number): void {
+    const colors = [0xf4d160, 0x00f0ff, 0x55efc4, 0xff4757, 0xa29bfe, 0xffffff];
+    for (let i = 0; i < 28; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = 40 + Math.random() * 90;
+      const duration = 0.6 + Math.random() * 0.5;
+      const size = 2 + Math.random() * 2;
+      this.particles.push({
+        x: x + (Math.random() - 0.5) * 20,
+        y: y + (Math.random() - 0.5) * 10,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - 30,
+        life: duration,
+        maxLife: duration,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size,
+        size0: size,
+      });
+    }
+  }
+
   /** One-shot ignition bloom fired on the rising edge of nitro activation. */
   public spawnNitroIgnition(x: number, y: number, colorHex: number): void {
     const ramp = [0xffffff, colorHex];

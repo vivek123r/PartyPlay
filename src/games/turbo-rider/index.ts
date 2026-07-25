@@ -14,6 +14,15 @@ import { VideoEngine } from './render/VideoEngine';
 import type { SelfBikeDraw } from './render/ProjectionEngine';
 import type { TrackSegment, OpponentSprite } from './types';
 
+function mixColor(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+  const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+  const r = Math.round(ar + (br - ar) * t);
+  const gg = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return (r << 16) | (gg << 8) | bl;
+}
+
 export default class TurboRiderGame implements GameModule {
   public state: InternalGameState = 'Initializing';
 
@@ -42,8 +51,10 @@ export default class TurboRiderGame implements GameModule {
   // Audio edge-detection / retrigger state, one slot per bike (index-aligned with this.bikes)
   private prevCrashed: boolean[] = [];
   private prevEliminated: boolean[] = [];
+  private prevFinished: boolean[] = [];
   private prevNitroActive: boolean[] = [];
   private nearMissCooldown: number[] = [];
+  private nitroDepletedCooldown: number[] = [];
   private skidCooldown: number[] = [];
   private offRoadCooldown: number[] = [];
   private prevRank: number[] = [];
@@ -82,10 +93,12 @@ export default class TurboRiderGame implements GameModule {
     this.phaseFlashTimer = new Array(count).fill(0);
     this.prevCrashed = new Array(count).fill(false);
     this.prevEliminated = new Array(count).fill(false);
+    this.prevFinished = new Array(count).fill(false);
     this.prevNitroActive = new Array(count).fill(false);
     this.cameraBackState = new Array(count).fill(ProjectionEngine.CAMERA_BACK);
     this.cameraDepthState = new Array(count).fill(ProjectionEngine.CAMERA_DEPTH);
     this.nearMissCooldown = new Array(count).fill(0);
+    this.nitroDepletedCooldown = new Array(count).fill(0);
     this.skidCooldown = new Array(count).fill(0);
     this.offRoadCooldown = new Array(count).fill(0);
     this.prevRank = this.bikes.map((_, i) => i + 1);
@@ -134,6 +147,13 @@ export default class TurboRiderGame implements GameModule {
     this.ctx.logger.info('TURBO RIDER 3D Race Started!');
   }
 
+  /** Spreads simultaneous per-player sounds across the stereo field so two players triggering
+   * the same event (e.g. nitro) at once don't sum into what sounds like a single event. */
+  private panForIdx(idx: number, count: number): number {
+    if (count <= 1) return 0;
+    return (idx / (count - 1)) * 1.4 - 0.7;
+  }
+
   /** The local player's own bike is always drawn at the horizontal centre of its viewport
    * (the camera already tracks lane offset) — shared by the FX exhaust points and the render loop. */
   private bikeScreenPose(bike: BikePhysics, viewW: number, viewH: number): { screenX: number; screenY: number; scale: number } {
@@ -171,7 +191,7 @@ export default class TurboRiderGame implements GameModule {
         this.countdownPhase = 3;
         this.countdownTimer = 1.0;
         this.ctx.audio.playTone(880, 'square', 0.1);
-        this.bikes.forEach((bike) => this.ctx.audio.startEngineVoice(bike.id));
+        this.bikes.forEach((bike, i) => this.ctx.audio.startEngineVoice(bike.id, this.panForIdx(i, count)));
       }
       return;
     }
@@ -277,14 +297,32 @@ export default class TurboRiderGame implements GameModule {
       this.prevCrashed[idx] = bike.isCrashed;
       this.prevEliminated[idx] = bike.eliminated;
 
+      const hasFinished = bike.z >= HandcraftedTrack.TOTAL_LENGTH_METERS;
+      if (hasFinished && !this.prevFinished[idx]) {
+        const finishPose = this.bikeScreenPose(bike, viewW, viewH);
+        this.envFX[idx].spawnFinishBurst(finishPose.screenX, finishPose.screenY - 10 * finishPose.scale);
+        this.ctx.audio.playArpeggio([523, 659, 784, 1047], 0.11, 'square');
+      }
+      this.prevFinished[idx] = hasFinished;
+
+      const nitroPan = this.panForIdx(idx, count);
       if (bike.isNitroActive && !this.prevNitroActive[idx]) {
-        this.ctx.audio.playSweep({ type: 'sawtooth', startFreq: 200, endFreq: 900, duration: 0.35 });
+        // Per-player pitch offset + pan — two players igniting nitro in the same frame used to
+        // play the identical sweep twice with zero separation, which summed into what sounded
+        // like a single event.
+        const idOffset = (bike.id - 1) * 60;
+        this.ctx.audio.playSweep({ type: 'sawtooth', startFreq: 200 + idOffset, endFreq: 900 + idOffset, duration: 0.35, pan: nitroPan });
         const ignitePose = this.bikeScreenPose(bike, viewW, viewH);
         const igniteColor = parseInt(bike.customization.underglowLed.replace('#', ''), 16) || 0x00f0ff;
         this.envFX[idx].spawnNitroIgnition(ignitePose.screenX, ignitePose.screenY - 8 * ignitePose.scale, igniteColor);
-      } else if (!bike.isNitroActive && this.prevNitroActive[idx] && bike.nitroGauge <= 0.01) {
-        this.ctx.audio.playTone(150, 'sawtooth', 0.15);
+      } else if (!bike.isNitroActive && this.prevNitroActive[idx] && bike.nitroGauge <= 0.01 && this.nitroDepletedCooldown[idx] <= 0) {
+        // Two short soft beeps ("low fuel" chime) instead of a single harsh sawtooth buzz, with
+        // a cooldown so a gauge hovering near zero can't machine-gun the sound while held.
+        this.ctx.audio.playTone(300, 'sine', 0.06, 'sfx', 0.2, nitroPan);
+        setTimeout(() => this.ctx.audio.playTone(240, 'sine', 0.06, 'sfx', 0.2, nitroPan), 90);
+        this.nitroDepletedCooldown[idx] = 1.0;
       }
+      this.nitroDepletedCooldown[idx] = Math.max(0, this.nitroDepletedCooldown[idx] - dt);
       this.prevNitroActive[idx] = bike.isNitroActive;
 
       this.nearMissCooldown[idx] = Math.max(0, this.nearMissCooldown[idx] - dt);
@@ -378,13 +416,32 @@ export default class TurboRiderGame implements GameModule {
     this.traffic.update(dt, this.bikes, HandcraftedTrack.TOTAL_LENGTH_METERS);
     this.powerUps.update(dt, this.bikes, HandcraftedTrack.TOTAL_LENGTH_METERS, (bike, type) => {
       const idOffset = (bike.id - 1) * 40;
+      let bannerText = '';
       if (type === 'boost') {
         this.ctx.audio.playSweep({ type: 'triangle', startFreq: 550 + idOffset, endFreq: 1100 + idOffset, duration: 0.18 });
+        bannerText = 'BOOST!';
       } else if (type === 'shield') {
         this.ctx.audio.playTone(659 + idOffset, 'square', 0.15);
         setTimeout(() => this.ctx.audio.playTone(880 + idOffset, 'square', 0.15), 60);
+        bannerText = 'SHIELD UP';
+      } else if (type === 'nitroFull') {
+        this.ctx.audio.playSweep({ type: 'sawtooth', startFreq: 300 + idOffset, endFreq: 700 + idOffset, duration: 0.2 });
+        bannerText = 'NITRO FULL';
+      } else if (type === 'extraLife') {
+        this.ctx.audio.playArpeggio([523 + idOffset, 659 + idOffset, 880 + idOffset], 0.1, 'square');
+        bannerText = '+1 LIFE';
       } else {
         this.ctx.audio.playTone(880 + idOffset, 'triangle', 0.08);
+        bannerText = '+COIN';
+      }
+
+      // Floating notification — reuses the same fade-timer/text slot the overtake banner
+      // already uses (same mechanism, not a new system); a pickup and an overtake are rare
+      // enough events that sharing one banner-per-viewport slot is fine.
+      const idx = this.bikes.indexOf(bike);
+      if (idx >= 0) {
+        this.overtakeFlashTimer[idx] = 1.2;
+        this.overtakeFlashText[idx] = bannerText;
       }
     });
 
@@ -482,7 +539,14 @@ export default class TurboRiderGame implements GameModule {
 
       // Top bar: position | distance
       g.rect(0, 0, viewW, topBarH).fill({ color: hud, alpha: ha });
-      g.rect(0, topBarH - 1, viewW, 1).fill({ color: hexColor, alpha: 0.5 });
+
+      // Health bar — reuses the old fixed player-color accent line's exact position/alpha so a
+      // full-health bike looks identical to before; below 60% health it shrinks and shifts
+      // toward red instead of staying a full-width static accent.
+      const healthFrac = Math.max(0, Math.min(1, bike.health / 100));
+      const healthColor = healthFrac > 0.6 ? hexColor : mixColor(0xff4757, hexColor, healthFrac / 0.6);
+      g.rect(0, topBarH - 1, viewW, 1).fill({ color: 0x000000, alpha: 0.3 });
+      g.rect(0, topBarH - 1, Math.max(1, Math.round(viewW * healthFrac)), 1).fill({ color: healthColor, alpha: 0.6 });
       PixelFont.drawText(g, `P${bike.id} ${rank}${rankSuffix}`, 3, 1, hexColor, 1);
       if (eliminated) PixelFont.drawText(g, 'ELIM', 80, 1, 0xff4757, 1);
       const distRemaining = Math.max(0, Math.round(HandcraftedTrack.TOTAL_LENGTH_METERS - bike.z));

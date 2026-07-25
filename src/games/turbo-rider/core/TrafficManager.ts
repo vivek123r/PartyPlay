@@ -16,9 +16,25 @@ export interface AITrafficVehicle {
 const MOVING_COLORS = [0xff4757, 0x1e90ff, 0x2ed573, 0xffa502, 0x70a1ff, 0xe17055, 0xa29bfe];
 const VELOCITY_SCALE = 1.0; // must match BikePhysics.VELOCITY_SCALE — both operate on the same metric world
 
+// Per-type hit severity — health damage + an immediate speed penalty applied on every hit,
+// separate from whatever triggerCrash() does once health actually reaches 0. A cone and a
+// truck used to produce the exact identical one-life-loss outcome; this is what varies it.
+const HIT_SEVERITY: Record<VehicleKind, { health: number; speedFactor: number }> = {
+  cone: { health: 8, speedFactor: 0.9 },
+  barrel: { health: 15, speedFactor: 0.85 },
+  barrier: { health: 25, speedFactor: 0.75 },
+  oilslick: { health: 10, speedFactor: 0.95 },
+  bike: { health: 20, speedFactor: 0.85 },
+  sedan: { health: 30, speedFactor: 0.75 },
+  bus: { health: 45, speedFactor: 0.6 },
+  truck: { health: 60, speedFactor: 0.5 },
+};
+const HIT_COOLDOWN_S = 0.5; // stops a stationary hazard draining health every single frame
+
 export class TrafficManager {
   public vehicles: AITrafficVehicle[] = [];
   public readonly MAX_VEHICLES = 40;
+  private hitCooldowns = new Map<string, number>();
 
   public spawnTraffic(trackLengthMeters: number, density = 1.0): void {
     this.vehicles = [];
@@ -54,6 +70,12 @@ export class TrafficManager {
       if (veh.z > trackLengthMeters) veh.z -= trackLengthMeters;
     });
 
+    for (const [key, t] of this.hitCooldowns) {
+      const next = t - dt;
+      if (next <= 0) this.hitCooldowns.delete(key);
+      else this.hitCooldowns.set(key, next);
+    }
+
     bikes.forEach((bike) => {
       if (bike.isCrashed || bike.invulnerabilityTimer > 0) return;
 
@@ -69,7 +91,13 @@ export class TrafficManager {
         const xThresh = (dims.width + BIKE_WIDTH_METERS) / (2 * ROAD_HALF_WIDTH_METERS);
 
         if (distZ < zThresh && distX < xThresh) {
-          bike.triggerCrash();
+          const key = `${bike.id}_${veh.id}`;
+          if (this.hitCooldowns.has(key)) return;
+          this.hitCooldowns.set(key, HIT_COOLDOWN_S);
+
+          const sev = HIT_SEVERITY[veh.type];
+          bike.applyDamage(sev.health, sev.speedFactor);
+          if (veh.type === 'oilslick') bike.slipTimer = 1.5;
         }
       });
     });
