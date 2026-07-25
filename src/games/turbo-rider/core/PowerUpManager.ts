@@ -34,7 +34,12 @@ export class PowerUpManager {
     }
   }
 
-  public update(dt: number, bikes: BikePhysics[], trackLength: number): void {
+  public update(
+    dt: number,
+    bikes: BikePhysics[],
+    trackLength: number,
+    onCollect?: (bike: BikePhysics, type: PowerUp['type']) => void
+  ): void {
     // Respawn collected pickups
     this.pickups.forEach((pu) => {
       if (pu.collected) {
@@ -61,6 +66,7 @@ export class PowerUpManager {
           pu.collected = true;
           pu.respawnTimer = 15;
           this.applyPickup(bike, pu.type);
+          onCollect?.(bike, pu.type);
         }
       });
     });

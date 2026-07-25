@@ -1,12 +1,25 @@
 import { Graphics, Texture } from 'pixi.js';
-import type { Point3D, TrackSegment } from '../types';
+import type { Point3D, TrackSegment, OpponentSprite } from '../types';
 import type { AITrafficVehicle } from '../core/TrafficManager';
 import type { PowerUp } from '../core/PowerUpManager';
 import { HandcraftedTrack } from '../core/HandcraftedTrack';
 import { ROAD_HALF_WIDTH_METERS, SEGMENT_LENGTH_METERS } from '../core/TrackConstants';
 import { drawSkybox } from './Skybox';
 import { drawSceneryProp, drawOverheadGantry } from './SceneryLibrary';
-import { drawVehicle, type VehicleKind } from './VehicleSprites';
+import { drawVehicle, drawVehicleDepth, isBoxedVehicleKind, VEHICLE_DIMENSIONS_M, type VehicleKind } from './VehicleSprites';
+import { drawSuperbikeRear, drawPlayerTag, type BikeSpriteColors } from './BikeSprite';
+
+/** Draw parameters for the local player's own bike — pushed into the shared depth-sorted
+ * sprite list (at z = CAMERA_BACK) so a close opponent can correctly draw in front of it. */
+export interface SelfBikeDraw {
+  id: number;
+  screenX: number;
+  screenY: number;
+  scale: number;
+  leanAngle: number;
+  isNitroActive: boolean;
+  colors: BikeSpriteColors;
+}
 
 function hashOf(n: number): number {
   return (Math.imul(n, 2654435761) ^ (n >>> 3)) >>> 0;
@@ -51,6 +64,11 @@ export class ProjectionEngine {
   public static readonly GANTRY_SPACING = 150;
   public static readonly VEH_DRAW_METERS = 420;
   public static readonly PU_DRAW_METERS = 260;
+  public static readonly OPP_DRAW_METERS = 420;
+  public static readonly OPP_DETAIL_METERS = 55; // closer than this: full pixel-art rider (art only — see A)
+  public static readonly OPP_TAG_METERS = 150; // closer than this: floating player-number tag
+  public static readonly OPP_MAX_DETAILED = 2; // hard cap on detailed-art opponent sprites per viewport
+  public static readonly OPP_MIN_PX = 3; // readability floor — the fixed-size tag carries ID below this
 
   public static project(
     p: Point3D,
@@ -58,14 +76,15 @@ export class ProjectionEngine {
     cameraY: number,
     cameraZ: number,
     viewW: number,
-    horizonY: number
+    horizonY: number,
+    cameraDepth?: number
   ): Point3D {
     const camX = (p.worldX || 0) - cameraX;
     const camY = (p.worldY || 0) - cameraY;
     const camZ = (p.worldZ || 0) - cameraZ;
 
     const safeZ = Math.max(ProjectionEngine.NEAR_PLANE, camZ);
-    const scale = ProjectionEngine.CAMERA_DEPTH / safeZ;
+    const scale = (cameraDepth ?? ProjectionEngine.CAMERA_DEPTH) / safeZ;
 
     const halfW = viewW / 2;
     const screenX = Math.round(halfW + scale * camX * halfW);
@@ -103,10 +122,13 @@ export class ProjectionEngine {
     trafficVehicles: AITrafficVehicle[] = [],
     powerUps: PowerUp[] = [],
     skyboxTexture?: Texture | null,
-    fireTexture?: Texture | null
+    opponents: OpponentSprite[] = [],
+    selfId?: number,
+    selfBike?: SelfBikeDraw,
+    cameraBack?: number,
+    cameraDepth?: number
   ): void {
     if (segments.length === 0) return;
-    void fireTexture; // reserved for future nitro-trail scenery interactions
 
     const totalSegs = segments.length;
     const trackLength = totalSegs * ProjectionEngine.SEGMENT_LENGTH;
@@ -117,7 +139,12 @@ export class ProjectionEngine {
     // Straight, flat track (curve/elevation are always 0) — camera X is just the lane offset.
     const cameraX = playerX * ProjectionEngine.ROAD_WIDTH;
     const cameraY = ProjectionEngine.CAMERA_HEIGHT;
-    const cameraZ = playerZ - ProjectionEngine.CAMERA_BACK;
+    // Dynamic camera: nitro pulls the camera back and widens the FOV slightly (both smoothed
+    // in the caller) so more of the near field stays visible and the whole scene reads as
+    // faster — see plan H4/E. Both fall back to the static defaults.
+    const effectiveCameraBack = cameraBack ?? ProjectionEngine.CAMERA_BACK;
+    const effectiveCameraDepth = cameraDepth ?? ProjectionEngine.CAMERA_DEPTH;
+    const cameraZ = playerZ - effectiveCameraBack;
 
     const phaseNow = HandcraftedTrack.getPhaseForDistance(wrapMod(playerZ, trackLength));
     drawSkybox(g, viewW, horizonY, phaseNow, parallaxX, skyboxTexture);
@@ -143,8 +170,8 @@ export class ProjectionEngine {
       const worldZ1 = globalSegIdx * ProjectionEngine.SEGMENT_LENGTH;
       const worldZ2 = worldZ1 + ProjectionEngine.SEGMENT_LENGTH;
 
-      const proj1 = ProjectionEngine.project({ worldX: 0, worldY: 0, worldZ: worldZ1 }, cameraX, cameraY, cameraZ, viewW, horizonY);
-      const proj2 = ProjectionEngine.project({ worldX: 0, worldY: 0, worldZ: worldZ2 }, cameraX, cameraY, cameraZ, viewW, horizonY);
+      const proj1 = ProjectionEngine.project({ worldX: 0, worldY: 0, worldZ: worldZ1 }, cameraX, cameraY, cameraZ, viewW, horizonY, effectiveCameraDepth);
+      const proj2 = ProjectionEngine.project({ worldX: 0, worldY: 0, worldZ: worldZ2 }, cameraX, cameraY, cameraZ, viewW, horizonY, effectiveCameraDepth);
 
       projectedSegs.push({ p1: proj1, p2: proj2, color: seg.color, worldZ: worldZ1 });
     }
@@ -226,7 +253,7 @@ export class ProjectionEngine {
     for (let gz = firstGantry; gz < cameraZ + ProjectionEngine.SCENERY_DRAW_METERS; gz += gantrySpacing) {
       const camDist = gz - cameraZ;
       if (camDist <= ProjectionEngine.NEAR_PLANE) continue;
-      const scale = ProjectionEngine.CAMERA_DEPTH / camDist;
+      const scale = effectiveCameraDepth / camDist;
       const halfW = viewW / 2;
       const ppm = scale * halfW;
       const centerX = Math.round(halfW - scale * cameraX * halfW);
@@ -259,7 +286,7 @@ export class ProjectionEngine {
         const hash = hashOf(bucket * 2 + (side > 0 ? 1 : 0));
         if (hash % 5 === 0) continue; // leave gaps so it doesn't read as a grid
 
-        const scale = ProjectionEngine.CAMERA_DEPTH / camDist;
+        const scale = effectiveCameraDepth / camDist;
         const halfW = viewW / 2;
         const ppm = scale * halfW;
         const centerX = halfW - scale * cameraX * halfW;
@@ -287,21 +314,100 @@ export class ProjectionEngine {
       const camDist = vz - cameraZ;
       if (camDist <= ProjectionEngine.NEAR_PLANE || camDist > ProjectionEngine.VEH_DRAW_METERS) continue;
 
-      const scale = ProjectionEngine.CAMERA_DEPTH / camDist;
+      const fadeAlpha = clamp01(camDist / 3) * clamp01((ProjectionEngine.VEH_DRAW_METERS - camDist) / 70);
+      if (fadeAlpha <= 0) continue;
+
+      const halfW = viewW / 2;
+      const vehType = veh.type as VehicleKind;
+
+      if (isBoxedVehicleKind(vehType)) {
+        // Sedan/truck/bus render as a projected box (rear + front face) so their real
+        // world length reads as depth instead of a flat billboard — see VehicleSprites.ts.
+        const halfLen = VEHICLE_DIMENSIONS_M[vehType].length / 2;
+        const rearDist = Math.max(ProjectionEngine.NEAR_PLANE, camDist - halfLen);
+        const frontDist = Math.max(ProjectionEngine.NEAR_PLANE, camDist + halfLen);
+        const scaleRear = effectiveCameraDepth / rearDist;
+        const scaleFront = effectiveCameraDepth / frontDist;
+        const ppmNear = scaleRear * halfW;
+        const ppmFar = scaleFront * halfW;
+        const xNear = Math.round(halfW - scaleRear * cameraX * halfW + veh.laneX * ppmNear * ProjectionEngine.ROAD_WIDTH);
+        const xFar = Math.round(halfW - scaleFront * cameraX * halfW + veh.laneX * ppmFar * ProjectionEngine.ROAD_WIDTH);
+        const yNear = Math.round(horizonY + scaleRear * ProjectionEngine.CAMERA_HEIGHT * halfW);
+        const yFar = Math.round(horizonY + scaleFront * ProjectionEngine.CAMERA_HEIGHT * halfW);
+        // Real world-space lateral offset from the camera's forward axis — determines which
+        // side face (if any) is actually visible; see VehicleSprites.ts's back-face culling.
+        const lateralOffsetM = veh.laneX * ProjectionEngine.ROAD_WIDTH - cameraX;
+
+        sprites.push({
+          z: camDist,
+          draw: () => drawVehicleDepth(g, { xNear, yNear, ppmNear, xFar, yFar, ppmFar }, vehType, veh.color, fadeAlpha, lateralOffsetM),
+        });
+      } else {
+        const scale = effectiveCameraDepth / camDist;
+        const ppm = scale * halfW;
+        const centerX = halfW - scale * cameraX * halfW;
+        const groundY = horizonY + scale * ProjectionEngine.CAMERA_HEIGHT * halfW;
+        const drawX = centerX + veh.laneX * ppm * ProjectionEngine.ROAD_WIDTH;
+
+        sprites.push({
+          z: camDist,
+          draw: () => drawVehicle(g, Math.round(drawX), Math.round(groundY), ppm, vehType, veh.color, fadeAlpha),
+        });
+      }
+    }
+
+    // ---- Opponents (other human players) ----
+    const visibleOpponents: { opp: OpponentSprite; camDist: number }[] = [];
+    for (const opp of opponents) {
+      if (opp.id === selfId) continue;
+      let oz = opp.z;
+      oz += Math.floor((playerZ - oz + trackLength / 2) / trackLength) * trackLength;
+      const camDist = oz - cameraZ;
+      if (camDist <= ProjectionEngine.NEAR_PLANE || camDist > ProjectionEngine.OPP_DRAW_METERS) continue;
+      visibleOpponents.push({ opp, camDist });
+    }
+    // Nearest-first so only the closest few get the expensive detailed art (LOD + perf cap)
+    visibleOpponents.sort((a, b) => a.camDist - b.camDist);
+
+    // One inverse-distance size law for every opponent, at every distance — the LOD switch
+    // below only changes how much art detail is drawn (a cost cap), never the size formula,
+    // so there is no discontinuity: this is what was reported as "near opponents look small,
+    // far ones look big" (they were actually two different, uncalibrated scale systems before).
+    const baseBikeScale = viewH / 135;
+    visibleOpponents.forEach(({ opp, camDist }, rank) => {
+      const scale = effectiveCameraDepth / camDist;
       const halfW = viewW / 2;
       const ppm = scale * halfW;
       const centerX = halfW - scale * cameraX * halfW;
       const groundY = horizonY + scale * ProjectionEngine.CAMERA_HEIGHT * halfW;
-      const drawX = centerX + veh.laneX * ppm * ProjectionEngine.ROAD_WIDTH;
+      const drawX = Math.round(centerX + opp.laneX * ppm * ProjectionEngine.ROAD_WIDTH);
+      const groundYRounded = Math.round(groundY);
+      const fadeAlpha = clamp01(camDist / 3) * clamp01((ProjectionEngine.OPP_DRAW_METERS - camDist) / 70);
+      if (fadeAlpha <= 0) return;
 
-      const fadeAlpha = clamp01(camDist / 3) * clamp01((ProjectionEngine.VEH_DRAW_METERS - camDist) / 70);
-      if (fadeAlpha <= 0) continue;
+      const clampedCamDist = Math.max(camDist, 2.0);
+      const rawOppScale = baseBikeScale * (effectiveCameraBack / clampedCamDist);
+      const floorScale = ProjectionEngine.OPP_MIN_PX / 28; // ~28px is the sprite's native height at scale=1
+      const oppScale = Math.min(baseBikeScale * 3, Math.max(floorScale, rawOppScale));
+
+      const useDetail = rank < ProjectionEngine.OPP_MAX_DETAILED && camDist < ProjectionEngine.OPP_DETAIL_METERS && !opp.isCrashed;
+      const showTag = camDist < ProjectionEngine.OPP_TAG_METERS;
+      const flamePhase = opp.id * 1.7;
 
       sprites.push({
         z: camDist,
-        draw: () => drawVehicle(g, Math.round(drawX), Math.round(groundY), ppm, veh.type as VehicleKind, veh.color, fadeAlpha),
+        draw: () => {
+          if (opp.isInvulnerable && Math.floor(Date.now() / 100) % 2 === 0) return; // flicker, matches local player
+          const alpha = opp.eliminated ? fadeAlpha * 0.6 : fadeAlpha;
+          drawSuperbikeRear(g, drawX, groundYRounded, oppScale, opp.leanAngle, opp.isNitroActive, {
+            hull: opp.colorHex,
+            suit: opp.suitColorHex,
+            helmet: opp.helmetColorHex,
+          }, useDetail, flamePhase);
+          if (showTag) drawPlayerTag(g, drawX, groundYRounded, opp.colorHex, opp.label, alpha, horizonY + 2);
+        },
       });
-    }
+    });
 
     // ---- Power-ups ----
     for (const pu of powerUps) {
@@ -311,7 +417,7 @@ export class ProjectionEngine {
       const camDist = pz - cameraZ;
       if (camDist <= ProjectionEngine.NEAR_PLANE || camDist > ProjectionEngine.PU_DRAW_METERS) continue;
 
-      const scale = ProjectionEngine.CAMERA_DEPTH / camDist;
+      const scale = effectiveCameraDepth / camDist;
       const halfW = viewW / 2;
       const ppm = scale * halfW;
       const centerX = halfW - scale * cameraX * halfW;
@@ -324,6 +430,18 @@ export class ProjectionEngine {
       sprites.push({
         z: camDist,
         draw: () => ProjectionEngine.renderPickup(g, Math.round(drawX), groundY, ppm, pu.type, pu.id, fadeAlpha),
+      });
+    }
+
+    // Local player's own sprite, depth-sorted alongside everything else so a close opponent
+    // (undertaking at < CAMERA_BACK metres) can correctly draw in front of it.
+    if (selfBike) {
+      sprites.push({
+        z: effectiveCameraBack,
+        draw: () => drawSuperbikeRear(
+          g, selfBike.screenX, selfBike.screenY, selfBike.scale,
+          selfBike.leanAngle, selfBike.isNitroActive, selfBike.colors, true, selfBike.id * 1.7
+        ),
       });
     }
 

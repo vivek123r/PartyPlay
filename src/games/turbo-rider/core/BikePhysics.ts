@@ -23,6 +23,12 @@ export class BikePhysics {
   public slipstreamBonus = 0; // +0.25 when drafting
   public isDrafting = false;
 
+  // Nitro combo — near-misses and overtakes build a short-lived combo that speeds up recharge
+  public comboCount = 0;
+  public comboTimer = 0; // seconds remaining before the combo resets to 0
+  private static readonly COMBO_WINDOW_S = 2.5;
+  private static readonly COMBO_MAX = 5;
+
   // Crash & Off-Road State
   public isCrashed = false;
   public crashTimer = 0;
@@ -39,6 +45,11 @@ export class BikePhysics {
     this.tuning = TuningSystem.createDefaultSetup();
     this.customization = TuningSystem.createDefaultCustomization(playerColor);
     this.stats = TuningSystem.calculateStats(this.customization, this.tuning);
+  }
+
+  public registerComboEvent(): void {
+    this.comboCount = Math.min(BikePhysics.COMBO_MAX, this.comboCount + 1);
+    this.comboTimer = BikePhysics.COMBO_WINDOW_S;
   }
 
   public updateStats(): void {
@@ -85,6 +96,10 @@ export class BikePhysics {
     if (this.shieldTimer > 0) {
       this.shieldTimer = Math.max(0, this.shieldTimer - dt);
     }
+    if (this.comboTimer > 0) {
+      this.comboTimer = Math.max(0, this.comboTimer - dt);
+      if (this.comboTimer === 0) this.comboCount = 0;
+    }
 
     if (this.isCrashed) {
       this.crashTimer -= dt;
@@ -115,8 +130,9 @@ export class BikePhysics {
       this.nitroGauge = Math.max(0, this.nitroGauge - 35 * dt);
     } else {
       this.isNitroActive = false;
-      const rechargeRate = this.isDrafting ? 15 : 5;
-      this.nitroGauge = Math.min(100, this.nitroGauge + rechargeRate * dt);
+      const baseRecharge = this.isDrafting ? 15 : 5;
+      const comboMultiplier = 1 + this.comboCount * 0.4;
+      this.nitroGauge = Math.min(100, this.nitroGauge + baseRecharge * comboMultiplier * dt);
     }
 
     // 3. Top Speed & Acceleration Calculation

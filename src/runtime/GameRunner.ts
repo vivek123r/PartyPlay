@@ -5,7 +5,7 @@ import { PixiRendererContext } from './RendererContext';
 import { GameLoop } from './GameLoop';
 import { InputService } from '@services/input/InputService';
 import { KeyboardDevice } from '@services/input/KeyboardDevice';
-import { AudioService } from '@services/audio/AudioService';
+import { audioService } from '@services/audio/audioServiceInstance';
 import { StorageService } from '@services/storage/StorageService';
 import { EventService } from '@services/events/EventService';
 import { AssetService } from '@services/asset/AssetService';
@@ -23,7 +23,7 @@ export class GameRunner {
   private resizeListener: (() => void) | null = null;
 
   public readonly inputService = new InputService();
-  public readonly audioService = new AudioService();
+  public readonly audioService = audioService;
   public readonly storageService = new StorageService();
   public readonly eventService = new EventService();
   public readonly assetService = new AssetService();
@@ -155,6 +155,8 @@ export class GameRunner {
   public async stopGame(): Promise<void> {
     this.launchId++; // Invalidate active launch attempts
 
+    this.audioService.stopAllLoops();
+
     if (this.resizeListener) {
       window.removeEventListener('resize', this.resizeListener);
       this.resizeListener = null;
@@ -196,12 +198,14 @@ export class GameRunner {
     if (this.currentGame?.state === 'Paused') return;
     this.gameLoop?.pause();
     this.currentGame?.pause();
+    void this.audioService.suspendContext();
     this.eventService.emit('game:pause', undefined);
   }
 
   public resume(): void {
     this.currentGame?.resume();
     this.gameLoop?.resume();
+    void this.audioService.resumeContext();
     this.eventService.emit('game:resume', undefined);
   }
 }
