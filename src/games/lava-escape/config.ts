@@ -44,6 +44,7 @@ export const LEVEL_THEMES = [
     subtitle: 'THE MOUNTAIN WAKES',
     lavaSpeed: 88,
     chunks: 9,
+    backgroundAsset: '/assets/lava-escape/ember-foundry-bg.png',
     palette: {
       sky: 0x160d18,
       far: 0x3a1c2f,
@@ -59,6 +60,7 @@ export const LEVEL_THEMES = [
     subtitle: 'DON\'T TRUST THE FLOOR',
     lavaSpeed: 96,
     chunks: 10,
+    backgroundAsset: '/assets/lava-escape/crumbling-mines-bg.png',
     palette: {
       sky: 0x100f1c,
       far: 0x29233e,
@@ -90,6 +92,7 @@ export const LEVEL_THEMES = [
     subtitle: 'CHOOSE YOUR PATH',
     lavaSpeed: 112,
     chunks: 12,
+    backgroundAsset: '/assets/lava-escape/magma-divide-bg.png',
     palette: {
       sky: 0x0d1020,
       far: 0x27294d,
@@ -105,6 +108,7 @@ export const LEVEL_THEMES = [
     subtitle: 'RUN LIKE LEGENDS',
     lavaSpeed: 120,
     chunks: 13,
+    backgroundAsset: '/assets/lava-escape/heart-of-volcano-bg.png',
     palette: {
       sky: 0x120509,
       far: 0x480d18,

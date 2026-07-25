@@ -160,11 +160,16 @@ describe('Lava Escape runtime smoke test', () => {
     const internals = game as any;
     const winner = internals.runners[0];
     const eliminated = internals.runners[1];
-    internals.finishRunner(winner);
     eliminated.kill();
     internals.levelDead.add(eliminated.id);
     internals.phase = 'playing';
 
+    internals.evaluateRaceState();
+
+    expect(internals.phase).toBe('playing');
+    expect(internals.records.get(winner.id).score).toBe(0);
+
+    internals.finishRunner(winner);
     internals.evaluateRaceState();
 
     expect(internals.phase).toBe('level-results');
@@ -174,6 +179,16 @@ describe('Lava Escape runtime smoke test', () => {
 
     internals.loadLevel(1);
     expect(internals.runners.every((runner: any) => runner.isAlive)).toBe(true);
+
+    const loneSurvivor = internals.runners[0];
+    const secondPlayer = internals.runners[1];
+    secondPlayer.kill();
+    loneSurvivor.kill();
+    internals.levelDead.add(secondPlayer.id);
+    internals.levelDead.add(loneSurvivor.id);
+    internals.phase = 'playing';
+    internals.evaluateRaceState();
+    expect(internals.phase).toBe('level-retry');
     game.destroy();
   });
 });

@@ -1,4 +1,4 @@
-import { Assets, Container, Graphics, Sprite } from 'pixi.js';
+import { Assets, Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import type { GameContext, GameModule, InternalGameState } from '@runtime/types';
 import { PixelFont } from '../turbo-rider/render/PixelFont';
 import { LAVA_ESCAPE_CONFIG, LEVEL_THEMES } from './config';
@@ -71,7 +71,9 @@ export default class LavaEscapeGame implements GameModule {
   private eventTimer = 0;
   private impactCooldown = 0;
   private dangerAudioTimer = 0;
-  private forgeBackgroundReady = false;
+  private backgroundTextures = new Map<string, Texture>();
+  private activeBackgroundAsset = '';
+  private backgroundBaseX = 0;
   private particles: LavaParticle[] = [];
   private nearLavaPlayers = new Set<number>();
 
@@ -102,13 +104,15 @@ export default class LavaEscapeGame implements GameModule {
       return runner;
     });
 
+    const backgroundPaths = LEVEL_THEMES.flatMap((theme) =>
+      'backgroundAsset' in theme ? [theme.backgroundAsset] : []
+    );
     try {
-      this.backgroundPlate.texture = await Assets.load('/assets/lava-escape/ruined-forge-bg.png');
-      this.backgroundPlate.width = LAVA_ESCAPE_CONFIG.WIDTH;
-      this.backgroundPlate.height = LAVA_ESCAPE_CONFIG.HEIGHT;
-      this.forgeBackgroundReady = true;
+      for (const assetPath of backgroundPaths) {
+        this.backgroundTextures.set(assetPath, await Assets.load<Texture>(assetPath));
+      }
     } catch {
-      this.ctx.logger.info('Optional Ruined Forge background art was unavailable; using procedural art.');
+      this.ctx.logger.info('Optional Lava Escape background art was unavailable; using procedural art.');
     }
 
     this.loadLevel(0);
@@ -517,22 +521,8 @@ export default class LavaEscapeGame implements GameModule {
       return;
     }
 
-    if (survivors.length === 1 && this.runners.length > 1) {
-      const last = survivors[0]!;
-      if (!last.isSafe) {
-        const record = this.records.get(last.id)!;
-        record.score += pointsForPosition(1);
-        record.firstPlaces++;
-        record.levelsSurvived++;
-        record.cumulativeTime += this.levelTime;
-        record.finishPosition = 1;
-        this.finishes.push({ playerId: last.id, position: 1, points: 10, time: this.levelTime });
-        last.markSafe();
-      }
-      this.finishLevelOrMatch();
-      return;
-    }
-
+    // A lone survivor still has to reach the Safe Zone. Until then the
+    // level remains active; if they die, the all-player retry below fires.
     if (survivors.every((runner) => runner.isSafe)) {
       this.finishLevelOrMatch();
     }
@@ -734,9 +724,23 @@ export default class LavaEscapeGame implements GameModule {
     const g = this.background;
     const { palette } = this.level;
     g.clear();
-    this.backgroundPlate.visible = this.forgeBackgroundReady && Boolean(this.level.backgroundAsset);
-    if (this.backgroundPlate.visible) {
-      this.backgroundPlate.position.set(Math.round(-this.cameraX * 0.12), 0);
+    const assetPath = this.level.backgroundAsset;
+    const texture = assetPath ? this.backgroundTextures.get(assetPath) : undefined;
+    this.backgroundPlate.visible = Boolean(texture);
+    if (texture) {
+      if (this.activeBackgroundAsset !== assetPath) {
+        this.activeBackgroundAsset = assetPath!;
+        this.backgroundPlate.texture = texture;
+        const scale = Math.max(
+          (LAVA_ESCAPE_CONFIG.WIDTH + 48) / texture.width,
+          LAVA_ESCAPE_CONFIG.HEIGHT / texture.height
+        );
+        this.backgroundPlate.width = texture.width * scale;
+        this.backgroundPlate.height = texture.height * scale;
+        this.backgroundBaseX = LAVA_ESCAPE_CONFIG.WIDTH - this.backgroundPlate.width;
+      }
+      const parallaxShift = (this.cameraX * 0.035) % 48;
+      this.backgroundPlate.position.set(Math.round(this.backgroundBaseX + parallaxShift), 0);
       this.backgroundPlate.alpha = 0.72;
     }
     g.rect(0, 0, LAVA_ESCAPE_CONFIG.WIDTH, LAVA_ESCAPE_CONFIG.HEIGHT).fill({ color: palette.sky });

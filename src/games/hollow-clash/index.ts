@@ -18,7 +18,9 @@ export default class HollowClashGame implements GameModule {
 
   private ctx!: GameContext;
   private gameContainer!: Container;
-  private graphics!: Graphics;
+  private bgGraphics!: Graphics;
+  private worldContainer!: Container;
+  private worldGraphics!: Graphics;
 
   private knights: Knight[] = [];
   private enemies: Enemy[] = [];
@@ -42,11 +44,18 @@ export default class HollowClashGame implements GameModule {
 
     const { stage } = this.ctx.renderer;
     this.gameContainer = new Container();
-    this.graphics = new Graphics();
-
-    this.gameContainer.addChild(this.graphics);
+    
+    this.bgGraphics = new Graphics();
+    this.worldContainer = new Container();
+    this.worldGraphics = new Graphics();
+    
+    this.gameContainer.addChild(this.bgGraphics);
+    this.gameContainer.addChild(this.worldContainer);
+    this.worldContainer.addChild(this.worldGraphics);
+    
     this.gameContainer.addChild(this.lounge.container);
     stage.addChild(this.gameContainer);
+    stage.addChild(this.hud.container); // HUD goes on top, outside camera panning
 
     // Global stage pointer click listener
     stage.eventMode = 'static';
@@ -56,8 +65,18 @@ export default class HollowClashGame implements GameModule {
         this.lounge.startRequested = true;
       }
     });
+    
+    this.handleGlobalKeyDown = this.handleGlobalKeyDown.bind(this);
+    window.addEventListener('keydown', this.handleGlobalKeyDown);
+
 
     this.state = 'Ready';
+  }
+
+  private handleGlobalKeyDown(e: KeyboardEvent): void {
+    if (this.isLoungePhase && (e.key === 'Enter' || e.key === ' ')) {
+      this.lounge.startRequested = true;
+    }
   }
 
   public start(): void {
@@ -71,10 +90,10 @@ export default class HollowClashGame implements GameModule {
 
     const count = Math.min(4, Math.max(2, this.ctx.players.length));
     const startPositions = [
-      { x: 50, y: 350 },
-      { x: 90, y: 350 },
-      { x: 130, y: 350 },
-      { x: 170, y: 350 },
+      { x: 50, y: 200 },
+      { x: 90, y: 200 },
+      { x: 130, y: 200 },
+      { x: 170, y: 200 },
     ];
 
     this.knights = this.ctx.players.slice(0, count).map((p, idx) => {
@@ -82,8 +101,8 @@ export default class HollowClashGame implements GameModule {
       const pos = startPositions[idx];
       const knight = new Knight({ id: p.id, mask, x: pos.x, y: pos.y });
 
-      // Add knight container to scene graph so knight sprites render!
-      this.gameContainer.addChild(knight.container);
+      // Add knight container to world container so it moves with the camera
+      this.worldContainer.addChild(knight.container);
 
       return knight;
     });
@@ -133,6 +152,9 @@ export default class HollowClashGame implements GameModule {
       const avgX = activeKnights.reduce((acc, k) => acc + k.state.x, 0) / activeKnights.length;
       this.cameraX += (avgX - CAVERN_CONFIG.width / 2 - this.cameraX) * 4.0 * dt;
       this.cameraX = Math.max(0, Math.min(CAVERN_CONFIG.width, this.cameraX));
+      
+      // Apply camera panning to the world
+      this.worldContainer.x = -this.cameraX;
     }
 
     // Update Knights
@@ -218,13 +240,16 @@ export default class HollowClashGame implements GameModule {
     }
 
     // Render Scene
-    this.graphics.clear();
-    this.cavern.render(this.graphics, this.cameraX);
-    this.tilemap.render(this.graphics);
-    this.collectibles.forEach((c) => c.render(this.graphics));
-    this.spells.forEach((s) => s.render(this.graphics));
-    this.enemies.forEach((e) => e.render(this.graphics));
-    if (this.boss) this.boss.render(this.graphics);
+    this.bgGraphics.clear();
+    this.cavern.render(this.bgGraphics, this.cameraX);
+    
+    this.worldGraphics.clear();
+    this.tilemap.render(this.worldGraphics);
+    this.collectibles.forEach((c) => c.render(this.worldGraphics));
+    this.spells.forEach((s) => s.render(this.worldGraphics));
+    this.enemies.forEach((e) => e.render(this.worldGraphics));
+    if (this.boss) this.boss.render(this.worldGraphics);
+    
     this.knights.forEach((k) => k.render());
     this.hud.render(this.knights.map((k) => k.state));
   }
@@ -254,7 +279,10 @@ export default class HollowClashGame implements GameModule {
     this.state = 'Destroyed';
     this.lounge?.destroy();
     this.hud?.destroy();
-    this.graphics?.destroy();
+    this.bgGraphics?.destroy();
+    this.worldGraphics?.destroy();
+    this.worldContainer?.destroy();
     this.gameContainer?.destroy();
+    window.removeEventListener('keydown', this.handleGlobalKeyDown);
   }
 }
