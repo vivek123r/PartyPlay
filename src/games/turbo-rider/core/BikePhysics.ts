@@ -28,6 +28,10 @@ export class BikePhysics {
   public crashTimer = 0;
   public invulnerabilityTimer = 0.0; // 3.5s immunity after crash
   public isOffRoad = false;
+  public lives = 3;
+  public eliminated = false;
+  public shieldTimer = 0;
+  public coinsCollected = 0;
 
   constructor(id: number, playerColor: string) {
     this.id = id;
@@ -42,12 +46,28 @@ export class BikePhysics {
   }
 
   public triggerCrash(): void {
-    if (this.isCrashed || this.invulnerabilityTimer > 0) return;
+    if (this.isCrashed || this.eliminated) return;
+
+    // Shield absorbs crash
+    if (this.shieldTimer > 0) {
+      this.shieldTimer = 0;
+      this.invulnerabilityTimer = 2.0;
+      return;
+    }
+
+    if (this.invulnerabilityTimer > 0) return;
+    this.lives--;
     this.isCrashed = true;
     this.crashTimer = 1.8;
-    this.invulnerabilityTimer = 3.5; // 3.5s invulnerability window
-    this.speed = Math.floor(this.speed * 0.15);
+    this.invulnerabilityTimer = 3.5;
+    this.speed = Math.floor(this.speed * 0.4);
     this.pitchAngle = -0.8;
+    if (this.lives <= 0) {
+      this.eliminated = true;
+      this.isCrashed = true;
+      this.crashTimer = 1.8;
+      this.invulnerabilityTimer = 999;
+    }
   }
 
   public update(
@@ -62,15 +82,27 @@ export class BikePhysics {
     if (this.invulnerabilityTimer > 0) {
       this.invulnerabilityTimer = Math.max(0, this.invulnerabilityTimer - dt);
     }
+    if (this.shieldTimer > 0) {
+      this.shieldTimer = Math.max(0, this.shieldTimer - dt);
+    }
 
     if (this.isCrashed) {
       this.crashTimer -= dt;
       if (this.crashTimer <= 0) {
         this.isCrashed = false;
         this.crashTimer = 0;
+        this.x = 0;
+        this.speed = Math.max(60, this.speed);
       }
       this.speed = Math.max(0, this.speed - 110 * dt);
       this.pitchAngle += (0 - this.pitchAngle) * 6 * dt;
+      return;
+    }
+
+    if (this.eliminated && !this.isCrashed) {
+      this.speed = Math.max(0, this.speed - 30 * dt);
+      this.pitchAngle += (0 - this.pitchAngle) * 5 * dt;
+      this.z += (this.speed * 1000 / 3600) * 0.5 * dt;
       return;
     }
 
@@ -110,29 +142,31 @@ export class BikePhysics {
       this.pitchAngle += (0 - this.pitchAngle) * 5 * dt;
     }
 
-    // 4. Linearized Steering & Centrifugal Curve Physics
-    // cornerGrip 50 -> turnSpeed 1.25 (responsive & smooth)
-    const turnSpeed = (this.stats.cornerGrip / 40) * (this.isOffRoad ? 0.45 : 1.0);
-    const speedFactor = Math.min(1.0, Math.max(0.1, this.speed / 100));
+    // 4. Steering with speed-scaled responsiveness
+    const baseTurn = this.stats.cornerGrip / 40;
+    const turnSpeed = baseTurn * (this.isOffRoad ? 0.4 : 1.0);
+    const speedFactor = Math.min(1.0, Math.max(0.15, this.speed / 120));
 
     if (moveLeft && !brake) {
       this.x = Math.max(-1.8, this.x - turnSpeed * speedFactor * dt);
-      this.leanAngle = Math.max(-1.0, this.leanAngle - 6 * dt);
+      this.leanAngle = Math.max(-1.0, this.leanAngle - 5 * dt);
     } else if (moveRight && !brake) {
       this.x = Math.min(1.8, this.x + turnSpeed * speedFactor * dt);
-      this.leanAngle = Math.min(1.0, this.leanAngle + 6 * dt);
+      this.leanAngle = Math.min(1.0, this.leanAngle + 5 * dt);
     } else {
-      this.leanAngle += (0 - this.leanAngle) * 8 * dt;
+      this.leanAngle += (0 - this.leanAngle) * 6 * dt;
     }
 
-    // Curve Centrifugal Force pushing bike outward smoothly
-    if (currentCurve !== 0 && this.speed > 30) {
-      const centForce = currentCurve * (this.speed / 150) * 0.35;
+    // Curve centrifugal force — gentler push, doesn't fight steering
+    if (currentCurve !== 0 && this.speed > 40) {
+      const centForce = currentCurve * (this.speed / 150) * 0.12;
       this.x -= centForce * dt;
+      this.x = Math.max(-1.8, Math.min(1.8, this.x));
     }
 
-    // 5. Advance Z position with High-Speed Arcade Scale (3.5x multiplier)
-    const VELOCITY_SCALE = 3.5;
+    // 5. Advance Z position — VELOCITY_SCALE must match TrafficManager's, since both
+    // operate on the same metric world (see render/ProjectionEngine.ts's CAMERA_* constants).
+    const VELOCITY_SCALE = 1.0;
     this.z += (this.speed * 1000 / 3600) * VELOCITY_SCALE * dt;
   }
 }

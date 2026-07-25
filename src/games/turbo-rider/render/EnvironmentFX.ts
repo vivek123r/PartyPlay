@@ -42,8 +42,8 @@ export class EnvironmentFX {
     }
   }
 
-  public spawnNitroFlames(x: number, y: number, colorHex: number): void {
-    for (let i = 0; i < 4; i++) {
+  public spawnNitroFlames(x: number, y: number, colorHex: number, count = 4): void {
+    for (let i = 0; i < count; i++) {
       this.particles.push({
         x: x + (Math.random() - 0.5) * 6,
         y: y + 4,
@@ -56,7 +56,7 @@ export class EnvironmentFX {
     }
   }
 
-  public update(dt: number, speed: number, viewW: number, viewH: number): void {
+  public update(dt: number, speed: number, viewW: number, viewH: number, density = 1): void {
     this.graphics.clear();
 
     // 1. Screen Shake Decay
@@ -73,7 +73,7 @@ export class EnvironmentFX {
 
     // 2. High-Speed Radial Speed Lines (> 160 km/h)
     if (speed > 160) {
-      const numLines = Math.floor((speed - 160) / 10) + 4;
+      const numLines = Math.round((Math.floor((speed - 160) / 10) + 4) * density);
       for (let i = 0; i < numLines; i++) {
         const lx = Math.random() * viewW;
         const ly = Math.random() * viewH;

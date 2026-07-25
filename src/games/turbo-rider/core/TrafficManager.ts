@@ -1,73 +1,74 @@
 import type { BikePhysics } from './BikePhysics';
+import { ROAD_HALF_WIDTH_METERS, BIKE_WIDTH_METERS, BIKE_LENGTH_METERS } from './TrackConstants';
+import { VEHICLE_DIMENSIONS_M, HAZARD_KINDS, MOVING_KINDS, type VehicleKind } from '../render/VehicleSprites';
+
+export type { VehicleKind };
 
 export interface AITrafficVehicle {
   id: number;
-  laneX: number;  // -0.6 (left lane), 0.6 (right lane)
-  z: number;      // track distance in meters
-  speed: number;  // km/h
-  type: 'sedan' | 'truck' | 'bike';
+  laneX: number;  // -0.6 (left lane), 0.6 (right lane); hazards may sit off-centre
+  z: number;      // track distance in metres
+  speed: number;  // km/h, 0 for stationary hazards
+  type: VehicleKind;
   color: number;
 }
 
+const MOVING_COLORS = [0xff4757, 0x1e90ff, 0x2ed573, 0xffa502, 0x70a1ff, 0xe17055, 0xa29bfe];
+const VELOCITY_SCALE = 1.0; // must match BikePhysics.VELOCITY_SCALE — both operate on the same metric world
+
 export class TrafficManager {
   public vehicles: AITrafficVehicle[] = [];
-  public readonly MAX_VEHICLES = 14;
+  public readonly MAX_VEHICLES = 40;
 
-  public spawnTraffic(trackLengthMeters: number): void {
+  public spawnTraffic(trackLengthMeters: number, density = 1.0): void {
     this.vehicles = [];
     const lanes = [-0.6, 0.6];
-    const types: ('sedan' | 'truck' | 'bike')[] = ['sedan', 'truck', 'bike'];
-    const colors = [0xff4757, 0x1e90ff, 0x2ed573, 0xffa502, 0x70a1ff];
 
-    // First traffic vehicle starts at z = 500m (giving 500m clear starting runway)
-    let currentZ = 500;
+    const minGap = 110 / density;
+    const maxVeh = Math.max(20, Math.floor(this.MAX_VEHICLES * density));
 
-    for (let i = 0; i < this.MAX_VEHICLES; i++) {
-      const lane = lanes[Math.floor(Math.random() * lanes.length)];
-      const type = types[Math.floor(Math.random() * types.length)];
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      const speed = 80 + Math.random() * 30; // 80-110 km/h
+    let currentZ = 220; // clear starting runway
 
-      this.vehicles.push({
-        id: i + 1,
-        laneX: lane,
-        z: currentZ,
-        speed,
-        type,
-        color,
-      });
+    for (let i = 0; i < maxVeh; i++) {
+      const isHazard = Math.random() < 0.18;
+      const type: VehicleKind = isHazard
+        ? HAZARD_KINDS[Math.floor(Math.random() * HAZARD_KINDS.length)]
+        : MOVING_KINDS[Math.floor(Math.random() * MOVING_KINDS.length)];
+      const color = isHazard ? 0xf4d160 : MOVING_COLORS[Math.floor(Math.random() * MOVING_COLORS.length)];
+      const laneX = isHazard
+        ? (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.5)
+        : lanes[Math.floor(Math.random() * lanes.length)];
+      const speed = isHazard ? 0 : 70 + Math.random() * 35;
 
-      // Maintain a minimum 600m gap between traffic vehicles
-      currentZ += 600 + Math.random() * 300;
-      if (currentZ > trackLengthMeters - 300) break;
+      this.vehicles.push({ id: i + 1, laneX, z: currentZ, speed, type, color });
+
+      currentZ += minGap + Math.random() * (140 / density);
+      if (currentZ > trackLengthMeters - 100) break;
     }
   }
 
   public update(dt: number, bikes: BikePhysics[], trackLengthMeters: number): void {
-    // 1. Move AI Traffic along highway with matching 3.5x Arcade Velocity Scale
-    const VELOCITY_SCALE = 3.5;
     this.vehicles.forEach((veh) => {
+      if (veh.speed === 0) return; // stationary hazard
       veh.z += (veh.speed * 1000 / 3600) * VELOCITY_SCALE * dt;
-
-      if (veh.z > trackLengthMeters) {
-        veh.z -= trackLengthMeters;
-      }
+      if (veh.z > trackLengthMeters) veh.z -= trackLengthMeters;
     });
 
-    // 2. Check Collisions with player bikes (with invulnerability timer & continuous collision box)
     bikes.forEach((bike) => {
-      if (bike.isCrashed || bike.invulnerabilityTimer > 0) return; // Full invulnerability protection
+      if (bike.isCrashed || bike.invulnerabilityTimer > 0) return;
 
       this.vehicles.forEach((veh) => {
         let distZ = Math.abs(bike.z - veh.z);
-        if (distZ > trackLengthMeters / 2) {
-          distZ = trackLengthMeters - distZ;
-        }
+        if (distZ > trackLengthMeters / 2) distZ = trackLengthMeters - distZ;
+
+        const dims = VEHICLE_DIMENSIONS_M[veh.type];
+        const zThresh = (dims.length + BIKE_LENGTH_METERS) / 2;
+        if (distZ > zThresh + 25) return; // cheap early-out well beyond collision range
 
         const distX = Math.abs(bike.x - veh.laneX);
+        const xThresh = (dims.width + BIKE_WIDTH_METERS) / (2 * ROAD_HALF_WIDTH_METERS);
 
-        // Accurate High-Speed Crash Collision Check (6.0m Z depth, 0.25 lane width)
-        if (distZ < 6.0 && distX < 0.25) {
+        if (distZ < zThresh && distX < xThresh) {
           bike.triggerCrash();
         }
       });

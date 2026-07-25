@@ -1,39 +1,76 @@
 import { Graphics, Texture } from 'pixi.js';
 import type { Point3D, TrackSegment } from '../types';
 import type { AITrafficVehicle } from '../core/TrafficManager';
+import type { PowerUp } from '../core/PowerUpManager';
 import { HandcraftedTrack } from '../core/HandcraftedTrack';
+import { ROAD_HALF_WIDTH_METERS, SEGMENT_LENGTH_METERS } from '../core/TrackConstants';
+import { drawSkybox } from './Skybox';
+import { drawSceneryProp, drawOverheadGantry } from './SceneryLibrary';
+import { drawVehicle, type VehicleKind } from './VehicleSprites';
 
+function hashOf(n: number): number {
+  return (Math.imul(n, 2654435761) ^ (n >>> 3)) >>> 0;
+}
+
+function wrapMod(n: number, m: number): number {
+  return ((n % m) + m) % m;
+}
+
+function clamp01(n: number): number {
+  return Math.max(0, Math.min(1, n));
+}
+
+interface SpriteItem {
+  z: number;
+  draw: () => void;
+}
+
+/**
+ * Pseudo-3D projection on a metric world scale. All axes share one scale
+ * (`viewW`-based, "square pixels") so a single px-per-metre figure sizes
+ * the road, traffic, scenery and the player bike consistently — see the
+ * plan notes on why the old viewH-based vertical scale made tall sprites
+ * float above the horizon in squashed split-screen viewports.
+ *
+ * The track itself is straight and flat (HandcraftedTrack always emits
+ * worldX = worldY = curve = elevation = 0), so camera X only needs to
+ * track the player's lane offset — there is no per-segment interpolation
+ * to do for position.
+ */
 export class ProjectionEngine {
-  public static readonly ROAD_WIDTH = 2000;
-  public static readonly SEGMENT_LENGTH = 40;  // High-resolution 40m segments
-  public static readonly DRAW_DISTANCE = 150;   // Draw 150 segments ahead (6000m depth)
-  public static readonly CAMERA_DEPTH = 0.55;  // Perspective focal depth scale
-  public static readonly CAMERA_HEIGHT = 600;
+  public static readonly ROAD_WIDTH = ROAD_HALF_WIDTH_METERS; // metres, half-width
+  public static readonly SEGMENT_LENGTH = SEGMENT_LENGTH_METERS; // metres
+  public static readonly CAMERA_HEIGHT = 1.4; // metres
+  public static readonly CAMERA_DEPTH = 3.0;
+  public static readonly CAMERA_BACK = 9; // metres — camera trails the bike so impacts happen on-screen
+  public static readonly NEAR_PLANE = 0.5; // metres
+
+  public static readonly ROAD_DRAW_METERS = 200; // stride-1 quads out to here, then one far-fill
+  public static readonly SCENERY_DRAW_METERS = 1500;
+  public static readonly SCENERY_SPACING = 18; // metres between candidate prop slots, per side
+  public static readonly GANTRY_SPACING = 150;
+  public static readonly VEH_DRAW_METERS = 420;
+  public static readonly PU_DRAW_METERS = 260;
 
   public static project(
     p: Point3D,
     cameraX: number,
     cameraY: number,
     cameraZ: number,
-    screenWidth: number,
-    screenHeight: number,
+    viewW: number,
     horizonY: number
   ): Point3D {
     const camX = (p.worldX || 0) - cameraX;
     const camY = (p.worldY || 0) - cameraY;
     const camZ = (p.worldZ || 0) - cameraZ;
 
-    const scale = ProjectionEngine.CAMERA_DEPTH / Math.max(1, camZ);
+    const safeZ = Math.max(ProjectionEngine.NEAR_PLANE, camZ);
+    const scale = ProjectionEngine.CAMERA_DEPTH / safeZ;
 
-    const screenX = Math.round(
-      screenWidth / 2 + (scale * camX * screenWidth) / 2
-    );
-    const screenY = Math.round(
-      horizonY - (scale * camY * screenHeight) / 2
-    );
-    const projectedWidth = Math.round(
-      (scale * ProjectionEngine.ROAD_WIDTH * screenWidth) / 2
-    );
+    const halfW = viewW / 2;
+    const screenX = Math.round(halfW + scale * camX * halfW);
+    const screenY = Math.round(horizonY - scale * camY * halfW);
+    const projectedWidth = Math.round(scale * ProjectionEngine.ROAD_WIDTH * halfW);
 
     return {
       worldX: p.worldX,
@@ -49,6 +86,12 @@ export class ProjectionEngine {
     };
   }
 
+  private static horizonFractionFor(playerCount: number): number {
+    if (playerCount >= 4) return 0.22;
+    if (playerCount === 3) return 0.285;
+    return 0.35;
+  }
+
   public static renderViewportRoad(
     g: Graphics,
     segments: TrackSegment[],
@@ -56,249 +99,257 @@ export class ProjectionEngine {
     playerX: number,
     viewW: number,
     viewH: number,
+    playerCount: number,
     trafficVehicles: AITrafficVehicle[] = [],
+    powerUps: PowerUp[] = [],
     skyboxTexture?: Texture | null,
     fireTexture?: Texture | null
   ): void {
     if (segments.length === 0) return;
+    void fireTexture; // reserved for future nitro-trail scenery interactions
 
     const totalSegs = segments.length;
     const trackLength = totalSegs * ProjectionEngine.SEGMENT_LENGTH;
-    const totalTrackDeltaX = HandcraftedTrack.TOTAL_TRACK_DELTA_X;
 
-    const startSegmentIndex = Math.floor(playerZ / ProjectionEngine.SEGMENT_LENGTH);
-    const baseSegmentIndex = startSegmentIndex % totalSegs;
-    const nextSegmentIndex = (startSegmentIndex + 1) % totalSegs;
-    const baseLoop = Math.floor(startSegmentIndex / totalSegs);
+    const horizonY = Math.round(viewH * ProjectionEngine.horizonFractionFor(playerCount));
+    const parallaxX = playerZ * 0.5;
 
-    const baseSegment = segments[baseSegmentIndex];
-    const nextSegment = segments[nextSegmentIndex];
+    // Straight, flat track (curve/elevation are always 0) — camera X is just the lane offset.
+    const cameraX = playerX * ProjectionEngine.ROAD_WIDTH;
+    const cameraY = ProjectionEngine.CAMERA_HEIGHT;
+    const cameraZ = playerZ - ProjectionEngine.CAMERA_BACK;
 
-    const percent = (playerZ % ProjectionEngine.SEGMENT_LENGTH) / ProjectionEngine.SEGMENT_LENGTH;
-    
-    let nextWorldX = nextSegment.p1.worldX;
-    if (nextSegmentIndex === 0) {
-      nextWorldX += totalTrackDeltaX;
-    }
+    const phaseNow = HandcraftedTrack.getPhaseForDistance(wrapMod(playerZ, trackLength));
+    drawSkybox(g, viewW, horizonY, phaseNow, parallaxX, skyboxTexture);
 
-    const curTrackX = baseSegment.p1.worldX + (nextWorldX - baseSegment.p1.worldX) * percent + baseLoop * totalTrackDeltaX;
-    const curTrackY = baseSegment.p1.worldY + (nextSegment.p1.worldY - baseSegment.p1.worldY) * percent;
+    // Horizon accent line
+    const hlOffset = (playerZ * 0.04) % viewW;
+    g.rect(0 - hlOffset, horizonY - 1, viewW, 1).fill({ color: 0x00f0ff, alpha: 0.2 });
+    g.rect(viewW - hlOffset, horizonY - 1, viewW, 1).fill({ color: 0x00f0ff, alpha: 0.2 });
 
-    const cameraX = curTrackX + playerX * ProjectionEngine.ROAD_WIDTH;
-    const cameraY = ProjectionEngine.CAMERA_HEIGHT + curTrackY;
-    const cameraZ = playerZ;
+    const sprites: SpriteItem[] = [];
 
-    // 1. Render Video / Synthwave Sunset Skybox Backdrop
-    const horizonY = Math.round(viewH * 0.45);
+    // ---- Road quads (stride 1, near field) + one far-fill haze ----
+    const roadSegCount = Math.max(1, Math.ceil(ProjectionEngine.ROAD_DRAW_METERS / ProjectionEngine.SEGMENT_LENGTH));
+    const startGlobalIdx = Math.floor(cameraZ / ProjectionEngine.SEGMENT_LENGTH) - 1;
 
-    if (skyboxTexture && skyboxTexture !== Texture.WHITE) {
-      g.texture(skyboxTexture, 0xffffff, 0, 0, viewW, horizonY);
-    } else {
-      g.rect(0, 0, viewW, horizonY).fill({ color: 0x0f0e17 });
-      g.circle(viewW / 2, horizonY - 12, 22).fill({ color: 0xff0055 });
-      g.circle(viewW / 2, horizonY - 12, 16).fill({ color: 0xf4d160 });
+    interface ProjSeg { p1: Point3D; p2: Point3D; color: TrackSegment['color']; worldZ: number }
+    const projectedSegs: ProjSeg[] = [];
 
-      const mountPoly = [
-        0, horizonY,
-        40, horizonY - 14,
-        90, horizonY - 4,
-        150, horizonY - 22,
-        220, horizonY - 6,
-        290, horizonY - 18,
-        360, horizonY - 5,
-        420, horizonY - 16,
-        viewW, horizonY
-      ];
-      g.poly(mountPoly).fill({ color: 0x2d3436 });
-    }
-
-    // Ocean / Cyber Horizon Line
-    g.rect(0, horizonY - 3, viewW, 3).fill({ color: 0x00f0ff, alpha: 0.6 });
-
-    // 2. Project Segment Coordinates continuously in 3D Absolute Space into a Local Array
-    const projectedSegs: { p1: Point3D; p2: Point3D; color: any; curve: number; index: number; worldZ: number }[] = [];
-
-    for (let n = 0; n < ProjectionEngine.DRAW_DISTANCE; n++) {
-      const globalSegIdx = startSegmentIndex + n;
-      const segIndex = globalSegIdx % totalSegs;
-      const segLoop = Math.floor(globalSegIdx / totalSegs);
-      const loopOffsetX = segLoop * totalTrackDeltaX;
-
+    for (let n = 0; n < roadSegCount; n++) {
+      const globalSegIdx = startGlobalIdx + n;
+      const segIndex = wrapMod(globalSegIdx, totalSegs);
       const seg = segments[segIndex];
-      const nextSegIndex = (segIndex + 1) % totalSegs;
-      const nextSeg = segments[nextSegIndex];
-      const nextLoopOffsetX = Math.floor((globalSegIdx + 1) / totalSegs) * totalTrackDeltaX;
-
       const worldZ1 = globalSegIdx * ProjectionEngine.SEGMENT_LENGTH;
-      const worldZ2 = (globalSegIdx + 1) * ProjectionEngine.SEGMENT_LENGTH;
+      const worldZ2 = worldZ1 + ProjectionEngine.SEGMENT_LENGTH;
 
-      const rawP1: Point3D = {
-        worldX: seg.p1.worldX + loopOffsetX,
-        worldY: seg.p1.worldY,
-        worldZ: worldZ1,
-      };
+      const proj1 = ProjectionEngine.project({ worldX: 0, worldY: 0, worldZ: worldZ1 }, cameraX, cameraY, cameraZ, viewW, horizonY);
+      const proj2 = ProjectionEngine.project({ worldX: 0, worldY: 0, worldZ: worldZ2 }, cameraX, cameraY, cameraZ, viewW, horizonY);
 
-      const rawP2: Point3D = {
-        worldX: seg.p2.worldX + nextLoopOffsetX,
-        worldY: nextSeg.p1.worldY,
-        worldZ: worldZ2,
-      };
-
-      const proj1 = ProjectionEngine.project(rawP1, cameraX, cameraY, cameraZ, viewW, viewH, horizonY);
-      const proj2 = ProjectionEngine.project(rawP2, cameraX, cameraY, cameraZ, viewW, viewH, horizonY);
-
-      projectedSegs.push({
-        p1: proj1,
-        p2: proj2,
-        color: seg.color,
-        curve: seg.curve,
-        index: segIndex,
-        worldZ: worldZ1,
-      });
+      projectedSegs.push({ p1: proj1, p2: proj2, color: seg.color, worldZ: worldZ1 });
     }
 
-    // 3. Render 3D Road Quads & 3D AI Traffic Vehicles (Back-to-Front iteration)
+    // Far-fill haze — closes the road into the horizon beyond the stride-1 window instead of a hard cutoff
+    const farSeg = projectedSegs[projectedSegs.length - 1];
+    if (farSeg && (farSeg.p2.cameraZ || 0) > ProjectionEngine.NEAR_PLANE) {
+      const fx = farSeg.p2.screenX || 0;
+      const fy = farSeg.p2.screenY || 0;
+      const fw = farSeg.p2.projectedWidth || 0;
+      if (fy > horizonY) {
+        g.rect(0, horizonY, viewW, fy - horizonY).fill({ color: farSeg.color.grass, alpha: 0.55 });
+        g.poly([fx - fw, fy, fx + fw, fy, viewW / 2, horizonY]).fill({ color: farSeg.color.road, alpha: 0.65 });
+      }
+    }
+
+    const BAND_SEGS = 2; // ~12m alternating asphalt bands
+    const DASH_SEGS = 2; // ~12m dash cycle for the centre line
+
     for (let n = projectedSegs.length - 1; n >= 0; n--) {
       const seg = projectedSegs[n];
       const p1 = seg.p1;
       const p2 = seg.p2;
 
-      if ((p2.cameraZ || 0) <= ProjectionEngine.CAMERA_DEPTH) continue;
+      if ((p2.cameraZ || 0) <= ProjectionEngine.NEAR_PLANE) continue;
+      if (!p1.cameraZ || p1.cameraZ <= ProjectionEngine.NEAR_PLANE) continue;
 
-      const x1 = p1.screenX || 0;
-      const y1 = p1.screenY || 0;
-      const w1 = p1.projectedWidth || 0;
-
-      const x2 = p2.screenX || 0;
-      const y2 = p2.screenY || 0;
-      const w2 = p2.projectedWidth || 0;
-
+      const x1 = p1.screenX || 0, y1 = p1.screenY || 0, w1 = p1.projectedWidth || 0;
+      const x2 = p2.screenX || 0, y2 = p2.screenY || 0, w2 = p2.projectedWidth || 0;
       if (y1 <= y2) continue;
 
-      // a) Grass Field
+      const segGlobalIdx = Math.round(seg.worldZ / ProjectionEngine.SEGMENT_LENGTH);
+      const band = Math.floor(segGlobalIdx / BAND_SEGS) % 2 === 0;
+
       g.poly([0, y2, viewW, y2, viewW, y1, 0, y1]).fill({ color: seg.color.grass });
 
-      // b) Rumble Strips
-      const rW1 = w1 * 0.18;
-      const rW2 = w2 * 0.18;
+      // Rumble strips — narrower than before so they don't blow out past the frame in the near field
+      const rW1 = w1 * 0.08;
+      const rW2 = w2 * 0.08;
       g.poly([x1 - w1 - rW1, y1, x1 - w1, y1, x2 - w2, y2, x2 - w2 - rW2, y2]).fill({ color: seg.color.rumble });
       g.poly([x1 + w1, y1, x1 + w1 + rW1, y1, x2 + w2 + rW2, y2, x2 + w2, y2]).fill({ color: seg.color.rumble });
 
-      // c) Dark Asphalt Tarmac Road Surface Quad
-      g.poly([x1 - w1, y1, x1 + w1, y1, x2 + w2, y2, x2 - w2, y2]).fill({ color: seg.color.road });
+      const roadColor = band ? seg.color.road : mixColor(seg.color.road, 0x000000, 0.12);
+      g.poly([x1 - w1, y1, x1 + w1, y1, x2 + w2, y2, x2 - w2, y2]).fill({ color: roadColor });
 
-      // d) White Center Lane Stripe
-      if (Math.floor(seg.index / 3) % 2 === 0) {
-        const cW1 = w1 * 0.04;
-        const cW2 = w2 * 0.04;
+      // Dashed centre line
+      if (Math.floor(segGlobalIdx / DASH_SEGS) % 2 === 0) {
+        const cW1 = w1 * 0.05, cW2 = w2 * 0.05;
         g.poly([x1 - cW1, y1, x1 + cW1, y1, x2 + cW2, y2, x2 - cW2, y2]).fill({ color: seg.color.lane });
       }
 
-      // Render Roadside 3D Pillars with Live Transparent Fire Video Torches!
-      if (seg.index % 8 === 0) {
-        const sideX = x1 + w1 + 18;
-        const sideH = Math.max(4, Math.round(w1 * 0.35));
-        const sideW = Math.max(3, Math.round(w1 * 0.15));
+      // Solid inner lane divider marks
+      const sW1 = w1 * 0.03, sW2 = w2 * 0.03;
+      const off1 = w1 * 0.32, off2 = w2 * 0.32;
+      g.poly([x1 - off1 - sW1, y1, x1 - off1 + sW1, y1, x2 - off2 + sW2, y2, x2 - off2 - sW2, y2]).fill({ color: seg.color.lane, alpha: 0.5 });
+      g.poly([x1 + off1 - sW1, y1, x1 + off1 + sW1, y1, x2 + off2 + sW2, y2, x2 + off2 - sW2, y2]).fill({ color: seg.color.lane, alpha: 0.5 });
 
-        // Pillar Base
-        g.rect(sideX, y1 - sideH, sideW, sideH).fill({ color: 0x2d3436 });
+      // Solid outer edge lines
+      const eW1 = w1 * 0.05, eW2 = w2 * 0.05;
+      const eOff1 = w1 * 0.82, eOff2 = w2 * 0.82;
+      g.poly([x1 - eOff1 - eW1, y1, x1 - eOff1 + eW1, y1, x2 - eOff2 + eW2, y2, x2 - eOff2 - eW2, y2]).fill({ color: seg.color.lane, alpha: 0.8 });
+      g.poly([x1 + eOff1 - eW1, y1, x1 + eOff1 + eW1, y1, x2 + eOff2 + eW2, y2, x2 + eOff2 - eW2, y2]).fill({ color: seg.color.lane, alpha: 0.8 });
 
-        // Live Burning Fire Torch with 100% Transparent Background!
-        if (fireTexture && fireTexture !== Texture.WHITE) {
-          const fireW = Math.max(12, Math.round(w1 * 0.48));
-          const fireH = Math.max(16, Math.round(w1 * 0.68));
-          const fireX = sideX - fireW / 3;
-          const fireY = y1 - sideH - fireH + 3;
-
-          g.texture(fireTexture, 0xfffffe, fireX, fireY, fireW, fireH);
-        }
+      // Occasional skid mark / patched asphalt, sparse and deterministic
+      const patchHash = hashOf(segGlobalIdx);
+      if (patchHash % 23 === 0) {
+        const pw1 = w1 * 0.18, pw2 = w2 * 0.18;
+        const pOff = ((patchHash >> 4) % 2 === 0 ? -1 : 1) * 0.3;
+        g.poly([
+          x1 + w1 * pOff - pw1, y1, x1 + w1 * pOff + pw1, y1,
+          x2 + w2 * pOff + pw2, y2, x2 + w2 * pOff - pw2, y2,
+        ]).fill({ color: 0x0a0a0f, alpha: 0.3 });
       }
+    }
 
-      // Render Visible 3D AI Traffic Vehicles with Sub-Segment Interpolation
-      const vehiclesHere = trafficVehicles.filter((v) => {
-        let vz = v.z;
-        vz += Math.floor((playerZ - vz + trackLength / 2) / trackLength) * trackLength;
-        return vz >= seg.worldZ && vz < seg.worldZ + ProjectionEngine.SEGMENT_LENGTH;
+    // ---- Overhead gantries — sign gantry / bridge span / tunnel ring, spaced along the track ----
+    const gantrySpacing = playerCount >= 3 ? ProjectionEngine.GANTRY_SPACING * 1.4 : ProjectionEngine.GANTRY_SPACING;
+    const firstGantry = Math.ceil(cameraZ / gantrySpacing) * gantrySpacing;
+    for (let gz = firstGantry; gz < cameraZ + ProjectionEngine.SCENERY_DRAW_METERS; gz += gantrySpacing) {
+      const camDist = gz - cameraZ;
+      if (camDist <= ProjectionEngine.NEAR_PLANE) continue;
+      const scale = ProjectionEngine.CAMERA_DEPTH / camDist;
+      const halfW = viewW / 2;
+      const ppm = scale * halfW;
+      const centerX = Math.round(halfW - scale * cameraX * halfW);
+      const groundY = Math.round(horizonY + scale * ProjectionEngine.CAMERA_HEIGHT * halfW);
+      const roadHalfWidthPx = ppm * ProjectionEngine.ROAD_WIDTH;
+      const alpha = clamp01((ProjectionEngine.SCENERY_DRAW_METERS - camDist) / 200) * clamp01(camDist / 10);
+      if (alpha <= 0) continue;
+      const wrappedZ = wrapMod(gz, trackLength);
+      const phase = HandcraftedTrack.getPhaseForDistance(wrappedZ);
+      const hash = hashOf(Math.round(gz / gantrySpacing));
+      sprites.push({
+        z: camDist,
+        draw: () => drawOverheadGantry(g, centerX, groundY, roadHalfWidthPx, ppm, phase, alpha, hash),
       });
+    }
 
-      for (const veh of vehiclesHere) {
-        let vz = veh.z;
-        vz += Math.floor((playerZ - vz + trackLength / 2) / trackLength) * trackLength;
+    // ---- Roadside scenery — independent of road stride, runs much further out ----
+    const sceneryDrawDist = playerCount >= 3 ? ProjectionEngine.SCENERY_DRAW_METERS * 0.65 : ProjectionEngine.SCENERY_DRAW_METERS;
+    const scenerySpacing = playerCount >= 3 ? ProjectionEngine.SCENERY_SPACING * 1.5 : ProjectionEngine.SCENERY_SPACING;
 
-        const t = (vz - seg.worldZ) / ProjectionEngine.SEGMENT_LENGTH;
-        const segX = (p1.screenX || 0) + ((p2.screenX || 0) - (p1.screenX || 0)) * t;
-        const segY = (p1.screenY || 0) + ((p2.screenY || 0) - (p1.screenY || 0)) * t;
-        const segW = (p1.projectedWidth || 0) + ((p2.projectedWidth || 0) - (p1.projectedWidth || 0)) * t;
+    for (const side of [-1, 1] as const) {
+      const phaseOffset = side > 0 ? scenerySpacing * 0.5 : 0;
+      const firstSlot = Math.ceil((cameraZ + 4 - phaseOffset) / scenerySpacing) * scenerySpacing + phaseOffset;
 
-        const vehX = Math.round(segX + veh.laneX * segW);
-        const vehY = Math.round(segY);
+      for (let wz = firstSlot; wz < cameraZ + sceneryDrawDist; wz += scenerySpacing) {
+        const camDist = wz - cameraZ;
+        if (camDist <= ProjectionEngine.NEAR_PLANE) continue;
 
-        ProjectionEngine.renderAIVehicle(g, vehX, vehY, segW, veh.type, veh.color);
+        const bucket = Math.round(wz / scenerySpacing);
+        const hash = hashOf(bucket * 2 + (side > 0 ? 1 : 0));
+        if (hash % 5 === 0) continue; // leave gaps so it doesn't read as a grid
+
+        const scale = ProjectionEngine.CAMERA_DEPTH / camDist;
+        const halfW = viewW / 2;
+        const ppm = scale * halfW;
+        const centerX = halfW - scale * cameraX * halfW;
+        const groundY = horizonY + scale * ProjectionEngine.CAMERA_HEIGHT * halfW;
+        const projectedWidth = ppm * ProjectionEngine.ROAD_WIDTH;
+        const edgeX = centerX + side * projectedWidth;
+
+        const alpha = clamp01(camDist / 6) * clamp01((sceneryDrawDist - camDist) / 180);
+        if (alpha <= 0) continue;
+
+        const wrappedZ = wrapMod(wz, trackLength);
+        const phase = HandcraftedTrack.getPhaseForDistance(wrappedZ);
+
+        sprites.push({
+          z: camDist,
+          draw: () => drawSceneryProp(g, phase, edgeX, groundY, ppm, alpha, hash, side),
+        });
       }
     }
-  }
 
-  private static renderAIVehicle(g: Graphics, x: number, y: number, segW: number, type: string, color: number): void {
-    if (type === 'truck') {
-      const w = Math.max(16, Math.round(segW * 0.55));
-      const h = Math.max(14, Math.round(segW * 0.48));
+    // ---- Traffic vehicles & hazards ----
+    for (const veh of trafficVehicles) {
+      let vz = veh.z;
+      vz += Math.floor((playerZ - vz + trackLength / 2) / trackLength) * trackLength;
+      const camDist = vz - cameraZ;
+      if (camDist <= ProjectionEngine.NEAR_PLANE || camDist > ProjectionEngine.VEH_DRAW_METERS) continue;
 
-      g.rect(x - w / 2, y - 2, w, 4).fill({ color: 0x000000, alpha: 0.5 });
-      g.rect(x - w / 2, y - h, w, h).fill({ color: color });
-      g.rect(x - w / 2 + 2, y - h + 2, w - 4, h - 4).fill({ color: 0x353b48 });
+      const scale = ProjectionEngine.CAMERA_DEPTH / camDist;
+      const halfW = viewW / 2;
+      const ppm = scale * halfW;
+      const centerX = halfW - scale * cameraX * halfW;
+      const groundY = horizonY + scale * ProjectionEngine.CAMERA_HEIGHT * halfW;
+      const drawX = centerX + veh.laneX * ppm * ProjectionEngine.ROAD_WIDTH;
 
-      const ribs = 4;
-      for (let r = 1; r < ribs; r++) {
-        const rx = x - w / 2 + (w / ribs) * r;
-        g.rect(rx - 1, y - h + 3, 2, h - 6).fill({ color: 0x7f8c8d });
-      }
+      const fadeAlpha = clamp01(camDist / 3) * clamp01((ProjectionEngine.VEH_DRAW_METERS - camDist) / 70);
+      if (fadeAlpha <= 0) continue;
 
-      g.rect(x - w * 0.4, y - h + 3, w * 0.8, Math.max(2, h * 0.12)).fill({ color: 0xff0055 });
-
-      const flapW = Math.max(3, w * 0.22);
-      const flapH = Math.max(3, h * 0.25);
-      g.rect(x - w * 0.45, y - flapH, flapW, flapH).fill({ color: 0x1e272e });
-      g.rect(x + w * 0.45 - flapW, y - flapH, flapW, flapH).fill({ color: 0x1e272e });
-      g.rect(x - w * 0.45, y - 2, flapW, 2).fill({ color: 0xdcdde1 });
-      g.rect(x + w * 0.45 - flapW, y - 2, flapW, 2).fill({ color: 0xdcdde1 });
-
-      g.rect(x - w * 0.48, y - flapH + 1, flapW - 1, flapH - 2).fill({ color: 0x0f0e17 });
-      g.rect(x + w * 0.48 - flapW + 1, y - flapH - 1, flapW - 1, flapH - 2).fill({ color: 0x0f0e17 });
-
-    } else if (type === 'bike') {
-      const w = Math.max(10, Math.round(segW * 0.28));
-      const h = Math.max(10, Math.round(segW * 0.26));
-
-      g.rect(x - 3, y - 6, 6, 6).fill({ color: 0x1e272e });
-      g.rect(x - w / 2, y - h, w, Math.max(3, h * 0.4)).fill({ color: color });
-      g.rect(x - 3, y - h - 3, 6, 4).fill({ color: 0x2d3436 });
-
-    } else {
-      const w = Math.max(14, Math.round(segW * 0.42));
-      const h = Math.max(10, Math.round(segW * 0.32));
-
-      g.rect(x - w / 2, y - 2, w, 3).fill({ color: 0x000000, alpha: 0.4 });
-      g.rect(x - w / 2, y - h * 0.65, w, h * 0.65).fill({ color: color });
-
-      g.rect(x - w * 0.36, y - h, w * 0.72, h * 0.4).fill({ color: 0x1e272e });
-      g.rect(x - w * 0.32, y - h + 1, w * 0.64, h * 0.35).fill({ color: 0x0984e3, alpha: 0.8 });
-
-      g.rect(x - w * 0.45, y - h * 0.45, w * 0.9, h * 0.3).fill({ color: color });
-
-      const tailW = Math.max(2, w * 0.24);
-      const tailH = Math.max(2, h * 0.2);
-      g.rect(x - w * 0.46, y - h * 0.45, tailW, tailH).fill({ color: 0xff0055 });
-      g.rect(x + w * 0.46 - tailW, y - h * 0.45, tailW, tailH).fill({ color: 0xff0055 });
-
-      g.rect(x - 3, y - h * 0.3, 6, 3).fill({ color: 0xfffffe });
-
-      g.rect(x - w * 0.3, y - 2, 3, 2).fill({ color: 0xdcdde1 });
-      g.rect(x + w * 0.3 - 3, y - 2, 3, 2).fill({ color: 0xdcdde1 });
-
-      const tireW = Math.max(2, w * 0.18);
-      const tireH = Math.max(3, h * 0.3);
-      g.rect(x - w * 0.48, y - tireH, tireW, tireH).fill({ color: 0x1e272e });
-      g.rect(x + w * 0.48 - tireW, y - tireH, tireW, tireH).fill({ color: 0x1e272e });
+      sprites.push({
+        z: camDist,
+        draw: () => drawVehicle(g, Math.round(drawX), Math.round(groundY), ppm, veh.type as VehicleKind, veh.color, fadeAlpha),
+      });
     }
+
+    // ---- Power-ups ----
+    for (const pu of powerUps) {
+      if (pu.collected) continue;
+      let pz = pu.z;
+      pz += Math.floor((playerZ - pz + trackLength / 2) / trackLength) * trackLength;
+      const camDist = pz - cameraZ;
+      if (camDist <= ProjectionEngine.NEAR_PLANE || camDist > ProjectionEngine.PU_DRAW_METERS) continue;
+
+      const scale = ProjectionEngine.CAMERA_DEPTH / camDist;
+      const halfW = viewW / 2;
+      const ppm = scale * halfW;
+      const centerX = halfW - scale * cameraX * halfW;
+      const groundY = horizonY + scale * ProjectionEngine.CAMERA_HEIGHT * halfW;
+      const drawX = centerX + pu.laneX * ppm * ProjectionEngine.ROAD_WIDTH;
+
+      const fadeAlpha = clamp01(camDist / 2) * clamp01((ProjectionEngine.PU_DRAW_METERS - camDist) / 40);
+      if (fadeAlpha <= 0) continue;
+
+      sprites.push({
+        z: camDist,
+        draw: () => ProjectionEngine.renderPickup(g, Math.round(drawX), groundY, ppm, pu.type, pu.id, fadeAlpha),
+      });
+    }
+
+    // Far-to-near depth sort — sprites at greater camera distance draw first
+    sprites.sort((a, b) => b.z - a.z);
+    sprites.forEach((s) => s.draw());
   }
+
+  private static renderPickup(g: Graphics, x: number, groundY: number, ppm: number, type: string, id: number, fadeAlpha: number): void {
+    const floatH = ppm * 0.9;
+    const size = Math.max(2, Math.round(ppm * 0.35));
+    const y = groundY - floatH - Math.sin(Date.now() * 0.004 + id) * ppm * 0.15;
+    const color = type === 'boost' ? 0x00f0ff : type === 'shield' ? 0x55efc4 : 0xf4d160;
+    const pulse = (0.7 + Math.sin(Date.now() * 0.005 + id) * 0.3) * fadeAlpha;
+
+    g.circle(x, y, size * 1.7).fill({ color, alpha: pulse * 0.15 });
+    g.poly([x, y - size, x + size, y, x, y + size, x - size, y]).fill({ color, alpha: pulse });
+    g.poly([x, y - size, x + size, y, x, y + size, x - size, y]).stroke({ width: 1, color: 0xffffff, alpha: pulse * 0.5 });
+  }
+}
+
+function mixColor(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+  const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+  const r = Math.round(ar + (br - ar) * t);
+  const gg = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return (r << 16) | (gg << 8) | bl;
 }

@@ -76,5 +76,6 @@ export interface TrackSegment {
     lane: number;
   };
   phaseName: string;
+  phaseIndex: number;
   sprites: TrackSprite[];
 }

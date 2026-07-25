@@ -365,18 +365,23 @@ export class GarageScreen {
     }
 
     const btnX = viewW / 2 - 110;
-    const btnY = viewH - 26;
+    const btnY = viewH - 28;
     const btnW = 220;
     const btnH = 22;
-    this.startButtonBounds = { x: btnX, y: btnY, w: btnW, h: btnH };
+    this.startButtonBounds = { x: btnX, y: btnY - 14, w: btnW, h: btnH + 14 };
 
     const pulseGlow = 0.85 + Math.sin(this.ticker.lastTime * 0.01) * 0.15;
     this.graphics.rect(btnX, btnY, btnW, btnH).fill({ color: 0x55efc4, alpha: pulseGlow });
     this.graphics.rect(btnX + 2, btnY + 2, btnW - 4, btnH - 4).fill({ color: 0x0f0e17 });
-    PixelFont.drawText(this.graphics, 'START RACE  CLICK OR ENTER', btnX + 8, btnY + 7, 0x55efc4, 1);
+    PixelFont.drawText(this.graphics, 'START RACE', btnX + 36, btnY + 7, 0x55efc4, 1);
+
+    // Controls legend
+    const legendY = viewH - 12;
+    PixelFont.drawText(this.graphics, 'A/D NAV  W SELECT  S READY', viewW / 2 - 80, legendY, 0x74b9ff, 1);
   }
 
   private renderStatRadar(centerX: number, centerY: number, radius: number, stats: BikeStats, color: number): void {
+    const labels = ['SPD', 'ACC', 'TOR', 'GRP', 'BRK'];
     const angles = [
       -Math.PI / 2,
       -Math.PI / 2 + (Math.PI * 2) / 5,
@@ -406,6 +411,14 @@ export class GarageScreen {
     });
 
     this.graphics.poly(radarPoints).fill({ color, alpha: 0.45 }).stroke({ color, width: 1.5 });
+
+    // Stat labels
+    angles.forEach((ang, idx) => {
+      const lx = centerX + Math.cos(ang) * (radius + 8);
+      const ly = centerY + Math.sin(ang) * (radius + 6);
+      const lw = labels[idx].length * 4;
+      PixelFont.drawText(this.graphics, labels[idx], Math.round(lx) - lw / 2, Math.round(ly) - 3, 0x74b9ff, 1);
+    });
   }
 
   public destroy(): void {
