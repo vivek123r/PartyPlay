@@ -3,6 +3,7 @@ import type { GameModule, GameContext, InternalGameState } from '@runtime/types'
 import { Knight } from './entities/Knight';
 import { Enemy } from './entities/Enemy';
 import { AcidSpitter } from './entities/AcidSpitter';
+import { Vengefly } from './entities/Vengefly';
 import { BossMossKnight } from './entities/BossMossKnight';
 import { SoulSpell } from './entities/SoulSpell';
 import { Collectible } from './entities/Collectible';
@@ -37,6 +38,7 @@ export default class HollowClashGame implements GameModule {
   private knights: Knight[] = [];
   private enemies: Enemy[] = [];
   private acidSpitters: AcidSpitter[] = [];
+  private vengefies: Vengefly[] = [];
   private boss: BossMossKnight | null = null;
   private spells: SoulSpell[] = [];
   private collectibles: Collectible[] = [];
@@ -113,15 +115,12 @@ export default class HollowClashGame implements GameModule {
 
     this.knights = this.ctx.players.slice(0, count).map((p, idx) => {
       const mask: KnightMaskType = this.lounge.selections[idx + 1]?.mask || 'vessel';
+      const charm = this.lounge.selections[idx + 1]?.charm || 'quick_slash';
       const pos = startPositions[idx];
       const knight = new Knight({ id: p.id, mask, x: pos.x, y: pos.y });
 
-      // Give player 1 default charms to start. Player 2 gets different set.
-      if (idx === 0) {
-        knight.equipCharm('quick_slash');
-      } else {
-        knight.equipCharm('longnail');
-      }
+      // Equip the charm chosen in the lounge
+      knight.equipCharm(charm);
 
       // Add knight container to world container so it moves with the camera
       this.worldContainer.addChild(knight.container);
@@ -140,14 +139,24 @@ export default class HollowClashGame implements GameModule {
     this.acidSpitters.push(new AcidSpitter('acid-1', 380, 175));
     this.acidSpitters.push(new AcidSpitter('acid-2', 740, 155));
 
+    // Vengefies — dive-bombers near ceiling
+    this.vengefies.push(new Vengefly('venge-1', 200, 50));
+    this.vengefies.push(new Vengefly('venge-2', 550, 40));
+    this.vengefies.push(new Vengefly('venge-3', 850, 48));
+
     // Spawn Moss Knight Boss in expanded section
     this.boss = new BossMossKnight(800, 200);
 
-    // Breakable walls — covering hidden upgrade chamber at x=440..460
+    // Breakable walls
     this.breakableWalls = [
       { x: 330, y: 120, width: 16, height: 60, hp: 3, maxHp: 3, crumbling: false, crumbleTimer: 0 },
       { x: 880, y: 145, width: 16, height: 75, hp: 3, maxHp: 3, crumbling: false, crumbleTimer: 0 },
     ];
+
+    // Place mask shard pickups in secret alcoves
+    this.collectibles.push(new Collectible('shard-left',  'mask_shard', 64,  56));
+    this.collectibles.push(new Collectible('shard-right', 'mask_shard', 907, 64));
+    this.collectibles.push(new Collectible('shard-mid',   'mask_shard', 474, 92));
   }
 
   public update(dt: number): void {
@@ -159,11 +168,13 @@ export default class HollowClashGame implements GameModule {
     if (this.isLoungePhase) {
       this.ctx.players.slice(0, count).forEach((p, idx) => {
         const input = this.ctx.input.getPlayer(p.id);
-        const navLeft = input.isJustPressed('moveLeft');
+        const navLeft  = input.isJustPressed('moveLeft');
         const navRight = input.isJustPressed('moveRight');
-        const toggleReady = input.isJustPressed('action') || input.isJustPressed('moveUp');
+        const navUp    = input.isJustPressed('moveUp');
+        const navDown  = input.isJustPressed('moveDown');
+        const toggleReady = input.isJustPressed('action') || input.isJustPressed('skill');
 
-        this.lounge.updateInput(idx + 1, navLeft, navRight, toggleReady);
+        this.lounge.updateInput(idx + 1, navLeft, navRight, toggleReady, navUp, navDown);
       });
 
       this.lounge.render(count);
@@ -201,7 +212,7 @@ export default class HollowClashGame implements GameModule {
     }
 
     // Update Knights
-    const targets: any[] = [...this.enemies, ...this.acidSpitters, ...(this.boss ? [this.boss] : [])];
+    const targets: any[] = [...this.enemies, ...this.acidSpitters, ...this.vengefies, ...(this.boss ? [this.boss] : [])];
     this.knights.forEach((knight) => {
       if (knight.state.hp <= 0) return;
 
@@ -286,6 +297,20 @@ export default class HollowClashGame implements GameModule {
       spitter.update(dt, this.knights);
     }
 
+    // Update Vengefies (dive-bombers)
+    for (let i = this.vengefies.length - 1; i >= 0; i--) {
+      const v = this.vengefies[i];
+      if (v.hp <= 0) {
+        this.collectibles.push(new Collectible(`geo-v-${Date.now()}`, 'geo_coin', v.x, v.y));
+        if (Math.random() < 0.7) {
+          this.collectibles.push(new Collectible(`soul-v-${Date.now()}`, 'soul_orb', v.x, v.y + 8));
+        }
+        this.vengefies.splice(i, 1);
+        continue;
+      }
+      v.update(dt, this.knights);
+    }
+
     // Update Breakable Walls
     for (let i = this.breakableWalls.length - 1; i >= 0; i--) {
       const wall = this.breakableWalls[i];
@@ -333,9 +358,16 @@ export default class HollowClashGame implements GameModule {
       for (const k of this.knights) {
         const distSq = (k.state.x - col.x) ** 2 + (k.state.y - col.y) ** 2;
         if (distSq <= 16 ** 2) {
-          if (col.type === 'geo_coin') k.state.geoCount += col.value;
-          if (col.type === 'soul_orb') k.state.soul = Math.min(k.state.maxSoul, k.state.soul + col.value);
-          this.ctx.audio.playTone(700, 'sine', 0.1);
+          if (col.type === 'geo_coin') {
+            k.state.geoCount += col.value;
+          } else if (col.type === 'soul_orb') {
+            k.state.soul = Math.min(k.state.maxSoul, k.state.soul + col.value);
+          } else if (col.type === 'mask_shard') {
+            // Mask Shard: permanently increase max HP and restore it!
+            k.state.maxHp += 1;
+            k.state.hp = Math.min(k.state.hp + 1, k.state.maxHp);
+          }
+          this.ctx.audio.playTone(col.type === 'mask_shard' ? 880 : 700, 'sine', 0.15);
           this.collectibles.splice(i, 1);
           break;
         }
@@ -356,6 +388,7 @@ export default class HollowClashGame implements GameModule {
     this.spells.forEach((s) => s.render(this.worldGraphics));
     this.enemies.forEach((e) => e.render(this.worldGraphics));
     this.acidSpitters.forEach((a) => a.render(this.worldGraphics));
+    this.vengefies.forEach((v) => v.render(this.worldGraphics));
     if (this.boss) this.boss.render(this.worldGraphics);
     
     this.knights.forEach((k) => k.render());

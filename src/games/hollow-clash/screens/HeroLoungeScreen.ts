@@ -1,26 +1,39 @@
 import { Container, Graphics } from 'pixi.js';
-import type { KnightMaskType } from '../types';
-import { CAVERN_CONFIG } from '../config';
+import type { KnightMaskType, CharmType } from '../types';
 import { PixelFont } from '../../turbo-rider/render/PixelFont';
+
+const CHARM_DESCRIPTIONS: Record<CharmType, string> = {
+  quick_slash:    'QUICK SLASH: Faster attacks',
+  longnail:       'LONGNAIL: Longer nail reach',
+  spore_shroom:   'SPORE SHROOM: Heal=spore cloud',
+  lifeblood_heart:'LIFEBLOOD: +2 blue masks',
+};
+
+const CHARM_COLORS: Record<CharmType, number> = {
+  quick_slash:    0xef4444,
+  longnail:       0x3b82f6,
+  spore_shroom:   0x84cc16,
+  lifeblood_heart:0x00f0ff,
+};
+
+const ALL_CHARMS: CharmType[] = ['quick_slash', 'longnail', 'spore_shroom', 'lifeblood_heart'];
 
 export class HeroLoungeScreen {
   public container = new Container();
   private g = new Graphics();
   public startRequested = false;
 
-  public selections: Record<number, { mask: KnightMaskType; isReady: boolean }> = {
-    1: { mask: 'vessel', isReady: false },
-    2: { mask: 'hornet', isReady: false },
-    3: { mask: 'mantis', isReady: false },
-    4: { mask: 'grimm', isReady: false },
+  public selections: Record<number, { mask: KnightMaskType; charm: CharmType; isReady: boolean }> = {
+    1: { mask: 'vessel',  charm: 'quick_slash',    isReady: false },
+    2: { mask: 'hornet',  charm: 'longnail',        isReady: false },
+    3: { mask: 'mantis',  charm: 'spore_shroom',   isReady: false },
+    4: { mask: 'grimm',   charm: 'lifeblood_heart', isReady: false },
   };
 
   private maskOrder: KnightMaskType[] = ['vessel', 'hornet', 'mantis', 'grimm'];
 
   constructor() {
     this.container.addChild(this.g);
-
-    // Make container interactive for click/tap to start
     this.container.eventMode = 'static';
     this.container.cursor = 'pointer';
     this.container.on('pointerdown', () => {
@@ -28,7 +41,15 @@ export class HeroLoungeScreen {
     });
   }
 
-  public updateInput(playerId: number, navLeft: boolean, navRight: boolean, toggleReady: boolean): void {
+  /** navLeft/Right = move mask; navUp/Down = cycle charm; toggleReady = confirm */
+  public updateInput(
+    playerId: number,
+    navLeft: boolean,
+    navRight: boolean,
+    toggleReady: boolean,
+    navUp?: boolean,
+    navDown?: boolean,
+  ): void {
     const sel = this.selections[playerId];
     if (!sel) return;
 
@@ -38,6 +59,14 @@ export class HeroLoungeScreen {
         ? (idx + 1) % this.maskOrder.length
         : (idx - 1 + this.maskOrder.length) % this.maskOrder.length;
       sel.mask = this.maskOrder[nextIdx];
+    }
+
+    if (navUp || navDown) {
+      const idx = ALL_CHARMS.indexOf(sel.charm);
+      const nextIdx = navDown
+        ? (idx + 1) % ALL_CHARMS.length
+        : (idx - 1 + ALL_CHARMS.length) % ALL_CHARMS.length;
+      sel.charm = ALL_CHARMS[nextIdx];
     }
 
     if (toggleReady) {
@@ -57,51 +86,104 @@ export class HeroLoungeScreen {
     const w = 480;
     const h = 270;
 
-    // Dark Cavern Background
-    this.g.rect(0, 0, w, h).fill({ color: 0x070b19 });
+    // ── Gothic dark background ──────────────────────────────────────
+    this.g.rect(0, 0, w, h).fill({ color: 0x050912 });
 
-    // Title
-    PixelFont.drawText(this.g, 'HOLLOW CLASH: KNIGHT LOUNGE', w / 2 - 110, 12, 0x00f0ff, 1);
+    // Subtle cavern-texture vignette
+    for (let row = 0; row < h; row += 12) {
+      this.g.rect(0, row, w, 6).fill({ color: 0x060a14, alpha: 0.4 });
+    }
 
-    const cardW = 95;
-    const cardH = 150;
+    // Title glow
+    const pulseAlpha = (Math.sin(Date.now() * 0.004) * 0.3 + 0.7);
+    this.g.rect(0, 0, w, 28).fill({ color: 0x0a0f22 });
+    PixelFont.drawText(this.g, 'HOLLOW CLASH  SHADOW METROIDVANIA', 16, 8, 0x00f0ff, 1);
+    PixelFont.drawText(this.g, '-- CHOOSE YOUR VESSEL & CHARM --', 22, 19, 0x6d28d9 * pulseAlpha | 0, 1);
+
+    // ── Player cards ───────────────────────────────────────────────
+    const cardW = 100;
+    const cardH = 168;
     const spacing = Math.floor((w - playerCount * cardW) / (playerCount + 1));
 
     for (let i = 0; i < playerCount; i++) {
       const pId = i + 1;
       const sel = this.selections[pId];
       const cardX = spacing + i * (cardW + spacing);
-      const cardY = 36;
+      const cardY = 32;
 
-      this.g.rect(cardX, cardY, cardW, cardH).fill({ color: 0x112240 });
-      this.g.rect(cardX, cardY, cardW, cardH).stroke({ color: sel.isReady ? 0x2ecc71 : 0x00f0ff, width: 2 });
+      const readyColor = sel.isReady ? 0x22c55e : 0x00f0ff;
 
-      PixelFont.drawText(this.g, `KNIGHT ${pId}`, cardX + 8, cardY + 8, 0xffffff, 1);
-      PixelFont.drawText(this.g, `MASK: ${sel.mask.toUpperCase()}`, cardX + 8, cardY + 24, 0x00f0ff, 1);
+      // Card background + border
+      this.g.rect(cardX, cardY, cardW, cardH).fill({ color: 0x0d1526 });
+      this.g.rect(cardX, cardY, cardW, cardH).stroke({ color: readyColor, width: 2 });
 
-      // Knight Mask Icon Preview
-      this.g.ellipse(cardX + cardW / 2, cardY + 70, 12, 16).fill({ color: 0xffffff });
-      this.g.ellipse(cardX + cardW / 2 - 4, cardY + 66, 3, 4).fill({ color: 0x000000 });
-      this.g.ellipse(cardX + cardW / 2 + 4, cardY + 66, 3, 4).fill({ color: 0x000000 });
+      // Player label
+      PixelFont.drawText(this.g, `KNIGHT ${pId}`, cardX + 6, cardY + 6, 0xffffff, 1);
 
-      const statusText = sel.isReady ? 'READY!' : '< CHOOSE >';
-      const statusColor = sel.isReady ? 0x2ecc71 : 0x7f8c8d;
-      PixelFont.drawText(this.g, statusText, cardX + cardW / 2 - 30, cardY + 120, statusColor, 1);
+      // ── Mask Preview (pixel art knight face) ──
+      const maskColors: Record<KnightMaskType, number> = {
+        vessel: 0xffffff, hornet: 0xf472b6, mantis: 0x4ade80, grimm: 0xf87171,
+      };
+      const maskColor = maskColors[sel.mask] ?? 0xffffff;
+      const cx = cardX + cardW / 2;
+      const cy = cardY + 58;
+
+      // Dark cloak silhouette
+      this.g.poly([cx - 8, cy, cx + 8, cy, cx + 8, cy + 12, cx + 5, cy + 9, cx + 2, cy + 14, cx - 2, cy + 10, cx - 5, cy + 13, cx - 8, cy + 10]).fill({ color: 0x0f172a });
+      // Mask face
+      this.g.ellipse(cx, cy - 7, 9, 8).fill({ color: maskColor });
+      // Left horn (longer)
+      this.g.poly([cx - 7, cy - 13, cx - 9, cy - 22, cx - 5, cy - 18, cx - 2, cy - 14]).fill({ color: maskColor });
+      // Right horn (chipped)
+      this.g.poly([cx + 5, cy - 13, cx + 7, cy - 18, cx + 2, cy - 14]).fill({ color: maskColor });
+      // Crack lines
+      this.g.poly([cx - 3, cy - 13, cx - 1, cy - 9, cx + 2, cy - 7]).stroke({ color: 0x0f172a, width: 1 });
+      // Eyes
+      this.g.ellipse(cx + 3, cy - 7, 2.5, 3.5).fill({ color: 0x00f0ff, alpha: 0.9 });
+      this.g.ellipse(cx - 3, cy - 7, 2, 3).fill({ color: 0x00f0ff, alpha: 0.6 });
+
+      // Mask label
+      PixelFont.drawText(this.g, sel.mask.toUpperCase(), cardX + 6, cardY + 19, 0x94a3b8, 1);
+      PixelFont.drawText(this.g, '< MASK >', cardX + 6, cardY + 27, 0x334155, 1);
+
+      // ── Charm selector ──
+      const charmY = cardY + 78;
+      const charmColor = CHARM_COLORS[sel.charm];
+
+      this.g.rect(cardX + 4, charmY, cardW - 8, 38).fill({ color: 0x0a101e });
+      this.g.rect(cardX + 4, charmY, cardW - 8, 38).stroke({ color: charmColor, width: 1 });
+
+      // Charm icon (small colored diamond)
+      this.g.poly([
+        cardX + 13, charmY + 10,
+        cardX + 18, charmY + 15,
+        cardX + 13, charmY + 20,
+        cardX + 8,  charmY + 15,
+      ]).fill({ color: charmColor });
+
+      // Charm name (wrap at ~12 chars)
+      const charmName = sel.charm.replace('_', '\n').toUpperCase();
+      PixelFont.drawText(this.g, charmName.split('\n')[0], cardX + 22, charmY + 7, charmColor, 1);
+      PixelFont.drawText(this.g, (charmName.split('\n')[1] ?? ''), cardX + 22, charmY + 16, charmColor, 1);
+      PixelFont.drawText(this.g, '^ CHARM v', cardX + 18, charmY + 28, 0x334155, 1);
+
+      // ── Description ──
+      PixelFont.drawText(this.g, CHARM_DESCRIPTIONS[sel.charm], cardX + 4, cardY + 122, 0x64748b, 1);
+
+      // ── Ready state ──
+      const statusText = sel.isReady ? 'READY!' : '[ACTION]';
+      const statusColor = sel.isReady ? 0x22c55e : 0x64748b;
+      this.g.rect(cardX + 4, cardY + cardH - 22, cardW - 8, 14).fill({ color: sel.isReady ? 0x052e16 : 0x0a101e });
+      PixelFont.drawText(this.g, statusText, cardX + (sel.isReady ? 24 : 18), cardY + cardH - 18, statusColor, 1);
     }
 
-    // Giant Glowing START GAME Button at Bottom Center
-    const btnW = 240;
-    const btnH = 34;
+    // ── Bottom START hint ───────────────────────────────────────────
+    const btnW = 280;
     const btnX = w / 2 - btnW / 2;
-    const btnY = h - 50;
-
-    const pulse = Math.floor(Date.now() * 0.006) % 2 === 0;
-    const btnColor = pulse ? 0x2ecc71 : 0x00f0ff;
-
-    this.g.rect(btnX, btnY, btnW, btnH).fill({ color: 0x1e272e });
-    this.g.rect(btnX, btnY, btnW, btnH).stroke({ color: btnColor, width: 3 });
-
-    PixelFont.drawText(this.g, 'PRESS ENTER / SPACE / CLICK TO START', btnX + 10, btnY + 10, btnColor, 1);
+    const btnY = h - 24;
+    const pulse = (Math.sin(Date.now() * 0.005) * 0.4 + 0.6);
+    const btnColor = (0x00f0ff * pulse) | 0;
+    PixelFont.drawText(this.g, 'PRESS ENTER / SPACE / CLICK TO START', btnX, btnY, 0x00f0ff, 1);
   }
 
   public destroy(): void {
