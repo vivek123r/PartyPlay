@@ -33,6 +33,13 @@ export interface GameManifest {
   maxPlayers: number;
   estimatedRoundTime: string;
 
+  /** Authoring resolution. The game draws in this coordinate space and the runtime scales it to
+   * fill the canvas (see PixiRendererContext). Omit for the legacy 480x270 space — games that opt
+   * into a higher logical size must keep the canvas/logical ratio an exact integer on both axes,
+   * or nearest-neighbour upscaling stops being pixel-exact. */
+  logicalWidth?: number;
+  logicalHeight?: number;
+
   capabilities: {
     supportsPause: boolean;
     supportsRestart: boolean;

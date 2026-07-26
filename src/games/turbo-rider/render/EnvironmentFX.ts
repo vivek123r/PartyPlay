@@ -1,4 +1,5 @@
 import { Graphics, Container } from 'pixi.js';
+import { PIXEL_SCALE } from './RenderScale';
 
 interface FXParticle {
   x: number;
@@ -60,8 +61,8 @@ export class EnvironmentFX {
         life: 0.25,
         maxLife: 0.25,
         color: 0xf4d160,
-        size: 2,
-        size0: 2,
+        size: 2 * PIXEL_SCALE,
+        size0: 2 * PIXEL_SCALE,
       });
     }
   }
@@ -81,8 +82,8 @@ export class EnvironmentFX {
         life: 0.3,
         maxLife: 0.3,
         color: colorHex,
-        size: 3,
-        size0: 3,
+        size: 3 * PIXEL_SCALE,
+        size0: 3 * PIXEL_SCALE,
         ramp,
       });
     }
@@ -95,7 +96,7 @@ export class EnvironmentFX {
       const ang = Math.random() * Math.PI * 2;
       const spd = 40 + Math.random() * 90;
       const duration = 0.6 + Math.random() * 0.5;
-      const size = 2 + Math.random() * 2;
+      const size = (2 + Math.random() * 2) * PIXEL_SCALE;
       this.particles.push({
         x: x + (Math.random() - 0.5) * 20,
         y: y + (Math.random() - 0.5) * 10,
@@ -123,14 +124,22 @@ export class EnvironmentFX {
         life: 0.22,
         maxLife: 0.22,
         color: colorHex,
-        size: 4,
-        size0: 4,
+        size: 4 * PIXEL_SCALE,
+        size0: 4 * PIXEL_SCALE,
         ramp,
       });
     }
   }
 
-  public update(dt: number, speed: number, viewW: number, viewH: number, density = 1, isNitroActive = false): void {
+  public update(
+    dt: number,
+    speed: number,
+    viewW: number,
+    viewH: number,
+    density = 1,
+    isNitroActive = false,
+    horizonY?: number
+  ): void {
     this.graphics.clear();
 
     // 1. Screen Shake Decay
@@ -147,8 +156,11 @@ export class EnvironmentFX {
 
     // 2. Radial speed streaks — genuinely radiate outward from the vanishing point, rather
     // than scattering randomly, and intensify under nitro rather than only above 160 km/h.
+    // `horizonY` should be the same horizon ProjectionEngine actually drew (horizonYFor) — a
+    // caller-independent `viewH * 0.3` guess used to drift off the real horizon line at 2P/4P
+    // (whose horizon fractions are 0.35/0.22, not 0.3), falling back to it only if omitted.
     const vanishX = viewW / 2;
-    const vanishY = viewH * 0.3;
+    const vanishY = horizonY ?? viewH * 0.3;
     if (speed > 160 || isNitroActive) {
       const baseCount = isNitroActive ? 10 : Math.floor((speed - 160) / 10) + 4;
       const numLines = Math.max(0, Math.round(baseCount * density));
@@ -164,7 +176,7 @@ export class EnvironmentFX {
         const x2 = vanishX + cosA * (dist + len);
         const y2 = vanishY + sinA * (dist + len);
         const color = isNitroActive ? 0xffa726 : 0xfffffe;
-        this.graphics.moveTo(x1, y1).lineTo(x2, y2).stroke({ width: 1, color, alpha: isNitroActive ? 0.45 : 0.3 });
+        this.graphics.moveTo(x1, y1).lineTo(x2, y2).stroke({ width: PIXEL_SCALE, color, alpha: isNitroActive ? 0.45 : 0.3 });
       }
     }
 
@@ -187,7 +199,7 @@ export class EnvironmentFX {
       if (p.life > 0) {
         const t = 1 - p.life / p.maxLife;
         const color = p.ramp ? colorAlongRamp(p.ramp, t) : p.color;
-        const size = Math.max(1, p.size0 * (1 - t * 0.6));
+        const size = Math.max(PIXEL_SCALE, p.size0 * (1 - t * 0.6));
         const alpha = Math.max(0, 1 - t);
         this.graphics.rect(Math.round(p.x), Math.round(p.y), size, size).fill({ color, alpha });
         return true;

@@ -6,8 +6,9 @@ import { HandcraftedTrack } from '../core/HandcraftedTrack';
 import { ROAD_HALF_WIDTH_METERS, SEGMENT_LENGTH_METERS } from '../core/TrackConstants';
 import { drawSkybox } from './Skybox';
 import { drawSceneryProp, drawOverheadGantry, drawFinishGate } from './SceneryLibrary';
-import { drawVehicle, drawVehicleDepth, isBoxedVehicleKind, VEHICLE_DIMENSIONS_M, type VehicleKind } from './VehicleSprites';
+import { drawVehicle, drawVehicleDepth, drawAIBikeSide, isBoxedVehicleKind, SIDE_VISIBILITY_DEAD_ZONE_M, VEHICLE_DIMENSIONS_M, type VehicleKind } from './VehicleSprites';
 import { drawSuperbikeRear, drawPlayerTag, type BikeSpriteColors } from './BikeSprite';
+import { BIKE_SCALE_REF_VIEW_H } from './RenderScale';
 
 /** Draw parameters for the local player's own bike — pushed into the shared depth-sorted
  * sprite list (at z = CAMERA_BACK) so a close opponent can correctly draw in front of it. */
@@ -57,6 +58,11 @@ export class ProjectionEngine {
   public static readonly CAMERA_DEPTH = 3.0;
   public static readonly CAMERA_BACK = 9; // metres — camera trails the bike so impacts happen on-screen
   public static readonly NEAR_PLANE = 0.5; // metres
+  /** Closest a *boxed vehicle's* geometry is allowed to be projected, in metres. Well beyond
+   * NEAR_PLANE on purpose: a 14m semi spans the camera plane during an overtake, and honouring
+   * the 0.5m near plane there scales its box to many multiples of the viewport. Clipping the
+   * visible box to this distance keeps an overtake readable. */
+  public static readonly VEH_MIN_VIS_METERS = 2.5;
 
   public static readonly ROAD_DRAW_METERS = 200; // stride-1 quads out to here, then one far-fill
   public static readonly SCENERY_DRAW_METERS = 1500;
@@ -67,7 +73,7 @@ export class ProjectionEngine {
   public static readonly PU_DRAW_METERS = 260;
   public static readonly OPP_DRAW_METERS = 420;
   public static readonly OPP_TAG_METERS = 150; // closer than this: floating player-number tag
-  public static readonly OPP_MIN_PX = 3; // readability floor — the fixed-size tag carries ID below this
+  public static readonly OPP_MIN_PX = 6; // readability floor (2x for native 960px viewport) — the fixed-size tag carries ID below this
 
   public static project(
     p: Point3D,
@@ -110,6 +116,14 @@ export class ProjectionEngine {
     return 0.35;
   }
 
+  /** The actual horizon Y this frame will draw at. Public so callers that need to line something
+   * up with the real horizon (e.g. EnvironmentFX's speed-streak vanishing point, which used to
+   * hardcode `viewH * 0.3` and drift off-horizon at 2P/4P) can share this instead of re-deriving
+   * or guessing the fraction. */
+  public static horizonYFor(viewH: number, playerCount: number): number {
+    return Math.round(viewH * ProjectionEngine.horizonFractionFor(playerCount));
+  }
+
   public static renderViewportRoad(
     g: Graphics,
     segments: TrackSegment[],
@@ -132,7 +146,7 @@ export class ProjectionEngine {
     const totalSegs = segments.length;
     const trackLength = totalSegs * ProjectionEngine.SEGMENT_LENGTH;
 
-    const horizonY = Math.round(viewH * ProjectionEngine.horizonFractionFor(playerCount));
+    const horizonY = ProjectionEngine.horizonYFor(viewH, playerCount);
     const parallaxX = playerZ * 0.5;
 
     // Straight, flat track (curve/elevation are always 0) — camera X is just the lane offset.
@@ -345,9 +359,19 @@ export class ProjectionEngine {
       if (isBoxedVehicleKind(vehType)) {
         // Sedan/truck/bus render as a projected box (rear + front face) so their real
         // world length reads as depth instead of a flat billboard — see VehicleSprites.ts.
-        const halfLen = VEHICLE_DIMENSIONS_M[vehType].length / 2;
-        const rearDist = Math.max(ProjectionEngine.NEAR_PLANE, camDist - halfLen);
-        const frontDist = Math.max(ProjectionEngine.NEAR_PLANE, camDist + halfLen);
+        const vehLength = VEHICLE_DIMENSIONS_M[vehType].length;
+        const halfLen = vehLength / 2;
+        // Near-plane clipping along the vehicle's own length. As the player draws level with a
+        // long vehicle its rear plane passes behind the camera; projecting that rear plane
+        // anyway (clamped to NEAR_PLANE) blew the box up to many times the viewport and drew a
+        // huge sheared wedge across the screen. Instead the visible box is clipped to start at
+        // VEH_MIN_VIS_METERS, and the rear face is dropped once it is behind that slice.
+        const rearDistRaw = camDist - halfLen;
+        const rearBehindCamera = rearDistRaw <= ProjectionEngine.VEH_MIN_VIS_METERS;
+        const rearDist = Math.max(ProjectionEngine.VEH_MIN_VIS_METERS, rearDistRaw);
+        const frontDist = Math.max(ProjectionEngine.VEH_MIN_VIS_METERS, camDist + halfLen);
+        // Length still ahead of the clip plane — the flank spans this, not the full body.
+        const visibleLengthM = Math.max(0.1, frontDist - rearDist);
         const scaleRear = effectiveCameraDepth / rearDist;
         const scaleFront = effectiveCameraDepth / frontDist;
         const ppmNear = scaleRear * halfW;
@@ -362,7 +386,11 @@ export class ProjectionEngine {
 
         sprites.push({
           z: camDist,
-          draw: () => drawVehicleDepth(g, { xNear, yNear, ppmNear, xFar, yFar, ppmFar }, vehType, veh.color, fadeAlpha, lateralOffsetM),
+          draw: () => drawVehicleDepth(
+            g,
+            { xNear, yNear, ppmNear, xFar, yFar, ppmFar, rearBehindCamera, visibleLengthM },
+            vehType, veh.color, fadeAlpha, lateralOffsetM
+          ),
         });
       } else {
         const scale = effectiveCameraDepth / camDist;
@@ -371,9 +399,18 @@ export class ProjectionEngine {
         const groundY = horizonY + scale * ProjectionEngine.CAMERA_HEIGHT * halfW;
         const drawX = centerX + veh.laneX * ppm * ProjectionEngine.ROAD_WIDTH;
 
+        // Bikes are too short along the track to need real projected depth faces like the
+        // boxed vehicles, but they still need a side profile when ridden beside the camera
+        // (common — traffic occupies both lanes and camera X tracks the player's own lane).
+        // Other non-boxed kinds (hazards) are always dead-ahead billboards and skip this check.
+        const lateralOffsetM = veh.laneX * ProjectionEngine.ROAD_WIDTH - cameraX;
+        const useBikeSide = vehType === 'bike' && Math.abs(lateralOffsetM) > SIDE_VISIBILITY_DEAD_ZONE_M;
+
         sprites.push({
           z: camDist,
-          draw: () => drawVehicle(g, Math.round(drawX), Math.round(groundY), ppm, vehType, veh.color, fadeAlpha),
+          draw: () => useBikeSide
+            ? drawAIBikeSide(g, Math.round(drawX), Math.round(groundY), ppm, veh.color, fadeAlpha)
+            : drawVehicle(g, Math.round(drawX), Math.round(groundY), ppm, vehType, veh.color, fadeAlpha),
         });
       }
     }
@@ -397,7 +434,7 @@ export class ProjectionEngine {
     // height cut that read as "opponent is way smaller than the player" even though the size
     // law itself was correct. With at most 3 opponents ever on screen and each draw being a
     // handful of cheap Graphics calls, the LOD wasn't saving anything worth that inconsistency.
-    const baseBikeScale = viewH / 135;
+    const baseBikeScale = viewH / BIKE_SCALE_REF_VIEW_H;
     visibleOpponents.forEach(({ opp, camDist }) => {
       const scale = effectiveCameraDepth / camDist;
       const halfW = viewW / 2;

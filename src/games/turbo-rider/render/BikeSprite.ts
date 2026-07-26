@@ -1,5 +1,6 @@
 import { Graphics } from 'pixi.js';
 import { PixelFont } from './PixelFont';
+import { PIXEL_SCALE } from './RenderScale';
 
 export interface BikeSpriteColors {
   hull: number;
@@ -97,13 +98,32 @@ export function drawSuperbikeRear(
 
   g.rect(bikeScreenX - s(3) + leanOffset, bikeScreenY - s(28), s(6), s(6)).fill({ color: helmetColor });
   g.rect(bikeScreenX - s(1) + leanOffset, bikeScreenY - s(22), s(2), s(1)).fill({ color: 0x0f0e17 });
+
+  // Near-tier: additive only, gated on the sprite already being drawn large (close by or the
+  // local player at native resolution) — never removes or resizes anything the base draw above
+  // already produced, per this file's "always full detail, additive tiers only" invariant.
+  if (scale >= 1.6) {
+    // Mirror stubs
+    g.rect(bikeScreenX - s(9) + leanOffset * 0.8, bikeScreenY - s(23), s(1.5), s(1.5)).fill({ color: 0x2f3542 });
+    g.rect(bikeScreenX + s(7.5) + leanOffset * 0.8, bikeScreenY - s(23), s(1.5), s(1.5)).fill({ color: 0x2f3542 });
+    // Tyre tread rows on the rear tire
+    g.rect(bikeScreenX - s(3), bikeScreenY - s(6), s(6), s(0.6)).fill({ color: 0x0f0e17, alpha: 0.5 });
+    g.rect(bikeScreenX - s(3), bikeScreenY - s(4), s(6), s(0.6)).fill({ color: 0x0f0e17, alpha: 0.5 });
+    // Rider hands on the bars
+    g.rect(bikeScreenX - s(9) + leanOffset * 0.3, bikeScreenY - s(16), s(2), s(2)).fill({ color: 0x0f0e17 });
+    g.rect(bikeScreenX + s(7) + leanOffset * 0.3, bikeScreenY - s(16), s(2), s(2)).fill({ color: 0x0f0e17 });
+    // Brake-light bloom
+    g.rect(bikeScreenX - s(5) + leanOffset * 0.5, bikeScreenY - s(11), s(10), s(5)).fill({ color: 0xff4757, alpha: 0.2 });
+  }
 }
 
 /**
  * Fixed-pixel-size player-identifying tag (colored chevron + "P2"-style label), drawn above
- * an opponent's head. Does NOT scale with ppm — it must stay legible at range, and it is what
- * lets a human rival be told apart from a similarly-colored AI traffic bike once the opponent's
- * own sprite has degraded to the plain LOD silhouette.
+ * an opponent's head. Does NOT scale with ppm/distance — it must stay legible at range, and it
+ * is what lets a human rival be told apart from a similarly-colored AI traffic bike regardless
+ * of how small the opponent's own (always full-detail, see `drawSuperbikeRear` above) sprite has
+ * projected to. Scales with `PIXEL_SCALE` (RenderScale.ts) so it keeps its screen-space size when
+ * the game's render resolution changes, rather than shrinking to half its intended size.
  */
 export function drawPlayerTag(
   g: Graphics,
@@ -114,11 +134,13 @@ export function drawPlayerTag(
   alpha: number,
   minY: number
 ): void {
-  const tagH = 9;
-  const chevronY = Math.max(minY, groundY - 34 - tagH);
-  const textY = Math.max(minY, groundY - 34);
+  const tagH = 9 * PIXEL_SCALE;
+  const offset = 34 * PIXEL_SCALE;
+  const chevronSize = 4 * PIXEL_SCALE;
+  const chevronY = Math.max(minY, groundY - offset - tagH);
+  const textY = Math.max(minY, groundY - offset);
 
-  g.poly([x - 4, chevronY + 5, x, chevronY, x + 4, chevronY + 5]).fill({ color, alpha: alpha * 0.9 });
-  const tw = label.length * 4;
-  PixelFont.drawText(g, label, Math.round(x - tw / 2), Math.round(textY), 0xfffffe, 1, alpha);
+  g.poly([x - chevronSize, chevronY + chevronSize * 1.25, x, chevronY, x + chevronSize, chevronY + chevronSize * 1.25]).fill({ color, alpha: alpha * 0.9 });
+  const tw = PixelFont.measure(label, PIXEL_SCALE);
+  PixelFont.drawText(g, label, Math.round(x - tw / 2), Math.round(textY), 0xfffffe, PIXEL_SCALE, alpha);
 }
