@@ -100,81 +100,69 @@ export const GameBrowser: React.FC = () => {
   };
 
   return (
-    <div className="screen-transition" style={{ width: '100vw', height: '100vh', padding: '32px 48px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+    <div className="screen-transition game-library">
       <div className="scanline-overlay" />
       
       {/* Top Arcade Marquee & Navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', zIndex: 10 }}>
+      <header className="game-library__header">
         <button
-          className="pixel-btn"
+          className="pixel-btn game-library__return"
           onClick={() => setScreen('menu')}
-          style={{ fontSize: '0.9rem' }}
         >
           ◀ RETURN
         </button>
 
         {/* LED Glow Marquee Header */}
-        <div className="marquee-banner">
-          <h2 className="led-flicker" style={{ fontSize: '1.8rem', color: 'var(--pixel-yellow)', textShadow: '3px 3px 0 var(--pixel-purple)', letterSpacing: '3px' }}>
+        <div className="marquee-banner game-library__marquee">
+          <h2 className="led-flicker">
             ★ PARTYPLAY ARCADE ★
           </h2>
-          <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-pixel-heading)', color: 'var(--pixel-blue)', display: 'block', marginTop: '4px' }}>
+          <span>
             SELECT CARTRIDGE TO PLAY
           </span>
         </div>
 
         {/* Insert Coin HUD */}
-        <div className="pixel-panel" style={{ padding: '8px 16px', border: '2px solid var(--pixel-yellow)', textAlign: 'right' }}>
-          <span className="blink-text" style={{ color: 'var(--pixel-yellow)', fontSize: '0.75rem', fontFamily: 'var(--font-pixel-heading)', display: 'block' }}>
+        <div className="pixel-panel game-library__credits">
+          <span className="blink-text">
             INSERT COIN
           </span>
-          <span style={{ color: 'var(--pixel-green)', fontSize: '0.9rem', fontFamily: 'var(--font-pixel-heading)' }}>
+          <strong>
             CREDITS: 99
-          </span>
+          </strong>
         </div>
-      </div>
+      </header>
 
       {/* Cartridge Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '32px', overflowY: 'auto', paddingBottom: '32px', paddingRight: '8px', zIndex: 10 }}>
+      <main className="game-library__grid">
         {games.map(({ manifest }) => {
           const theme = getGameTheme(manifest.id);
 
           return (
             <div
               key={manifest.id}
-              className={`pixel-panel ${theme.cardClass}`}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                minHeight: '270px',
-                boxShadow: '0 6px 0 rgba(0,0,0,0.5)',
-              }}
+              className={`pixel-panel game-library__card ${theme.cardClass}`}
             >
               <div>
                 {/* Physical Cartridge PCB Pin Connector Motif */}
                 <div className="cartridge-pins" />
 
                 {/* Top Badge & Slot Serial Header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="game-library__card-header">
+                  <div className="game-library__identity">
                     <span className="pixel-badge" style={{ backgroundColor: theme.accentColor, color: 'var(--pixel-bg)' }}>
                       {theme.badgeText}
                     </span>
-                    <span style={{ fontSize: '0.65rem', fontFamily: 'var(--font-pixel-heading)', color: 'var(--pixel-muted)' }}>
+                    <span className="game-library__slot">
                       {theme.slotId}
                     </span>
                   </div>
 
                   {/* Status LED */}
                   <span
-                    className={theme.statusClass}
+                    className={`game-library__status ${theme.statusClass}`}
                     style={{
-                      fontSize: '0.65rem',
-                      fontFamily: 'var(--font-pixel-heading)',
                       color: theme.isFaulty ? 'var(--pixel-red)' : 'var(--pixel-green)',
-                      border: '1px solid currentColor',
-                      padding: '2px 6px',
                     }}
                   >
                     {theme.statusLed}
@@ -182,31 +170,31 @@ export const GameBrowser: React.FC = () => {
                 </div>
 
                 {/* Game Title */}
-                <h3 style={{ fontSize: '1.4rem', color: 'var(--pixel-text)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h3 className="game-library__title">
                   <span>{theme.motifIcon}</span> {manifest.title}
                 </h3>
 
                 {/* Star Difficulty & Players */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px', fontSize: '0.75rem', fontFamily: 'var(--font-pixel-heading)', color: 'var(--pixel-muted)' }}>
+                <div className="game-library__meta">
                   <span style={{ color: 'var(--pixel-yellow)' }}>DIFF: {theme.stars}</span>
                   <span style={{ color: 'var(--pixel-blue)' }}>👥 {manifest.minPlayers}-{manifest.maxPlayers}P</span>
                 </div>
 
                 {/* Description */}
-                <p style={{ color: 'var(--pixel-muted)', fontSize: '1.15rem', lineHeight: '1.4', marginBottom: '20px' }}>
+                <p className="game-library__description">
                   {manifest.description}
                 </p>
               </div>
 
               {/* Bottom Card Action Footer */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '2px dashed var(--pixel-muted)' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--pixel-purple)', fontFamily: 'var(--font-pixel-heading)' }}>
+              <div className="game-library__footer">
+                <span className="game-library__duration">
                   EST: {manifest.estimatedRoundTime}
                 </span>
 
                 {/* Creative Themed Button */}
                 <button
-                  className={`pixel-btn ${theme.btnClass}`}
+                  className={`pixel-btn game-library__launch ${theme.btnClass}`}
                   onClick={() => {
                     setSelectedGame(manifest);
                     if (manifest.id === 'knight-lab') {
@@ -224,7 +212,7 @@ export const GameBrowser: React.FC = () => {
             </div>
           );
         })}
-      </div>
+      </main>
     </div>
   );
 };
