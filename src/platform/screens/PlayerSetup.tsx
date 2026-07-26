@@ -45,7 +45,23 @@ const getControlRows = (bindings: Record<string, string[]> | undefined) => {
   return Object.entries(bindings).map(([action, keys]) => `${CONTROL_LABELS[action] || action.toUpperCase()}: ${keys.map(formatKey).join(' / ')}`);
 };
 
-const GAME_SETTINGS: Record<string, Array<{ key: string; label: string; low: string; high: string; min: number; max: number; step: number; default: number }>> = {
+interface GameSetting {
+  key: string;
+  label: string;
+  low: string;
+  high: string;
+  min: number;
+  max: number;
+  step: number;
+  default: number;
+  format?: 'multiplier' | 'seconds';
+}
+
+const GAME_SETTINGS: Record<string, GameSetting[]> = {
+  driftspire: [
+    { key: 'turnTimerSeconds', label: 'TURN TIMER', low: 'QUICK', high: 'RELAXED', min: 20, max: 60, step: 5, default: 35, format: 'seconds' },
+    { key: 'animationSpeed', label: 'ANIMATION PACE', low: 'CINEMATIC', high: 'SNAPPY', min: 0.75, max: 1.5, step: 0.25, default: 1 },
+  ],
   'dungeon-brawl': [
     { key: 'enemyHealthMultiplier', label: 'ENEMY VITALITY', low: 'CASUAL', high: 'BRUTAL', min: 0.75, max: 1.5, step: 0.25, default: 1 },
     { key: 'bossDifficulty', label: 'BOSS DIFFICULTY', low: 'STANDARD', high: 'NIGHTMARE', min: 0.75, max: 1.5, step: 0.25, default: 1 },
@@ -239,7 +255,7 @@ export const PlayerSetup: React.FC = () => {
             {settings.map((setting) => {
               const value = gameOptions[setting.key] ?? setting.default;
               return <section className="setting-block" key={setting.key}>
-                <div className="setting-label"><span>{setting.label}</span><strong>{value.toFixed(2)}×</strong></div>
+                <div className="setting-label"><span>{setting.label}</span><strong>{setting.format === 'seconds' ? `${Math.round(value)}s` : `${value.toFixed(2)}×`}</strong></div>
                 <input className="speed-control" type="range" min={setting.min} max={setting.max} step={setting.step} value={value} onChange={(event) => setGameOptions((current) => ({ ...current, [setting.key]: Number(event.target.value) }))} />
                 <div className="range-labels"><span>{setting.low}</span><span>{setting.high}</span></div>
               </section>;

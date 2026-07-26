@@ -12,6 +12,20 @@ export const GameBrowser: React.FC = () => {
 
   const getGameTheme = (id: string) => {
     switch (id) {
+      case 'driftspire':
+        return {
+          cardClass: 'driftspire-card-theme',
+          btnClass: 'btn-driftspire',
+          btnText: 'ENTER THE FESTIVAL ▶',
+          accentColor: '#ffd166',
+          statusLed: '★ FEATURED',
+          statusClass: 'led-flicker',
+          isFaulty: false,
+          stars: '★★★★☆',
+          slotId: 'SLOT #06',
+          motifIcon: '🏰',
+          badgeText: 'SOCIAL STRATEGY',
+        };
       case 'lava-escape':
         return {
           cardClass: 'lava-card-theme',

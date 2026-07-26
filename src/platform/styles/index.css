@@ -225,6 +225,18 @@ button {
   transform: translateY(-2px);
 }
 
+.btn-driftspire {
+  background-color: #ffd166;
+  color: #090f25;
+  border: 2px solid var(--pixel-border);
+  box-shadow: 0 4px 0 #593f74;
+}
+
+.btn-driftspire:hover {
+  background-color: #ffe29b;
+  transform: translateY(-2px);
+}
+
 /* CRT Scanline Overlay */
 .scanline-overlay {
   position: absolute;
@@ -343,6 +355,23 @@ button {
   right: 12px;
   font-size: 0.75rem;
   opacity: 0.85;
+}
+
+.driftspire-card-theme {
+  border: 2px solid #ffd166;
+  background: linear-gradient(135deg, #121d38 0%, #1b2850 48%, #422a5d 100%);
+  position: relative;
+  box-shadow: 0 0 22px rgba(82, 229, 255, 0.16);
+}
+
+.driftspire-card-theme::before {
+  content: '☁  ◆  🏰  ◆  ☁';
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  color: #ffd166;
+  font-size: .75rem;
+  opacity: .95;
 }
 
 .lab-card-theme { border: 2px solid var(--pixel-yellow); background: linear-gradient(135deg, #28231b 0%, #1f1e2e 100%); position: relative; }
