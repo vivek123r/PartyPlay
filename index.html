@@ -12,10 +12,24 @@
     <style>
       /* Prevent FOUC - set background immediately */
       html, body { background: #0f0e17; margin: 0; padding: 0; }
+      #root { width: 100vw; min-height: 100vh; }
+      .boot-fallback { min-height: 100vh; display: grid; place-items: center; background: #0f0e17; color: #08d9d6; font: 16px monospace; letter-spacing: 3px; text-align: center; }
+      .boot-fallback small { display: block; margin-top: 14px; color: #a7a9be; font-size: 11px; letter-spacing: 1px; }
     </style>
+    <script>
+      (() => {
+        const showStartupError = (message) => {
+          const root = document.getElementById('root');
+          if (!root || root.dataset.mounted === 'true') return;
+          root.innerHTML = '<div class="boot-fallback"><div>PARTYPLAY FAILED TO START<small>' + String(message).replace(/[&<>]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[char])) + '</small></div></div>';
+        };
+        window.addEventListener('error', (event) => showStartupError(event.error?.message || event.message || 'Check the browser console.'));
+        window.addEventListener('unhandledrejection', (event) => showStartupError(event.reason?.message || event.reason || 'Check the browser console.'));
+      })();
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="boot-fallback"><div>PARTYPLAY<small>LOADING ARCADE CONSOLE…</small></div></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
