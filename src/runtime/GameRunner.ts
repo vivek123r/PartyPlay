@@ -85,7 +85,11 @@ export class GameRunner {
       this.pixiApp = app;
 
       // 3. Wrap renderer
-      const rendererContext = new PixiRendererContext(this.pixiApp);
+      const rendererContext = new PixiRendererContext(
+        this.pixiApp,
+        entry.manifest.logicalWidth ?? 480,
+        entry.manifest.logicalHeight ?? 270
+      );
 
       // Setup resizing
       rendererContext.resize();

@@ -14,6 +14,10 @@ const manifest: GameManifest = {
   maxPlayers: 4,
   estimatedRoundTime: '60-120s',
 
+  // Native high-res render space — see RenderScale.ts / GAME_REFERENCE.md.
+  logicalWidth: 960,
+  logicalHeight: 540,
+
   capabilities: {
     supportsPause: true,
     supportsRestart: true,
