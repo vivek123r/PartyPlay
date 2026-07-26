@@ -54,7 +54,17 @@ export class GameRunner {
       // Clear container child elements to avoid duplicate canvas elements
       container.innerHTML = '';
 
-      // 1. Create canvas element with pixelated styles
+      // 1. Load the game bundle before constructing the Pixi renderer.
+      //
+      // Pixi v8 collects its installed render pipes (Graphics, Sprite, Text,
+      // etc.) when the renderer is initialized. Our games are code-split, so
+      // creating the renderer first meant those pipes had not been registered
+      // yet in production. The game could initialize, but its first frame then
+      // failed inside Pixi with `validateRenderable` missing.
+      const { default: GameClass } = await entry.load();
+      if (currentLaunchId !== this.launchId) return;
+
+      // 2. Create canvas element with pixelated styles
       const canvas = document.createElement('canvas');
       canvas.style.imageRendering = 'pixelated';
       // For fallback
@@ -63,7 +73,7 @@ export class GameRunner {
       canvas.style.margin = 'auto';
       container.appendChild(canvas);
 
-      // 2. Initialize PixiJS Application
+      // 3. Initialize PixiJS Application
       const app = new Application();
       await app.init({
         canvas,
@@ -89,7 +99,7 @@ export class GameRunner {
 
       this.pixiApp = app;
 
-      // 3. Wrap renderer
+      // 4. Wrap renderer
       const rendererContext = new PixiRendererContext(
         this.pixiApp,
         entry.manifest.logicalWidth ?? 480,
@@ -105,11 +115,11 @@ export class GameRunner {
       };
       window.addEventListener('resize', this.resizeListener);
 
-      // 4. Setup PRNG
+      // 5. Setup PRNG
       const seed = modifiers.seed ?? Math.floor(Math.random() * 1000000);
       const prng = createPRNG(seed);
 
-      // 5. Configure input bindings
+      // 6. Configure input bindings
       this.inputService.clearBindings();
       entry.manifest.defaultControls.forEach((binding) => {
         const player = players.find((candidate) => candidate.id === binding.playerId);
@@ -121,7 +131,7 @@ export class GameRunner {
         this.inputService.bindPlayer({ playerId: binding.playerId, deviceId, bindings });
       });
 
-      // 6. Construct GameContext (Pure Dependency Injection)
+      // 7. Construct GameContext (Pure Dependency Injection)
       const context: GameContext = {
         renderer: rendererContext,
         input: this.inputService,
@@ -135,17 +145,14 @@ export class GameRunner {
         players,
       };
 
-      // 7. Dynamically load & instantiate game
-      const { default: GameClass } = await entry.load();
-      if (currentLaunchId !== this.launchId) return;
-
+      // 8. Instantiate the loaded game
       this.currentGame = new GameClass();
 
-      // 8. Initialize game
+      // 9. Initialize game
       await this.currentGame.init(context);
       if (currentLaunchId !== this.launchId) return;
 
-      // 9. Start Game Loop with Error Boundary Catch Handler
+      // 10. Start Game Loop with Error Boundary Catch Handler
       this.gameLoop = new GameLoop(this.pixiApp.ticker, this.inputService);
       this.currentGame.start();
       this.gameLoop.start(this.currentGame, (err) => this.handleCrash(err));
