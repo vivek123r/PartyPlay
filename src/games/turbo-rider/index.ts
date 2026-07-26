@@ -11,6 +11,7 @@ import { PowerUpManager } from './core/PowerUpManager';
 import { EnvironmentFX } from './render/EnvironmentFX';
 import { PixelFont } from './render/PixelFont';
 import { VideoEngine } from './render/VideoEngine';
+import { setPixelScale, BIKE_SCALE_REF_VIEW_H } from './render/RenderScale';
 import type { SelfBikeDraw } from './render/ProjectionEngine';
 import type { TrackSegment, OpponentSprite } from './types';
 
@@ -65,13 +66,22 @@ export default class TurboRiderGame implements GameModule {
   private cameraBackState: number[] = [];
   private cameraDepthState: number[] = [];
 
+  /** The game's own render-space size, read once from `ctx.renderer.viewport` in `init()` —
+   * never hardcoded 480x270 (see manifest.ts logicalWidth/logicalHeight). */
+  private viewW = 480;
+  private viewHFull = 270;
+
   public async init(context: GameContext): Promise<void> {
     this.state = 'Loading';
     this.ctx = context;
     this.ctx.logger.info('Initializing TURBO RIDER 3D AAA Upgrade...');
     this.garage.setAudioService(context.audio);
 
-    const { stage } = this.ctx.renderer;
+    const { stage, viewport } = this.ctx.renderer;
+    this.viewW = viewport.width;
+    this.viewHFull = viewport.height;
+    setPixelScale(this.viewW);
+
     this.gameContainer = new Container();
     stage.addChild(this.gameContainer);
 
@@ -111,8 +121,8 @@ export default class TurboRiderGame implements GameModule {
     this.traffic.spawnTraffic(HandcraftedTrack.TOTAL_LENGTH_METERS, density);
     this.powerUps.spawnForTrack(HandcraftedTrack.TOTAL_LENGTH_METERS);
 
-    const viewW = 480;
-    const viewH = Math.floor(270 / count);
+    const viewW = this.viewW;
+    const viewH = Math.floor(this.viewHFull / count);
 
     for (let i = 0; i < count; i++) {
       const vContainer = new Container();
@@ -157,7 +167,7 @@ export default class TurboRiderGame implements GameModule {
   /** The local player's own bike is always drawn at the horizontal centre of its viewport
    * (the camera already tracks lane offset) — shared by the FX exhaust points and the render loop. */
   private bikeScreenPose(bike: BikePhysics, viewW: number, viewH: number): { screenX: number; screenY: number; scale: number } {
-    const scale = viewH / 135;
+    const scale = viewH / BIKE_SCALE_REF_VIEW_H;
     const screenX = Math.round(viewW / 2);
     const margin = Math.round(viewH * 0.15);
     const screenY = viewH - margin + Math.round(bike.pitchAngle * 4 * scale);
@@ -168,8 +178,8 @@ export default class TurboRiderGame implements GameModule {
     if (this.state !== 'Playing') return;
 
     const count = this.bikes.length;
-    const viewW = 480;
-    const viewH = Math.floor(270 / count);
+    const viewW = this.viewW;
+    const viewH = Math.floor(this.viewHFull / count);
 
     // 1. GARAGE PHASE
     if (this.isGaragePhase) {
@@ -183,7 +193,7 @@ export default class TurboRiderGame implements GameModule {
         this.garage.updateGarageInput(idx, bike, navLeft, navRight, actionSelect, toggleReady);
       });
 
-      this.garage.render(this.bikes, 480, 270);
+      this.garage.render(this.bikes, this.viewW, this.viewHFull);
 
       if (this.garage.isAllReady(count)) {
         this.isGaragePhase = false;
@@ -399,7 +409,8 @@ export default class TurboRiderGame implements GameModule {
         fx.spawnNitroFlames(exhaustLX, exhaustRX, exhaustY, hexColor, Math.max(2, Math.round(4 * fxDensity)));
       }
 
-      fx.update(dt, bike.speed, viewW, viewH, fxDensity, bike.isNitroActive);
+      const horizonY = ProjectionEngine.horizonYFor(viewH, count);
+      fx.update(dt, bike.speed, viewW, viewH, fxDensity, bike.isNitroActive, horizonY);
 
       const vContainer = this.viewportContainers[idx];
       if (bike.isCrashed) {
@@ -505,24 +516,35 @@ export default class TurboRiderGame implements GameModule {
         g.rect(0, 0, viewW, viewH).fill({ color: 0xffffff, alpha: Math.max(0, alpha) });
       }
 
+      // hudScale: an integer HUD-chrome multiplier, NOT the old binary `compact` flag. `compact`
+      // was tuned for a 67px 4-player viewport that no longer exists at native resolution — the
+      // smallest viewport now (4P, 135px) is exactly what 2P used to have. 2P (270px) runs the
+      // full chrome at 2x; 3P/4P (180/135px) run it at 1x, i.e. today's *full* layout (never the
+      // old compact one) at full pixel density.
+      const hudScale = viewH >= 270 ? 2 : 1;
+
       if (!eliminated && bike.isDrafting) {
-        PixelFont.drawText(g, 'SLIPSTREAM', viewW / 2 - 44, viewH - 36, 0x0984e3, 1);
+        const t = 'SLIPSTREAM';
+        PixelFont.drawTextLarge(g, t, Math.round(viewW / 2 - PixelFont.measureLarge(t, hudScale) / 2), viewH - 36 * hudScale, 0x0984e3, hudScale);
       }
 
       if (bike.isCrashed) {
-        g.rect(viewW / 2 - 50, viewH / 2 - 8, 100, 14).fill({ color: 0xff0055, alpha: 0.85 });
-        PixelFont.drawText(g, 'CRASH!', viewW / 2 - 24, viewH / 2 - 5, 0xfffffe, 1);
+        const t = 'CRASH!';
+        const boxW = 100 * hudScale;
+        const boxH = 14 * hudScale;
+        g.rect(viewW / 2 - boxW / 2, viewH / 2 - boxH / 2, boxW, boxH).fill({ color: 0xff0055, alpha: 0.85 });
+        PixelFont.drawTextLarge(g, t, Math.round(viewW / 2 - PixelFont.measureLarge(t, hudScale) / 2), viewH / 2 - 3 * hudScale, 0xfffffe, hudScale);
       }
 
       if (this.overtakeFlashTimer[idx] > 0) {
         const t = this.overtakeFlashTimer[idx];
         const alpha = t > 0.3 ? 1 : t / 0.3;
         const text = this.overtakeFlashText[idx];
-        const tw = text.length * 4;
+        const tw = PixelFont.measureLarge(text, hudScale);
         const cx = Math.round(viewW / 2 - tw / 2);
-        const cy = Math.round(viewH / 2 - 26);
-        g.rect(cx - 6, cy - 3, tw + 12, 11).fill({ color: 0x0f0e17, alpha: 0.75 * alpha });
-        PixelFont.drawText(g, text, cx, cy, 0x55efc4, 1, alpha);
+        const cy = Math.round(viewH / 2 - 26 * hudScale);
+        g.rect(cx - 6 * hudScale, cy - 3 * hudScale, tw + 12 * hudScale, 11 * hudScale).fill({ color: 0x0f0e17, alpha: 0.75 * alpha });
+        PixelFont.drawTextLarge(g, text, cx, cy, 0x55efc4, hudScale, alpha);
       }
 
       // === RACING DASHBOARD HUD ===
@@ -531,11 +553,8 @@ export default class TurboRiderGame implements GameModule {
       const rank = rankMap.get(bike.id) ?? 1;
       const rankSuffix = rank === 1 ? 'ST' : rank === 2 ? 'ND' : rank === 3 ? 'RD' : 'TH';
 
-      // Compact HUD at 3-4 players — a 67px viewport can't afford full-height bars
-      const compact = count >= 3;
-      const topBarH = compact ? 7 : 10;
-      const speedFontScale = compact ? 1 : 2;
-      const speedPanelH = compact ? 12 : 18;
+      const topBarH = 10 * hudScale;
+      const speedPanelH = 18 * hudScale;
 
       // Top bar: position | distance
       g.rect(0, 0, viewW, topBarH).fill({ color: hud, alpha: ha });
@@ -545,17 +564,25 @@ export default class TurboRiderGame implements GameModule {
       // toward red instead of staying a full-width static accent.
       const healthFrac = Math.max(0, Math.min(1, bike.health / 100));
       const healthColor = healthFrac > 0.6 ? hexColor : mixColor(0xff4757, hexColor, healthFrac / 0.6);
-      g.rect(0, topBarH - 1, viewW, 1).fill({ color: 0x000000, alpha: 0.3 });
-      g.rect(0, topBarH - 1, Math.max(1, Math.round(viewW * healthFrac)), 1).fill({ color: healthColor, alpha: 0.6 });
-      PixelFont.drawText(g, `P${bike.id} ${rank}${rankSuffix}`, 3, 1, hexColor, 1);
-      if (eliminated) PixelFont.drawText(g, 'ELIM', 80, 1, 0xff4757, 1);
+      g.rect(0, topBarH - hudScale, viewW, hudScale).fill({ color: 0x000000, alpha: 0.3 });
+      g.rect(0, topBarH - hudScale, Math.max(hudScale, Math.round(viewW * healthFrac)), hudScale).fill({ color: healthColor, alpha: 0.6 });
+
+      const posLabel = `P${bike.id} ${rank}${rankSuffix}`;
+      PixelFont.drawTextLarge(g, posLabel, 3 * hudScale, 1 * hudScale, hexColor, hudScale);
+      let rightEdgeUsed = 3 * hudScale + PixelFont.measureLarge(posLabel, hudScale);
+      if (eliminated) {
+        const t = 'ELIM';
+        PixelFont.drawTextLarge(g, t, rightEdgeUsed + 6 * hudScale, 1 * hudScale, 0xff4757, hudScale);
+        rightEdgeUsed += 6 * hudScale + PixelFont.measureLarge(t, hudScale);
+      }
       const distRemaining = Math.max(0, Math.round(HandcraftedTrack.TOTAL_LENGTH_METERS - bike.z));
-      PixelFont.drawText(g, `${distRemaining}M`, viewW - 44, 1, 0xf4d160, 1);
+      const distText = `${distRemaining}M`;
+      PixelFont.drawTextLarge(g, distText, viewW - 4 * hudScale - PixelFont.measureLarge(distText, hudScale), 1 * hudScale, 0xf4d160, hudScale);
 
       // Race progress mini-bar — one pip per player so rivals stay legible even off-screen
-      const progressBarY = topBarH + 1;
-      const progressBarH = 3;
-      const progressMarginX = 4;
+      const progressBarY = topBarH + 1 * hudScale;
+      const progressBarH = 3 * hudScale;
+      const progressMarginX = 4 * hudScale;
       const progressBarW = viewW - progressMarginX * 2;
       g.rect(progressMarginX, progressBarY, progressBarW, progressBarH).fill({ color: 0x1a1a24, alpha: 0.8 });
       this.bikes.forEach((other) => {
@@ -563,10 +590,10 @@ export default class TurboRiderGame implements GameModule {
         const px = progressMarginX + frac * progressBarW;
         const otherColor = parseInt(other.playerColor.replace('#', ''), 16) || 0xff0055;
         const isSelf = other.id === bike.id;
-        const pipSize = isSelf ? 4 : 3;
+        const pipSize = (isSelf ? 4 : 3) * hudScale;
         const py = progressBarY + progressBarH / 2 - pipSize / 2;
         if (isSelf) {
-          g.rect(Math.round(px - pipSize / 2) - 1, Math.round(py) - 1, pipSize + 2, pipSize + 2).stroke({ width: 1, color: 0xfffffe, alpha: 0.9 });
+          g.rect(Math.round(px - pipSize / 2) - hudScale, Math.round(py) - hudScale, pipSize + 2 * hudScale, pipSize + 2 * hudScale).stroke({ width: hudScale, color: 0xfffffe, alpha: 0.9 });
         }
         g.rect(Math.round(px - pipSize / 2), Math.round(py), pipSize, pipSize).fill({ color: otherColor, alpha: other.eliminated ? 0.35 : 1 });
       });
@@ -574,44 +601,57 @@ export default class TurboRiderGame implements GameModule {
       // Phase banner
       if (this.phaseFlashTimer[idx] > 0) {
         const pn = this.trackSegments[Math.floor(bike.z / ProjectionEngine.SEGMENT_LENGTH) % this.trackSegments.length]?.phaseName || '';
-        const bw = Math.min(200, pn.length * 6 + 12);
+        const bw = Math.min(viewW * 0.45, PixelFont.measure(pn, hudScale) + 12 * hudScale);
         const bx = viewW / 2 - bw / 2;
-        const bannerY = progressBarY + progressBarH + 2;
-        g.rect(bx, bannerY, bw, 9).fill({ color: hud, alpha: 0.85 });
-        PixelFont.drawText(g, pn, bx + 4, bannerY + 2, 0x00f0ff, 1);
+        const bannerY = progressBarY + progressBarH + 2 * hudScale;
+        const bannerH = 9 * hudScale;
+        g.rect(bx, bannerY, bw, bannerH).fill({ color: hud, alpha: 0.85 });
+        PixelFont.drawText(g, pn, bx + 4 * hudScale, bannerY + 2 * hudScale, 0x00f0ff, hudScale);
       }
 
-      // Compact speed panel — bottom-left
+      // Speed panel — bottom-left, 5x7 digits at hudScale so the readout stays the largest,
+      // most legible number on screen (the pixel budget the higher resolution exists to spend).
       const spd = `${Math.round(bike.speed)}`;
-      const spdCharW = compact ? 6 : 10;
-      const livesGap = compact ? 6 : 40;
-      g.rect(2, viewH - speedPanelH, spd.length * spdCharW + 6, speedPanelH).fill({ color: hud, alpha: ha });
-      g.rect(2, viewH - speedPanelH, spd.length * spdCharW + 6, 1).fill({ color: hexColor, alpha: 0.6 });
-      PixelFont.drawText(g, spd, 4, viewH - speedPanelH + 3, 0x00f0ff, speedFontScale);
-      if (!compact) PixelFont.drawText(g, 'KM/H', 4 + spd.length * spdCharW, viewH - 13, 0x74b9ff, 1);
+      const spdW = PixelFont.measureLarge(spd, hudScale);
+      const kmhW = PixelFont.measure('KM/H', hudScale);
+      const panelLeft = 2 * hudScale;
+      const digitX = panelLeft + 2 * hudScale;
+      const kmhX = digitX + spdW + 2 * hudScale;
+      // Panel background must reach past the KM/H label too, not just the digits — otherwise
+      // the label draws unshaded over the scrolling scenery instead of on the dark backing.
+      const panelW = kmhX + kmhW + 4 * hudScale - panelLeft;
+      g.rect(panelLeft, viewH - speedPanelH, panelW, speedPanelH).fill({ color: hud, alpha: ha });
+      g.rect(panelLeft, viewH - speedPanelH, panelW, hudScale).fill({ color: hexColor, alpha: 0.6 });
+      PixelFont.drawTextLarge(g, spd, digitX, viewH - speedPanelH + 3 * hudScale, 0x00f0ff, hudScale);
+      PixelFont.drawText(g, 'KM/H', kmhX, viewH - speedPanelH + speedPanelH / 2 + 1 * hudScale, 0x74b9ff, hudScale);
 
-      // Lives — inline next to speed
-      const livesY = compact ? viewH - speedPanelH + 3 : viewH - 16;
+      // Lives — bevelled squares (dark border + inner highlight) inline next to speed
+      const livesGap = 10 * hudScale;
+      const livesY = viewH - speedPanelH + speedPanelH / 2 - 2.5 * hudScale;
+      const lifeSize = 5 * hudScale;
       for (let l = 0; l < 3; l++) {
-        const lx = 4 + spd.length * spdCharW + livesGap + l * (compact ? 6 : 8);
-        if (l < bike.lives) {
-          g.rect(lx, livesY, 5, 5).fill({ color: 0xff4757 });
-        } else {
-          g.rect(lx, livesY, 5, 5).fill({ color: 0x353b48 });
-        }
+        const lx = kmhX + kmhW + livesGap + l * (lifeSize + 3 * hudScale);
+        const filled = l < bike.lives;
+        g.rect(lx, livesY, lifeSize, lifeSize).fill({ color: filled ? 0xff4757 : 0x353b48 });
+        g.rect(lx + hudScale * 0.5, livesY + hudScale * 0.5, lifeSize - hudScale, hudScale * 0.5).fill({ color: 0xffffff, alpha: filled ? 0.35 : 0.12 });
       }
 
-      // Nitro gauge — thin horizontal bar across bottom
-      const nitroW = viewW - 4;
-      const nitroY = viewH - 2;
-      g.rect(2, nitroY, nitroW, 2).fill({ color: 0x1a1a24 });
+      // Nitro gauge — thin horizontal bar across the bottom, with a dark outline and 25/50/75%
+      // segment ticks so a glance shows fill fraction, not just "some amount".
+      const nitroW = viewW - 4 * hudScale;
+      const nitroH = 4 * hudScale;
+      const nitroY = viewH - nitroH - hudScale;
+      g.rect(2 * hudScale, nitroY, nitroW, nitroH).fill({ color: 0x1a1a24 }).stroke({ width: hudScale, color: 0x000000, alpha: 0.5 });
       const nFrac = bike.nitroGauge / 100;
       if (nFrac > 0) {
         const lowGauge = nFrac < 0.2 && !bike.isNitroActive;
         const blinkOn = Math.floor(Date.now() / 150) % 2 === 0;
         const barColor = bike.isNitroActive ? 0xff0055 : (lowGauge && blinkOn ? 0xff4757 : 0x00f0ff);
-        g.rect(2, nitroY, Math.max(1, Math.round(nitroW * nFrac)), 2).fill({ color: barColor });
+        g.rect(2 * hudScale, nitroY, Math.max(hudScale, Math.round(nitroW * nFrac)), nitroH).fill({ color: barColor });
       }
+      [0.25, 0.5, 0.75].forEach((f) => {
+        g.rect(2 * hudScale + nitroW * f, nitroY, hudScale, nitroH).fill({ color: 0x000000, alpha: 0.4 });
+      });
     });
 
     // Check for eliminated players — if all but one eliminated, that one wins
@@ -642,22 +682,29 @@ export default class TurboRiderGame implements GameModule {
   }
 
   private renderCountdown(viewW: number, viewH: number): void {
+    const hudScale = viewH >= 270 ? 2 : 1;
+    const fontScale = 1.5 * hudScale;
     this.viewportGraphics.forEach((g) => {
       g.clear();
       g.rect(0, 0, viewW, viewH).fill({ color: 0x0f0e17 });
 
       const pulse = Math.sin(this.countdownTimer * 8) * 0.3 + 0.7;
+      const padX = 8 * hudScale;
+      const padY = 6 * hudScale;
       if (this.countdownPhase > 0) {
         const txt = String(this.countdownPhase);
-        const x = viewW / 2 - 8;
-        const y = viewH / 2 - 10;
-        g.rect(x - 4, y, 16, 20).fill({ color: 0xff0055, alpha: pulse });
-        PixelFont.drawText(g, txt, x, y + 4, 0xfffffe, 2);
+        const tw = PixelFont.measureLarge(txt, fontScale);
+        const x = Math.round(viewW / 2 - tw / 2);
+        const y = Math.round(viewH / 2 - (7 * fontScale) / 2);
+        g.rect(x - padX, y - padY, tw + padX * 2, 7 * fontScale + padY * 2).fill({ color: 0xff0055, alpha: pulse });
+        PixelFont.drawTextLarge(g, txt, x, y, 0xfffffe, fontScale);
       } else {
-        const x = viewW / 2 - 20;
-        const y = viewH / 2 - 10;
-        g.rect(x - 4, y, 44, 20).fill({ color: 0x55efc4, alpha: pulse });
-        PixelFont.drawText(g, 'GO!', x, y + 4, 0x0f0e17, 2);
+        const txt = 'GO!';
+        const tw = PixelFont.measureLarge(txt, fontScale);
+        const x = Math.round(viewW / 2 - tw / 2);
+        const y = Math.round(viewH / 2 - (7 * fontScale) / 2);
+        g.rect(x - padX, y - padY, tw + padX * 2, 7 * fontScale + padY * 2).fill({ color: 0x55efc4, alpha: pulse });
+        PixelFont.drawTextLarge(g, txt, x, y, 0x0f0e17, fontScale);
       }
     });
   }
@@ -670,7 +717,7 @@ export default class TurboRiderGame implements GameModule {
     this.ctx.audio.stopAllEngineVoices(0.5);
     this.ctx.audio.stopMusic(1.0);
 
-    this.results.show(this.bikes, () => {
+    this.results.show(this.bikes, this.viewW, this.viewHFull, () => {
       const standings = [...this.bikes]
         .sort((a, b) => b.z - a.z)
         .map((b) => ({ playerId: b.id, score: Math.round(b.z) }));

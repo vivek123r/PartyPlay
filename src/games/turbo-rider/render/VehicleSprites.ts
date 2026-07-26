@@ -1,4 +1,5 @@
 import { Graphics } from 'pixi.js';
+import { PIXEL_SCALE } from './RenderScale';
 
 export type VehicleKind =
   | 'sedan'
@@ -80,9 +81,13 @@ function drawSedan(g: Graphics, x: number, groundY: number, ppm: number, color: 
     g.rect(x - w / 2, groundY - Math.round(bodyH * 0.55), w, stripeH).fill({ color: mixColorLocal(color, 0xffffff, 0.4), alpha: a * 0.5 });
   }
   if (w > 9) {
-    // Bumper reflector dots
-    g.rect(x - Math.round(w * 0.46), groundY - Math.round(bodyH * 0.12), 1, 1).fill({ color: 0xffa502, alpha: a * 0.8 });
-    g.rect(x + Math.round(w * 0.46), groundY - Math.round(bodyH * 0.12), 1, 1).fill({ color: 0xffa502, alpha: a * 0.8 });
+    // Bumper reflector dots — a light core, not a generic thin-line floor: kept scaled with
+    // PIXEL_SCALE so it stays a visible spark rather than fading to a sub-pixel speck at native
+    // resolution (see the `Math.max(1, ...)` floors elsewhere in this file, which are left alone
+    // on purpose — this dot has no such floor to lean on, it's a literal fixed size).
+    const dotSize = Math.max(1, Math.round(PIXEL_SCALE));
+    g.rect(x - Math.round(w * 0.46), groundY - Math.round(bodyH * 0.12), dotSize, dotSize).fill({ color: 0xffa502, alpha: a * 0.8 });
+    g.rect(x + Math.round(w * 0.46), groundY - Math.round(bodyH * 0.12), dotSize, dotSize).fill({ color: 0xffa502, alpha: a * 0.8 });
   }
   if (w > 8) {
     // Tail light clusters
@@ -319,10 +324,12 @@ export function drawAIBikeSide(g: Graphics, x: number, groundY: number, ppm: num
 }
 
 /** A hazard is easy to miss against dark asphalt at a glance — a slow pulsing ring within
- * ~40m gives the player time to react. `ppm` alone is a reliable distance proxy here since
- * viewW (and therefore halfW) is constant across all player counts; only viewH varies. */
+ * ~65m gives the player time to react (was ~40m at `18`; lowered relative to a flat
+ * `viewW`-proportional scale so the warning triggers meaningfully further out at native
+ * resolution). `ppm` alone is a reliable distance proxy here since viewW (and therefore halfW)
+ * is constant across all player counts; only viewH varies. */
 function drawHazardWarningRing(g: Graphics, x: number, groundY: number, w: number, ppm: number, a: number): void {
-  if (ppm < 18) return;
+  if (ppm < 9 * PIXEL_SCALE) return;
   const pulse = 0.35 + 0.3 * Math.sin(Date.now() * 0.008);
   const ringR = Math.max(2, w * 0.85);
   g.ellipse(x, groundY, ringR, ringR * 0.32).stroke({ width: 1, color: 0xfff200, alpha: a * pulse });
@@ -516,6 +523,16 @@ function drawWheel(g: Graphics, x: number, groundY: number, radius: number, alph
     // Hub dot
     g.ellipse(x, groundY - r * 0.55, r * 0.18, r * 0.16).fill({ color: 0x2d3436, alpha: alpha * 0.9 });
   }
+  if (r >= 5) {
+    // Spoke ticks — new tier the higher render resolution affords; a wheel only ever gets this
+    // big when the vehicle is genuinely close, so it never fires for distant traffic.
+    for (let i = 0; i < 4; i++) {
+      const ang = (i * Math.PI) / 2 + 0.4;
+      const sx = Math.round(x + Math.cos(ang) * r * 0.32);
+      const sy = Math.round(groundY - r * 0.55 + Math.sin(ang) * r * 0.28);
+      g.rect(sx, sy, 1, 1).fill({ color: 0x636e72, alpha: alpha * 0.7 });
+    }
+  }
 }
 
 /** Signature shared by the front-cap and rear-face painters — both are billboard faces drawn
@@ -562,8 +579,23 @@ type SideFn = (g: Graphics, s: SideGeom, color: number, a: number) => void;
  * would show a sliver too — and cramming windows and tyres into ~10px of screen produced the
  * speckled noise that read as an unfinished, half-transparent block. Below this the flank
  * stays a cleanly shaded panel and the (fully detailed) rear face carries the vehicle's
- * identity, which is what the camera actually sees from behind. */
-const SIDE_DETAIL_MIN_SPAN_PX = 20;
+ * identity, which is what the camera actually sees from behind.
+ *
+ * Scales with `PIXEL_SCALE` (functions, not a `const`, since `PIXEL_SCALE` is set once per game
+ * init — see RenderScale.ts — after this module has already been evaluated) and is *lowered*
+ * relative to what a flat viewW-proportional scale would give, so full flank detail engages
+ * meaningfully further out at native resolution instead of only at parity with the legacy
+ * 480-wide viewport. See ProjectionEngine's `ppm = 1440/camDist` at viewW=960 for the distance
+ * math this trades against. */
+function sideDetailMinSpanPx(): number {
+  return 12 * PIXEL_SCALE;
+}
+
+/** Outer ppm bound on flank glazing — the companion gate to `sideDetailMinSpanPx`. Lowered
+ * (relative to a flat `8 * PIXEL_SCALE`) for the same "detail engages further out" reason. */
+function flankDetailMaxPpm(): number {
+  return 3.5 * PIXEL_SCALE;
+}
 
 /** Perspective-correct interpolation between the two projected end scales.
  *
@@ -941,9 +973,9 @@ function drawSedanSide(g: Graphics, s: SideGeom, color: number, a: number): void
   sidePanel(g, s, 0.68, 1, beltM, beltM + (bodyM - beltM) * 0.18, mixColorLocal(color, 0x000000, 0.3), a * 0.85);
   sidePanel(g, s, 0, 0.2, beltM, beltM + (bodyM - beltM) * 0.22, mixColorLocal(color, 0x000000, 0.3), a * 0.85);
 
-  if (nearPpm < 8 || s.spanPx < SIDE_DETAIL_MIN_SPAN_PX) {
+  if (nearPpm < flankDetailMaxPpm() || s.spanPx < sideDetailMinSpanPx()) {
     // Too small for glazing detail — just keep the leading-edge crease so the box still reads.
-    g.poly([s.nearX, s.nearGroundY - bodyM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 1, color: 0x0f0e17, alpha: a * 0.5 });
+    g.poly([s.nearX, s.nearGroundY - bodyM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 2 * PIXEL_SCALE, color: 0x0f0e17, alpha: a * 0.5 });
     return;
   }
 
@@ -981,8 +1013,20 @@ function drawSedanSide(g: Graphics, s: SideGeom, color: number, a: number): void
   sideWheel(g, s, 0.19, 0.31, a * 0.95);
   sideWheel(g, s, 0.79, 0.31, a * 0.95);
 
+  // Near-tier: door handles, only worth drawing once genuinely close — additive over the
+  // regular flank detail above, never a replacement for it.
+  if (nearPpm >= 14 * PIXEL_SCALE) {
+    [0.36, 0.53].forEach((t) => {
+      const hp = s.ppmAt(t);
+      const hx = s.xAt(t) + (s.sideSign < 0 ? -1 : 1) * hp * 0.06;
+      const hy = s.yAt(t) - glassBot * hp * 0.55;
+      const hw = Math.max(1, Math.round(hp * 0.1));
+      g.rect(hx, hy, hw, Math.max(1, Math.round(hp * 0.03))).fill({ color: 0xdcdde1, alpha: a * 0.8 });
+    });
+  }
+
   // Leading-edge crease so the flank separates from the front cap
-  g.poly([s.nearX, s.nearGroundY - bodyM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 1, color: 0x0f0e17, alpha: a * 0.5 });
+  g.poly([s.nearX, s.nearGroundY - bodyM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 2 * PIXEL_SCALE, color: 0x0f0e17, alpha: a * 0.5 });
 }
 
 function drawTruckSide(g: Graphics, s: SideGeom, color: number, a: number): void {
@@ -997,8 +1041,8 @@ function drawTruckSide(g: Graphics, s: SideGeom, color: number, a: number): void
   // Cab is shorter than the trailer it tows — that step is the whole silhouette.
   sidePanel(g, s, cabStart, 1, 0, cabM, mixColorLocal(color, 0x000000, 0.32), a * 0.9);
 
-  if (nearPpm < 8 || s.spanPx < SIDE_DETAIL_MIN_SPAN_PX) {
-    g.poly([s.nearX, s.nearGroundY - trailerM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 1, color: 0x0f0e17, alpha: a * 0.5 });
+  if (nearPpm < flankDetailMaxPpm() || s.spanPx < sideDetailMinSpanPx()) {
+    g.poly([s.nearX, s.nearGroundY - trailerM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 2 * PIXEL_SCALE, color: 0x0f0e17, alpha: a * 0.5 });
     return;
   }
 
@@ -1048,7 +1092,19 @@ function drawTruckSide(g: Graphics, s: SideGeom, color: number, a: number): void
   sideArch(g, s, 0.96, 0.6, 1.1, a);
   sideWheel(g, s, 0.96, 0.5, a * 0.95);
 
-  g.poly([s.nearX, s.nearGroundY - trailerM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 1, color: 0x0f0e17, alpha: a * 0.5 });
+  // Near-tier: mudflaps behind the rear axles, only worth drawing once genuinely close —
+  // additive over the rib/stripe/tank detail above, never a replacement for it.
+  if (nearPpm >= 14 * PIXEL_SCALE) {
+    [0.1, 0.19].forEach((t) => {
+      const fp = s.ppmAt(t);
+      const fx = s.xAt(t);
+      const fy = s.yAt(t);
+      const fw = Math.max(1, Math.round(fp * 0.3));
+      g.rect(fx - fw / 2, fy, fw, Math.max(1, Math.round(fp * 0.22))).fill({ color: 0x1e272e, alpha: a * 0.7 });
+    });
+  }
+
+  g.poly([s.nearX, s.nearGroundY - trailerM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 2 * PIXEL_SCALE, color: 0x0f0e17, alpha: a * 0.5 });
 }
 
 function drawBusSide(g: Graphics, s: SideGeom, color: number, a: number): void {
@@ -1060,8 +1116,8 @@ function drawBusSide(g: Graphics, s: SideGeom, color: number, a: number): void {
   // Roofline highlight, as on the rear face
   sidePanel(g, s, 0, 1, bodyM * 0.97, bodyM, mixColorLocal(color, 0xffffff, 0.35), a * 0.45);
 
-  if (nearPpm < 8 || s.spanPx < SIDE_DETAIL_MIN_SPAN_PX) {
-    g.poly([s.nearX, s.nearGroundY - bodyM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 1, color: 0x0f0e17, alpha: a * 0.5 });
+  if (nearPpm < flankDetailMaxPpm() || s.spanPx < sideDetailMinSpanPx()) {
+    g.poly([s.nearX, s.nearGroundY - bodyM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 2 * PIXEL_SCALE, color: 0x0f0e17, alpha: a * 0.5 });
     return;
   }
 
@@ -1096,7 +1152,14 @@ function drawBusSide(g: Graphics, s: SideGeom, color: number, a: number): void {
   sideArch(g, s, 0.86, 0.5, 1.0, a);
   sideWheel(g, s, 0.86, 0.42, a * 0.95);
 
-  g.poly([s.nearX, s.nearGroundY - bodyM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 1, color: 0x0f0e17, alpha: a * 0.5 });
+  // Near-tier: a destination-board strip above the windows, only worth drawing once genuinely
+  // close — additive over the window row/door/stripe detail above, never a replacement for it.
+  if (nearPpm >= 14 * PIXEL_SCALE) {
+    sidePanel(g, s, 0.06, 0.4, winTop + bodyM * 0.02, winTop + bodyM * 0.1, 0x0f0e17, a * 0.75);
+    sidePanel(g, s, 0.08, 0.3, winTop + bodyM * 0.035, winTop + bodyM * 0.085, 0xfff200, a * 0.55);
+  }
+
+  g.poly([s.nearX, s.nearGroundY - bodyM * s.nearPpm, s.nearX, s.nearGroundY]).stroke({ width: 2 * PIXEL_SCALE, color: 0x0f0e17, alpha: a * 0.5 });
 }
 
 function drawDepthShell(
@@ -1138,8 +1201,10 @@ function drawDepthShell(
   // as a solid vehicle from any angle — including the ~8.5m window where an overtaken vehicle
   // keeps rendering after being passed, which used to show an open-ended shell with nothing at
   // the front. Each type paints its own nose (raked sedan hood, flat semi cab, wide bus screen)
-  // at the far end's own projected scale.
-  if (wFar > 2) {
+  // at the far end's own projected scale. Threshold scales with PIXEL_SCALE for screen parity —
+  // it's a degenerate-1px guard, not a real distance gate (the front cap is visible at almost
+  // every distance the vehicle itself renders at), so this rarely changes behaviour in practice.
+  if (wFar > PIXEL_SCALE) {
     drawFrontFace(g, xFar, yFar, ppmFar, color, a * 0.9);
   }
 

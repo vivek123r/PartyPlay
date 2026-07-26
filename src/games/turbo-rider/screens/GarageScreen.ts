@@ -10,13 +10,18 @@ function hexToInt(hexStr: string): number {
 
 class Particle {
   x = 0; y = 0; vx = 0; vy = 0;
-  life = 1; maxLife = 1; color = 0xf4d160; size = 2;
+  life = 1; maxLife = 1; color = 0xf4d160; size = 3;
 }
 
 class FloatingText {
   text = ''; x = 0; y = 0;
   life = 1; maxLife = 1; color = 0xffffff;
 }
+
+/** Bike art centre / native size — used by the showcase, its particles and its aura so they all
+ * agree on where the bike actually sits without repeating the same magic numbers three times. */
+const ART_CENTER_X = 56;
+const ART_CENTER_Y = 28;
 
 export class BikeShowcase extends Container {
   private graphics: Graphics;
@@ -35,11 +40,11 @@ export class BikeShowcase extends Container {
   public triggerUpgrade(partName: string): void {
     this.auraPulse = 1.0;
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 24; i++) {
       const p = new Particle();
-      p.x = 28; p.y = 14;
+      p.x = ART_CENTER_X; p.y = ART_CENTER_Y;
       const ang = Math.random() * Math.PI * 2;
-      const speed = 18 + Math.random() * 40;
+      const speed = 24 + Math.random() * 56;
       p.vx = Math.cos(ang) * speed;
       p.vy = Math.sin(ang) * speed;
       p.maxLife = p.life = 0.4 + Math.random() * 0.4;
@@ -49,7 +54,7 @@ export class BikeShowcase extends Container {
 
     const ft = new FloatingText();
     ft.text = `+${partName.toUpperCase()} INSTALLED!`;
-    ft.x = 28; ft.y = -8;
+    ft.x = ART_CENTER_X; ft.y = -16;
     ft.maxLife = ft.life = 1.4;
     ft.color = 0x55efc4;
     this.floatingTexts.push(ft);
@@ -70,13 +75,20 @@ export class BikeShowcase extends Container {
 
     this.floatingTexts = this.floatingTexts.filter((ft) => {
       ft.life -= deltaSeconds;
-      ft.y -= 12 * deltaSeconds;
+      ft.y -= 16 * deltaSeconds;
       return ft.life > 0;
     });
 
     this.renderBike(customization);
   }
 
+  /**
+   * Native 112x68 art box (doubled from the legacy 56x34 sprite so it reads at native pixel
+   * density instead of being scaled up — see GAME_REFERENCE.md). Every part from the old art is
+   * present at 2x its old coordinates, plus new components the extra pixel budget affords:
+   * 6-spoke wheels + brake disc/caliper, fork tubes, a chain/sprocket, an exhaust with a heat
+   * tint, fairing vents, mirror stalks, a separated rider arm/knee, and a visor highlight.
+   */
   private renderPixelSuperbikeSide(g: Graphics, c: BikeCustomization, bob: number, time: number): void {
     const paint = hexToInt(c.primaryPaint || '#ff4757');
     const rimCol = hexToInt(c.rimColor || '#f4d160');
@@ -85,59 +97,107 @@ export class BikeShowcase extends Container {
     const spin = time * 14;
 
     const drawWheel = (wx: number, wy: number) => {
-      g.rect(wx - 7, wy - 7, 14, 14).fill({ color: 0x1e272e });
-      g.rect(wx - 6, wy - 6, 12, 12).fill({ color: 0x2f3542 });
-      g.rect(wx - 5, wy - 5, 10, 10).fill({ color: 0x7f8c8d });
-      g.rect(wx - 1, wy - 1, 2, 2).fill({ color: 0x0f0e17 });
-      g.rect(wx - 4, wy - 4, 8, 8).fill({ color: rimCol });
-
-      const spX = wx + Math.cos(spin) * 4.5;
-      const spY = wy + Math.sin(spin) * 4.5;
-      g.rect(Math.round(spX) - 1, Math.round(spY) - 1, 2, 2).fill({ color: 0xfffffe });
+      g.rect(wx - 14, wy - 14, 28, 28).fill({ color: 0x1e272e });
+      g.rect(wx - 12, wy - 12, 24, 24).fill({ color: 0x2f3542 });
+      g.rect(wx - 10, wy - 10, 20, 20).fill({ color: 0x7f8c8d });
+      // Brake disc + caliper
+      g.rect(wx - 9, wy - 9, 18, 18).fill({ color: 0xced6e0, alpha: 0.5 });
+      g.rect(wx - 13, wy - 4, 5, 8).fill({ color: 0x2d3436 });
+      g.rect(wx - 2, wy - 2, 4, 4).fill({ color: 0x0f0e17 });
+      g.rect(wx - 8, wy - 8, 16, 16).fill({ color: rimCol });
+      // 6-spoke rotating rim
+      for (let i = 0; i < 6; i++) {
+        const a = spin + (i * Math.PI) / 3;
+        const sx = Math.round(wx + Math.cos(a) * 6);
+        const sy = Math.round(wy + Math.sin(a) * 6);
+        g.rect(sx - 1, sy - 1, 2, 2).fill({ color: 0x1e272e });
+      }
+      const spX = Math.round(wx + Math.cos(spin) * 9);
+      const spY = Math.round(wy + Math.sin(spin) * 9);
+      g.rect(spX - 1, spY - 1, 2, 2).fill({ color: 0xfffffe });
     };
 
-    drawWheel(10, 21);
-    drawWheel(44, 21);
+    drawWheel(20, 42);
+    drawWheel(88, 42);
 
-    g.rect(18, 12 + bob, 18, 9).fill({ color: 0xbdc3c7 });
-    g.rect(20, 15 + bob, 14, 6).fill({ color: 0x2f3542 });
+    // Fork tubes
+    g.rect(78, 20 + bob, 4, 24).fill({ color: 0xdcdde1 });
+    g.rect(82, 20 + bob, 3, 24).fill({ color: 0x7f8c8d });
 
-    g.rect(4, 18 + bob, 18, 3).fill({ color: 0xdcdde1 });
-    g.rect(2, 17 + bob, 6, 5).fill({ color: 0x2f3542 });
+    // Chain + sprocket
+    g.rect(34, 40, 46, 2).fill({ color: 0x2d3436, alpha: 0.7 });
+    for (let i = 0; i < 8; i++) {
+      const a = spin * 1.4 + (i * Math.PI) / 4;
+      const sx = Math.round(20 + Math.cos(a) * 10);
+      const sy = Math.round(42 + Math.sin(a) * 10);
+      g.rect(sx - 1, sy - 1, 2, 2).fill({ color: 0x57606f });
+    }
 
-    g.rect(40, 10 + bob, 3, 11).fill({ color: 0xbdc3c7 });
+    // Tank
+    g.rect(36, 24 + bob, 36, 18).fill({ color: 0xbdc3c7 });
+    g.rect(40, 30 + bob, 28, 12).fill({ color: 0x2f3542 });
+    g.rect(38, 26 + bob, 10, 4).fill({ color: 0xffffff, alpha: 0.4 });
 
-    g.rect(6, 7 + bob, 12, 6).fill({ color: paint });
-    g.rect(8, 9 + bob, 6, 3).fill({ color: 0xfffffe });
-    g.rect(20, 4 + bob, 14, 8).fill({ color: paint });
-    g.rect(13, 9 + bob, 8, 4).fill({ color: 0x1e272e });
-    g.rect(34, 5 + bob, 12, 11).fill({ color: paint });
-    g.rect(44, 10 + bob, 4, 4).fill({ color: 0xfffffe });
+    // Front fender / headlight
+    g.rect(8, 36 + bob, 36, 6).fill({ color: 0xdcdde1 });
+    g.rect(4, 34 + bob, 12, 10).fill({ color: 0x2f3542 });
 
-    g.rect(40, 2 + bob, 8, 6).fill({ color: 0x0984e3, alpha: 0.8 });
-    g.rect(34, 4 + bob, 4, 2).fill({ color: 0x2d3436 });
+    g.rect(80, 20 + bob, 6, 22).fill({ color: 0xbdc3c7 });
 
-    g.rect(17, 1 + bob, 11, 9).fill({ color: suit });
-    g.rect(28, 3 + bob, 8, 4).fill({ color: suit });
-    g.rect(18, 8 + bob, 6, 6).fill({ color: suit });
-    g.rect(22, 11 + bob, 4, 4).fill({ color: 0x0f0e17 });
+    // Exhaust can, heat-tinted tip
+    g.rect(78, 44 + bob, 14, 6).fill({ color: 0x7f8c8d });
+    g.rect(90, 45 + bob, 6, 4).fill({ color: 0xff7043, alpha: 0.6 });
+    g.rect(94, 46 + bob, 3, 2).fill({ color: 0xffd54f, alpha: 0.5 });
 
-    g.rect(24, -5 + bob, 9, 8).fill({ color: helmet });
-    g.rect(28, -3 + bob, 5, 4).fill({ color: 0x0f0e17 });
+    // Lower fairing (paint) + vents
+    g.rect(12, 14 + bob, 24, 12).fill({ color: paint });
+    g.rect(16, 18 + bob, 12, 6).fill({ color: 0xfffffe });
+    g.rect(14, 22 + bob, 6, 2).fill({ color: 0x1e272e, alpha: 0.6 });
+    g.rect(22, 22 + bob, 6, 2).fill({ color: 0x1e272e, alpha: 0.6 });
+
+    // Seat + tail fairing + tail light
+    g.rect(40, 8 + bob, 28, 16).fill({ color: paint });
+    g.rect(26, 18 + bob, 16, 8).fill({ color: 0x1e272e });
+    g.rect(68, 10 + bob, 24, 22).fill({ color: paint });
+    g.rect(88, 20 + bob, 8, 8).fill({ color: 0xfffffe });
+
+    // Windscreen + frame
+    g.rect(80, 4 + bob, 16, 12).fill({ color: 0x0984e3, alpha: 0.8 });
+    g.rect(68, 8 + bob, 8, 4).fill({ color: 0x2d3436 });
+
+    // Mirror stalks
+    g.rect(66, 6 + bob, 2, 8).fill({ color: 0x2f3542 });
+    g.rect(60, 4 + bob, 8, 5).fill({ color: 0xdcdde1 });
+
+    // Rider torso, arm, knee
+    g.rect(34, 2 + bob, 22, 18).fill({ color: suit });
+    g.rect(56, 6 + bob, 16, 8).fill({ color: suit });
+    g.rect(36, 16 + bob, 12, 12).fill({ color: suit });
+    g.rect(44, 22 + bob, 8, 8).fill({ color: 0x0f0e17 });
+    g.rect(60, 18 + bob, 10, 6).fill({ color: suit });
+    g.rect(30, 28 + bob, 8, 10).fill({ color: suit, alpha: 0.9 });
+
+    // Helmet + visor highlight
+    g.rect(48, -10 + bob, 18, 16).fill({ color: helmet });
+    g.rect(56, -6 + bob, 10, 8).fill({ color: 0x0f0e17 });
+    g.rect(58, -5 + bob, 4, 2).fill({ color: 0xffffff, alpha: 0.5 });
   }
 
   private renderBike(c: BikeCustomization): void {
     this.graphics.clear();
 
-    const bob = Math.cos(this.time * 10) * 1.2;
+    const bob = Math.cos(this.time * 10) * 1.4;
+
+    // Ground shadow / turntable platform
+    this.graphics.ellipse(ART_CENTER_X, 58, 46, 6).fill({ color: 0x000000, alpha: 0.35 });
 
     if (this.auraPulse > 0) {
-      this.graphics.circle(28, 14, 34).fill({ color: 0x55efc4, alpha: this.auraPulse * 0.35 });
+      this.graphics.circle(ART_CENTER_X, ART_CENTER_Y, 68).fill({ color: 0x55efc4, alpha: this.auraPulse * 0.35 });
     }
 
     const ledColor = hexToInt(c.underglowLed || '#00f0ff');
     const pulse = 0.6 + Math.sin(this.time * 6) * 0.35;
-    this.graphics.rect(4, 26, 44, 3).fill({ color: ledColor, alpha: pulse });
+    this.graphics.rect(8, 52, 88, 6).fill({ color: ledColor, alpha: pulse });
 
     this.renderPixelSuperbikeSide(this.graphics, c, bob, this.time);
 
@@ -146,7 +206,8 @@ export class BikeShowcase extends Container {
     }
 
     for (const ft of this.floatingTexts) {
-      PixelFont.drawText(this.graphics, ft.text, ft.x - ft.text.length * 2, ft.y, ft.color, 1, ft.life / ft.maxLife);
+      const w = PixelFont.measure(ft.text);
+      PixelFont.drawText(this.graphics, ft.text, ft.x - w / 2, ft.y, ft.color, 1, ft.life / ft.maxLife);
     }
   }
 }
@@ -162,7 +223,9 @@ export class GarageScreen {
 
   private showcases: BikeShowcase[] = [];
   private ticker: Ticker;
-  public startButtonBounds = { x: 130, y: 242, w: 220, h: 22 };
+  /** Recomputed every `render()` call (below) — the click handler always tests against the
+   * bounds that were actually drawn, never a stale literal (see the fixed bug this replaced). */
+  public startButtonBounds = { x: 0, y: 0, w: 0, h: 0 };
   private audio: AudioService | null = null;
 
   public setAudioService(audio: AudioService): void {
@@ -178,7 +241,7 @@ export class GarageScreen {
     this.container.on('pointerdown', (evt) => {
       const pos = evt.getLocalPosition(this.container);
       const b = this.startButtonBounds;
-      if (pos.y >= 235 || (pos.x >= b.x && pos.x <= b.x + b.w && pos.y >= b.y && pos.y <= b.y + b.h)) {
+      if (pos.x >= b.x && pos.x <= b.x + b.w && pos.y >= b.y && pos.y <= b.y + b.h) {
         this.forceStartAll();
       }
     });
@@ -270,8 +333,25 @@ export class GarageScreen {
     return true;
   }
 
-  private getTokenString(level: number): string {
-    return '[' + '#'.repeat(level) + '-'.repeat(3 - level) + ']';
+  /** Graphical 3-segment upgrade-level bar — replaces the old `[##-]` text token string so a
+   * level reads at a glance instead of requiring the player to parse ASCII brackets. */
+  private drawTokenBar(g: Graphics, x: number, y: number, level: number, max: number, w: number, h: number, color: number): void {
+    const segW = (w - (max - 1) * 2) / max;
+    for (let i = 0; i < max; i++) {
+      const sx = x + i * (segW + 2);
+      const filled = i < level;
+      g.rect(sx, y, segW, h).fill({ color: filled ? color : 0x353b48 });
+      g.rect(sx, y, segW, h).stroke({ width: 1, color: 0x0f0e17, alpha: 0.6 });
+      if (filled) g.rect(sx + 1, y + 1, segW - 2, 1).fill({ color: 0xffffff, alpha: 0.35 });
+    }
+  }
+
+  private drawSlider(g: Graphics, x: number, y: number, w: number, h: number, frac: number, color: number): void {
+    g.rect(x, y + h / 2 - 1, w, 2).fill({ color: 0x353b48 });
+    const knobX = x + w * Math.max(0, Math.min(1, frac));
+    g.rect(x, y + h / 2 - 1, Math.max(1, knobX - x), 2).fill({ color, alpha: 0.7 });
+    g.rect(knobX - 3, y, 6, h).fill({ color });
+    g.rect(knobX - 3, y, 6, h).stroke({ width: 1, color: 0x0f0e17, alpha: 0.6 });
   }
 
   public render(bikes: BikePhysics[], viewW: number, viewH: number): void {
@@ -279,89 +359,134 @@ export class GarageScreen {
     this.graphics.clear();
 
     this.graphics.rect(0, 0, viewW, viewH).fill({ color: 0x0f0e17 });
-    this.graphics.rect(0, 0, viewW, 16).fill({ color: 0xff0055 });
-    this.graphics.rect(0, 16, viewW, 2).fill({ color: 0x00f0ff });
+    this.graphics.rect(0, 0, viewW, 32).fill({ color: 0xff0055 });
+    this.graphics.rect(0, 32, viewW, 4).fill({ color: 0x00f0ff });
 
-    PixelFont.drawText(this.graphics, 'TURBO TUNING WORKSHOP', viewW / 2 - 80, 4, 0xfffffe, 1);
+    const title = 'TURBO TUNING WORKSHOP';
+    PixelFont.drawTextLarge(this.graphics, title, Math.round(viewW / 2 - PixelFont.measureLarge(title, 2) / 2), 9, 0xfffffe, 2);
 
     const count = bikes.length;
-    const cardW = Math.floor((viewW - 16) / count) - 6;
-    const cardH = viewH - 56;
+    const gutter = 16;
+    const cardW = Math.floor((viewW - gutter * (count + 1)) / count);
+    const cy = 44;
+    const cardH = 424;
 
     bikes.forEach((bike, idx) => {
-      const cx = 8 + idx * (cardW + 6);
-      const cy = 22;
+      const cx = gutter + idx * (cardW + gutter);
 
       const hexColor = hexToInt(bike.playerColor) || 0xff0055;
       const isReady = this.playerReady[idx];
 
+      // --- Card chrome ---
       this.graphics.rect(cx, cy, cardW, cardH).fill({ color: 0x1a1a24 });
       const borderCol = isReady ? 0x55efc4 : hexColor;
-      this.graphics.rect(cx, cy, cardW, 2).fill({ color: borderCol });
-      this.graphics.rect(cx, cy, 2, cardH).fill({ color: borderCol });
-      this.graphics.rect(cx + cardW - 2, cy, 2, cardH).fill({ color: borderCol });
-      this.graphics.rect(cx, cy + cardH - 2, cardW, 2).fill({ color: borderCol });
+      this.graphics.rect(cx, cy, cardW, 3).fill({ color: borderCol });
+      this.graphics.rect(cx, cy, 3, cardH).fill({ color: borderCol });
+      this.graphics.rect(cx + cardW - 3, cy, 3, cardH).fill({ color: borderCol });
+      this.graphics.rect(cx, cy + cardH - 3, cardW, 3).fill({ color: borderCol });
+      this.graphics.rect(cx + 1, cy + 1, cardW - 2, cardH - 2).stroke({ width: 1, color: 0x000000, alpha: 0.4 });
 
-      PixelFont.drawText(this.graphics, `P${bike.id}`, cx + 4, cy + 4, hexColor, 1);
+      // --- Header strip: P#, token pip count, READY badge ---
+      PixelFont.drawTextLarge(this.graphics, `P${bike.id}`, cx + 8, cy + 6, hexColor, 2);
 
       const tokensUsed = this.getTotalTokens(bike.customization);
       const tokenColor = tokensUsed === 10 ? 0xff4757 : 0xf4d160;
-      PixelFont.drawText(this.graphics, `TOKENS:${tokensUsed}/10`, cx + 28, cy + 4, tokenColor, 1);
+      const tokenLabel = `TOKENS ${tokensUsed}/10`;
+      PixelFont.drawText(this.graphics, tokenLabel, cx + 8 + PixelFont.measureLarge(`P${bike.id}`, 2) + 12, cy + 9, tokenColor, 2);
 
       if (isReady) {
-        PixelFont.drawText(this.graphics, 'READY!', cx + cardW - 36, cy + 4, 0x55efc4, 1);
+        const t = 'READY!';
+        PixelFont.drawText(this.graphics, t, cx + cardW - 8 - PixelFont.measure(t, 2), cy + 9, 0x55efc4, 2);
+      }
+
+      // --- Showcase bay: a framed panel for the bike art ---
+      const bayY = cy + 26;
+      const bayH = 140;
+      this.graphics.rect(cx + 4, bayY, cardW - 8, bayH).fill({ color: 0x0a0a12 });
+      this.graphics.rect(cx + 4, bayY, cardW - 8, bayH).stroke({ width: 1, color: 0x2a2a38 });
+      // Faint grid backdrop
+      for (let gx = cx + 4; gx < cx + cardW - 4; gx += 20) {
+        this.graphics.rect(gx, bayY, 1, bayH).fill({ color: 0xffffff, alpha: 0.03 });
       }
 
       const sc = this.showcases[idx];
-      sc.x = cx + cardW / 2 - 28;
-      sc.y = cy + 18;
-      sc.scale.set(1.2);
+      sc.x = cx + cardW / 2 - ART_CENTER_X;
+      sc.y = bayY + bayH / 2 - ART_CENTER_Y - 8;
+      sc.scale.set(1);
       sc.update(delta, bike.customization);
 
-      const sel = this.selectedRow[idx];
-      const rows = [
-        `PAINT: ${bike.customization.primaryPaint}`,
-        `ENGINE: ${this.getTokenString(bike.customization.engineLevel)}`,
-        `ECU: ${this.getTokenString(bike.customization.ecuLevel)}`,
-        `SUSP: ${this.getTokenString(bike.customization.suspensionLevel)}`,
-        `TYRES: ${this.getTokenString(bike.customization.tyresLevel)}`,
-        `BRAKES: ${this.getTokenString(bike.customization.brakesLevel)}`,
-        `GEARS: ${Math.round(bike.tuning.gearRatios * 100)}%`,
-        `STIFF: ${Math.round(bike.tuning.suspensionStiffness * 100)}%`,
-      ];
+      // --- Stat radar ---
+      const radarCenterY = bayY + bayH + 6 + 44;
+      this.renderStatRadar(cx + cardW / 2, radarCenterY, 44, bike.stats, hexColor);
 
-      rows.forEach((rText, rIdx) => {
-        const ry = cy + 62 + rIdx * 9;
+      // --- Tuning rows ---
+      const sel = this.selectedRow[idx];
+      const rowLabels = ['PAINT', 'ENGINE', 'ECU', 'SUSP', 'TYRES', 'BRAKES', 'GEARS', 'STIFF'];
+      const rowsTop = radarCenterY + 44 + 16 + 8;
+      const rowH = 18;
+      const barW = Math.min(160, cardW - 96);
+      const barX = cx + cardW - 8 - barW;
+
+      rowLabels.forEach((label, rIdx) => {
+        const ry = rowsTop + rIdx * rowH;
         const isSelected = sel === rIdx && !isReady;
 
         if (isSelected) {
-          this.graphics.rect(cx + 2, ry - 1, cardW - 4, 8).fill({ color: hexColor, alpha: 0.3 });
-          PixelFont.drawText(this.graphics, '>', cx + 4, ry, 0xf4d160, 1);
+          this.graphics.rect(cx + 4, ry - 2, cardW - 8, rowH - 2).fill({ color: hexColor, alpha: 0.25 });
+          this.graphics.rect(cx + 4, ry - 2, 3, rowH - 2).fill({ color: 0xf4d160 });
         }
-        PixelFont.drawText(this.graphics, rText, cx + 12, ry, isSelected ? 0xfffffe : 0x74b9ff, 1);
-      });
+        const labelColor = isSelected ? 0xfffffe : 0x74b9ff;
+        PixelFont.drawText(this.graphics, label, cx + 12, ry, labelColor, 2);
 
-      this.renderStatRadar(cx + cardW / 2, cy + 172, 20, bike.stats, hexColor);
+        if (rIdx === 0) {
+          // PAINT — palette swatches, active one ringed
+          const activeIdx = this.colorIdx[idx];
+          const swW = 14;
+          this.colorPalette.forEach((hex, pIdx) => {
+            const sx = barX + pIdx * (swW + 4);
+            const col = hexToInt(hex);
+            this.graphics.rect(sx, ry, swW, swW).fill({ color: col });
+            if (pIdx === activeIdx) {
+              this.graphics.rect(sx - 2, ry - 2, swW + 4, swW + 4).stroke({ width: 2, color: 0xfffffe });
+            }
+          });
+        } else if (rIdx >= 1 && rIdx <= 5) {
+          const parts = ['engineLevel', 'ecuLevel', 'suspensionLevel', 'tyresLevel', 'brakesLevel'] as const;
+          const level = bike.customization[parts[rIdx - 1]];
+          this.drawTokenBar(this.graphics, barX, ry, level, 3, barW, 14, hexColor);
+        } else if (rIdx === 6) {
+          this.drawSlider(this.graphics, barX, ry, barW, 14, bike.tuning.gearRatios, hexColor);
+        } else if (rIdx === 7) {
+          this.drawSlider(this.graphics, barX, ry, barW, 14, bike.tuning.suspensionStiffness, hexColor);
+        }
+      });
     });
 
     for (let i = count; i < 4; i++) {
       this.showcases[i].visible = false;
     }
 
-    const btnX = viewW / 2 - 110;
-    const btnY = viewH - 28;
-    const btnW = 220;
-    const btnH = 22;
-    this.startButtonBounds = { x: btnX, y: btnY - 14, w: btnW, h: btnH + 14 };
+    const btnW = 320;
+    const btnH = 36;
+    const btnX = viewW / 2 - btnW / 2;
+    const btnY = viewH - 56;
+    this.startButtonBounds = { x: btnX, y: btnY - 8, w: btnW, h: btnH + 12 };
 
     const pulseGlow = 0.85 + Math.sin(this.ticker.lastTime * 0.01) * 0.15;
+    this.graphics.rect(btnX - 3, btnY - 3, btnW + 6, btnH + 6).fill({ color: 0x55efc4, alpha: pulseGlow * 0.5 });
     this.graphics.rect(btnX, btnY, btnW, btnH).fill({ color: 0x55efc4, alpha: pulseGlow });
-    this.graphics.rect(btnX + 2, btnY + 2, btnW - 4, btnH - 4).fill({ color: 0x0f0e17 });
-    PixelFont.drawText(this.graphics, 'START RACE', btnX + 36, btnY + 7, 0x55efc4, 1);
+    this.graphics.rect(btnX + 3, btnY + 3, btnW - 6, btnH - 6).fill({ color: 0x0f0e17 });
+    // Corner notches
+    [[btnX, btnY], [btnX + btnW - 6, btnY], [btnX, btnY + btnH - 6], [btnX + btnW - 6, btnY + btnH - 6]].forEach(([nx, ny]) => {
+      this.graphics.rect(nx, ny, 6, 6).fill({ color: 0x55efc4 });
+    });
+
+    const btnLabel = 'START RACE';
+    PixelFont.drawTextLarge(this.graphics, btnLabel, Math.round(viewW / 2 - PixelFont.measureLarge(btnLabel, 2) / 2), btnY + 10, 0x55efc4, 2);
 
     // Controls legend
-    const legendY = viewH - 12;
-    PixelFont.drawText(this.graphics, 'A/D NAV  W SELECT  S READY', viewW / 2 - 80, legendY, 0x74b9ff, 1);
+    const legend = 'A/D NAV   W SELECT   S READY';
+    PixelFont.drawText(this.graphics, legend, Math.round(viewW / 2 - PixelFont.measure(legend, 2) / 2), viewH - 16, 0x74b9ff, 2);
   }
 
   private renderStatRadar(centerX: number, centerY: number, radius: number, stats: BikeStats, color: number): void {
@@ -374,11 +499,21 @@ export class GarageScreen {
       -Math.PI / 2 + (Math.PI * 8) / 5,
     ];
 
-    const bgPoints: number[] = [];
-    angles.forEach((ang) => {
-      bgPoints.push(centerX + Math.cos(ang) * radius, centerY + Math.sin(ang) * radius);
+    // Concentric guide rings at 50% / 100%
+    [0.5, 1.0].forEach((f) => {
+      const ringPts: number[] = [];
+      angles.forEach((ang) => {
+        ringPts.push(centerX + Math.cos(ang) * radius * f, centerY + Math.sin(ang) * radius * f);
+      });
+      this.graphics.poly(ringPts).stroke({ color: 0x353b48, width: 1, alpha: f === 1 ? 0.8 : 0.4 });
     });
-    this.graphics.poly(bgPoints).stroke({ color: 0x353b48, width: 1 });
+
+    // Axis spokes
+    angles.forEach((ang) => {
+      this.graphics.moveTo(centerX, centerY)
+        .lineTo(centerX + Math.cos(ang) * radius, centerY + Math.sin(ang) * radius)
+        .stroke({ color: 0x353b48, width: 1, alpha: 0.4 });
+    });
 
     const statVals = [
       Math.min(1.0, stats.topSpeed / 250),
@@ -394,14 +529,14 @@ export class GarageScreen {
       radarPoints.push(centerX + Math.cos(ang) * r, centerY + Math.sin(ang) * r);
     });
 
-    this.graphics.poly(radarPoints).fill({ color, alpha: 0.45 }).stroke({ color, width: 1.5 });
+    this.graphics.poly(radarPoints).fill({ color, alpha: 0.45 }).stroke({ color, width: 2 });
 
-    // Stat labels
+    // Stat labels + numeric readout
     angles.forEach((ang, idx) => {
-      const lx = centerX + Math.cos(ang) * (radius + 8);
-      const ly = centerY + Math.sin(ang) * (radius + 6);
-      const lw = labels[idx].length * 4;
-      PixelFont.drawText(this.graphics, labels[idx], Math.round(lx) - lw / 2, Math.round(ly) - 3, 0x74b9ff, 1);
+      const lx = centerX + Math.cos(ang) * (radius + 16);
+      const ly = centerY + Math.sin(ang) * (radius + 12);
+      const lw = PixelFont.measure(labels[idx], 1.5);
+      PixelFont.drawText(this.graphics, labels[idx], Math.round(lx - lw / 2), Math.round(ly - 4), 0x74b9ff, 1.5);
     });
   }
 
