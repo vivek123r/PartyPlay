@@ -67,6 +67,11 @@ export class GameRunner {
       const app = new Application();
       await app.init({
         canvas,
+        // Do not let Pixi probe WebGPU first. On some deployed browsers the
+        // WebGPU adapter probe can remain pending, leaving the game canvas
+        // mounted but permanently blank. PartyPlay only needs the mature
+        // WebGL renderer and this keeps startup deterministic on Pages.
+        preference: 'webgl',
         width: PixiRendererContext.VIRTUAL_WIDTH,
         height: PixiRendererContext.VIRTUAL_HEIGHT,
         resolution: 1,
