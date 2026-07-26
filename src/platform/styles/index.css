@@ -286,6 +286,7 @@ button {
   height: fit-content;
   flex-direction: column;
   justify-content: space-between;
+  overflow: hidden;
   padding: clamp(13px, 1.4vw, 18px);
   box-shadow: 0 6px 0 rgba(0, 0, 0, .5);
 }
@@ -377,6 +378,7 @@ button {
   gap: 10px 16px;
   justify-content: space-between;
   padding-top: 12px;
+  padding-bottom: 6px;
   border-top: 2px dashed var(--pixel-muted);
 }
 
