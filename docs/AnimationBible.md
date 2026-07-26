@@ -1,4 +1,4 @@
-# PartyPlay Animation Bible
+# PartyPlay Animation  Bible
 
 All animations in PartyPlay must feel crisp, punchy, and authentically retro. Smooth subpixel interpolation or bezier curve easing is strictly forbidden.
 
