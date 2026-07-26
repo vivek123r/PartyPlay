@@ -266,7 +266,7 @@ button {
 
 .game-library__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
   min-height: 0;
   flex: 1 1 auto;
   gap: clamp(16px, 2vw, 32px);
@@ -283,10 +283,16 @@ button {
   display: flex;
   min-width: 0;
   min-height: clamp(260px, 34vh, 330px);
+  height: fit-content;
   flex-direction: column;
   justify-content: space-between;
   padding: clamp(13px, 1.4vw, 18px);
   box-shadow: 0 6px 0 rgba(0, 0, 0, .5);
+}
+
+.game-library__card > div:first-child,
+.game-library__footer {
+  flex-shrink: 0;
 }
 
 .game-library__card-header,
