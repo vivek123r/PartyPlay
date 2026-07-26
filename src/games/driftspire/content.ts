@@ -189,14 +189,14 @@ export const AMBITIONS: AmbitionDefinition[] = [
 export const ORDINANCES: OrdinanceDefinition[] = [
   { id: 'craft-grant', title: 'MAKERS GRANT', description: 'Craft ventures cost one less Coin.', effect: 'craftGrant' },
   { id: 'arts-grant', title: 'LANTERN FUND', description: 'Arts ventures cost one less Coin.', effect: 'artsGrant' },
-  { id: 'tailwind', title: 'PUBLIC TAILWINDS', description: 'Every Route card gains one step.', effect: 'tailwind' },
+  { id: 'tailwind', title: 'PUBLIC TAILWINDS', description: 'Every dice roll gains one movement step.', effect: 'tailwind' },
   { id: 'open-archives', title: 'OPEN ARCHIVES', description: 'Commissions pay one extra Coin.', effect: 'openArchives' },
   { id: 'civic-dividend', title: 'CIVIC DIVIDEND', description: 'Civic ventures pay one extra Coin.', effect: 'civicDividend' },
   { id: 'nature-dividend', title: 'GREEN DIVIDEND', description: 'Nature ventures pay one extra Coin.', effect: 'natureDividend' },
   { id: 'pact-festival', title: 'OPEN TABLES', description: 'Accepted Pacts grant both guilds Favor.', effect: 'pactFestival' },
   { id: 'market-holiday', title: 'MARKET HOLIDAY', description: 'Gathering grants one extra Coin.', effect: 'marketHoliday' },
   { id: 'shared-stages', title: 'SHARED STAGES', description: 'Venture upgrades pay one extra Coin.', effect: 'sharedStages' },
-  { id: 'bright-routes', title: 'BRIGHT ROUTES', description: 'Route cards gain one step.', effect: 'brightRoutes' },
+  { id: 'bright-routes', title: 'BRIGHT ROUTES', description: 'Every dice roll gains one movement step.', effect: 'brightRoutes' },
   { id: 'favor-fair', title: 'FAVOR FAIR', description: 'Every guild gains one Favor now.', effect: 'favorFair' },
   { id: 'grand-commissions', title: 'GRAND COMMISSIONS', description: 'Completed Commissions pay one extra Coin.', effect: 'grandCommissions' },
 ];

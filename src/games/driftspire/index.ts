@@ -396,9 +396,8 @@ export default class DriftspireGame implements GameModule {
     if (!this.rules) return;
     const definition = showcaseById(this.rules.state.currentShowcaseId);
     this.showcaseElapsed += dt;
-    const animationSpeed = Math.max(0.75, Math.min(1.5, Number(this.ctx.modifiers.animationSpeed ?? 1)));
     this.showcaseMarker =
-      (Math.sin(this.showcaseElapsed * definition.speed * animationSpeed * Math.PI) + 1) / 2;
+      (Math.sin(this.showcaseElapsed * definition.speed * this.animationSpeed * Math.PI) + 1) / 2;
     for (const player of this.rules.state.players) {
       const input = this.ctx.input.getPlayer(player.id);
       if (
@@ -632,65 +631,70 @@ export default class DriftspireGame implements GameModule {
 
   private drawBoard(): void {
     if (!this.rules) return;
-    const centerX = 238;
-    const centerY = 134;
-    const radiusX = 93;
-    const radiusY = 75;
-    const positions: Record<string, { x: number; y: number }> = {};
-    this.rules.state.districtOrder.forEach((id, index) => {
-      const angle = -Math.PI / 2 + (index / this.rules!.state.districtOrder.length) * Math.PI * 2;
-      positions[id] = {
-        x: centerX + Math.cos(angle) * radiusX,
-        y: centerY + Math.sin(angle) * radiusY,
-      };
-    });
+    const positions = this.boardTilePositions();
     const connections = new Graphics();
-    this.rules.state.districtOrder.forEach((id, index) => {
-      const nextId = this.rules!.state.districtOrder[(index + 1) % this.rules!.state.districtOrder.length];
+    positions.forEach((position, index) => {
+      const next = positions[(index + 1) % positions.length];
       connections
-        .moveTo(positions[id].x, positions[id].y)
-        .lineTo(positions[nextId].x, positions[nextId].y);
+        .moveTo(position.x, position.y)
+        .lineTo(next.x, next.y);
     });
-    connections.stroke({ color: 0x365477, width: 3 });
-    connections.circle(centerX, centerY, 27).fill({ color: 0x182b4c }).stroke({ color: GOLD, width: 2 });
+    connections.stroke({ color: 0x486b94, width: 4 });
+    connections
+      .roundRect(160, 85, 152, 101, 12)
+      .fill({ color: 0x111f3c, alpha: 0.92 })
+      .stroke({ color: GOLD, width: 2 })
+      .ellipse(236, 118, 52, 23)
+      .fill({ color: 0x263e68 })
+      .poly([236, 84, 258, 121, 214, 121])
+      .fill({ color: 0xffd166, alpha: 0.75 });
     this.root.addChild(connections);
-    this.label('GRAND', centerX, centerY - 8, 7, GOLD, 0.5);
-    this.label('SPIRE', centerX, centerY + 2, 8, INK, 0.5);
+    this.label('THE FLOATING CITY', 236, 133, 10, GOLD, 0.5);
+    this.label('ROLL • TRAVEL • BUILD • BARGAIN', 236, 150, 6, MUTED, 0.5);
+    this.label(`NEXT: ${this.rules.state.nextSpotlight.join(' + ').toUpperCase()}`, 236, 167, 6, CYAN, 0.5);
 
-    this.rules.state.districtOrder.forEach((id) => {
-      const district = this.rules!.state.districts[id];
-      const definition = districtById(id);
-      const position = positions[id];
+    this.rules.state.boardTiles.forEach((tile, index) => {
+      const district = this.rules!.state.districts[tile.districtId];
+      const definition = districtById(tile.districtId);
+      const position = positions[index];
+      const activeHere =
+        this.rules!.activePlayer.positionTileIndex === index &&
+        (this.rules!.state.phase === 'roll' ||
+          this.rules!.state.phase === 'moving' ||
+          this.rules!.state.phase === 'tileAction');
       const node = new Graphics();
       node
-        .roundRect(position.x - 28, position.y - 18, 56, 36, 5)
-        .fill({ color: definition.color, alpha: 0.82 })
-        .stroke({ color: district.venture.branch ? GOLD : 0x9ab2d0, width: district.venture.branch ? 2 : 1 });
+        .roundRect(position.x - 15, position.y - 12, 30, 24, 3)
+        .fill({ color: tile.kind === 'start' ? 0x5d4779 : definition.color, alpha: 0.92 })
+        .stroke({ color: activeHere ? GOLD : 0x9ab2d0, width: activeHere ? 2 : 1 });
       this.root.addChild(node);
-      this.label(definition.shortName, position.x, position.y - 13, 7, INK, 0.5);
-      this.label(district.venture.branch?.toUpperCase() ?? 'OPEN', position.x, position.y - 3, 6, district.venture.branch ? GOLD : MUTED, 0.5);
-      const contributions = Object.entries(district.venture.contributions).filter(([, count]) => count > 0);
-      contributions.forEach(([playerId, count], contributionIndex) => {
-        const owner = this.rules!.player(Number(playerId));
-        this.label(
-          `${'●'.repeat(count)}`,
-          position.x - 18 + contributionIndex * 13,
-          position.y + 7,
-          7,
-          parseColor(owner.color),
-        );
-      });
-      const occupants = this.rules!.state.players.filter((player) => player.positionDistrictId === id);
+      this.label(String(index), position.x - 12, position.y - 10, 4, 0xc8d8eb);
+      this.label(this.tileTitle(tile.kind, district.venture.branch), position.x, position.y - 4, 5, INK, 0.5);
+      this.label(definition.shortName.slice(0, 5), position.x, position.y + 4, 4, tile.kind === 'start' ? GOLD : 0xd6e6f5, 0.5);
+      if (tile.kind === 'venture') {
+        const crestCount = Object.values(district.venture.contributions).reduce((sum, count) => sum + count, 0);
+        this.label(`${'◆'.repeat(Math.min(5, crestCount))}`, position.x, position.y + 8, 4, GOLD, 0.5);
+      }
+      const occupants = this.rules!.state.players.filter((player) => player.positionTileIndex === index);
       occupants.forEach((player, occupantIndex) => {
         const token = new Graphics();
         token
-          .circle(position.x - 15 + occupantIndex * 10, position.y + 22, 5)
+          .circle(position.x - 9 + occupantIndex * 6, position.y + 14, 4)
           .fill({ color: parseColor(player.color) })
           .stroke({ color: INK, width: 1 });
         this.root.addChild(token);
-        this.label(String(player.id), position.x - 15 + occupantIndex * 10, position.y + 18.5, 5, BG, 0.5);
+        this.label(String(player.id), position.x - 9 + occupantIndex * 6, position.y + 11.5, 4, BG, 0.5);
       });
     });
+  }
+
+  private boardTilePositions(): Array<{ x: number; y: number }> {
+    const positions: Array<{ x: number; y: number }> = [];
+    for (let column = 0; column < 8; column++) positions.push({ x: 124 + column * 32, y: 47 });
+    for (let row = 1; row < 7; row++) positions.push({ x: 348, y: 47 + row * 30 });
+    for (let column = 6; column >= 0; column--) positions.push({ x: 124 + column * 32, y: 227 });
+    for (let row = 5; row >= 2; row--) positions.push({ x: 124, y: 47 + row * 30 });
+    return positions;
   }
 
   private drawCommandPanel(): void {
@@ -942,6 +946,29 @@ export default class DriftspireGame implements GameModule {
     this.root.addChild(panel);
   }
 
+  private drawDie(x: number, y: number, size: number, value: number): void {
+    const die = new Graphics();
+    die
+      .roundRect(x, y, size, size, 7)
+      .fill({ color: 0xf7f1dd })
+      .stroke({ color: GOLD, width: 3 });
+    const low = size * 0.25;
+    const mid = size * 0.5;
+    const high = size * 0.75;
+    const patterns: Record<number, Array<[number, number]>> = {
+      1: [[mid, mid]],
+      2: [[low, low], [high, high]],
+      3: [[low, low], [mid, mid], [high, high]],
+      4: [[low, low], [high, low], [low, high], [high, high]],
+      5: [[low, low], [high, low], [mid, mid], [low, high], [high, high]],
+      6: [[low, low], [high, low], [low, mid], [high, mid], [low, high], [high, high]],
+    };
+    (patterns[Math.max(1, Math.min(6, value))] ?? patterns[1]).forEach(([pipX, pipY]) => {
+      die.circle(x + pipX, y + pipY, 4).fill({ color: 0x18213a });
+    });
+    this.root.addChild(die);
+  }
+
   private label(
     value: string,
     x: number,
@@ -985,8 +1012,21 @@ export default class DriftspireGame implements GameModule {
     return 'COMMISSION ALLIANCE';
   }
 
+  private tileTitle(kind: DriftspireMatchState['boardTiles'][number]['kind'], branch: string | null): string {
+    if (kind === 'start') return '★ START';
+    if (kind === 'venture') return branch ? branch.slice(0, 6).toUpperCase() : 'BUILD';
+    if (kind === 'commission') return 'JOB';
+    if (kind === 'landmark') return 'LAND';
+    if (kind === 'coin') return '+2 COIN';
+    return '+1 FAVOR';
+  }
+
   private get turnTimerSeconds(): number {
     const configured = Number(this.ctx.modifiers.turnTimerSeconds ?? 35);
     return Math.max(20, Math.min(90, configured));
+  }
+
+  private get animationSpeed(): number {
+    return Math.max(0.75, Math.min(1.5, Number(this.ctx.modifiers.animationSpeed ?? 1)));
   }
 }

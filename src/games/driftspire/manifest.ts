@@ -4,7 +4,7 @@ const manifest: GameManifest = {
   id: 'driftspire',
   title: 'DRIFTSPIRE',
   description:
-    'Guide a colorful guild through a floating city of shifting districts, shared ventures, clever routes, friendly pacts, and festival showdowns.',
+    'Roll the dice and travel tile by tile through a floating city of shifting districts, shared ventures, friendly pacts, and festival showdowns.',
   version: '1.0.0',
   author: 'PartyPlay Studio',
   category: 'Strategy',

@@ -285,19 +285,20 @@ export class DriftspireRules {
       this.state.diceDeck = createDiceDeck(this.state.seed ^ (this.state.round * 65537));
       this.state.diceCursor = 0;
     }
-    let value = this.state.diceDeck[this.state.diceCursor++];
+    const rolled = this.state.diceDeck[this.state.diceCursor++];
+    let bonus = 0;
     if (player.guildId === 'windrunners' && !player.guildPowerActUsed) {
-      value++;
+      bonus++;
       player.guildPowerActUsed = true;
     }
-    value += player.nextRollBonus + this.state.actRules.routeBonus;
+    bonus += player.nextRollBonus + this.state.actRules.routeBonus;
     player.nextRollBonus = 0;
-    value = Math.max(1, Math.min(8, value));
-    this.state.lastDiceRoll = value;
-    this.state.movementRemaining = value;
+    const movement = Math.max(1, Math.min(8, rolled + bonus));
+    this.state.lastDiceRoll = rolled;
+    this.state.movementRemaining = movement;
     this.state.phase = 'moving';
-    pushLog(this.state, `${player.name} rolls ${value}!`);
-    return value;
+    pushLog(this.state, `${player.name} rolls ${rolled}${bonus > 0 ? ` + ${bonus} bonus` : ''}!`);
+    return rolled;
   }
 
   public advanceMovementStep(): void {
@@ -910,6 +911,8 @@ export const isValidDriftspireState = (value: unknown): value is DriftspireMatch
     candidate.players.length >= 2 &&
     candidate.players.length <= 4 &&
     Array.isArray(candidate.districtOrder) &&
+    Array.isArray(candidate.boardTiles) &&
+    candidate.boardTiles.length === 25 &&
     typeof candidate.seed === 'number'
   );
 };

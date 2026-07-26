@@ -18,8 +18,9 @@ const createRules = (count = 4, seed = 12345): DriftspireRules =>
 
 const playGatherTurn = (rules: DriftspireRules): void => {
   const active = rules.activePlayer;
-  rules.move(active.id, 0, 1, 1);
-  rules.performAction(active.id, 'gather');
+  rules.rollDice(active.id);
+  while (rules.state.phase === 'moving') rules.advanceMovementStep();
+  if (rules.state.phase === 'tileAction') rules.performAction(active.id, 'gather');
 };
 
 describe('Driftspire deterministic rules', () => {
@@ -29,26 +30,46 @@ describe('Driftspire deterministic rules', () => {
     expect(first.state).toEqual(second.state);
   });
 
-  test('creates connected-sized boards and valid player resources', () => {
-    expect(createRules(2).state.districtOrder).toHaveLength(5);
+  test('creates a full 25-tile board and valid player resources', () => {
+    expect(createRules(2).state.districtOrder).toHaveLength(6);
     const fourPlayer = createRules(4);
     expect(fourPlayer.state.districtOrder).toHaveLength(6);
+    expect(fourPlayer.state.boardTiles).toHaveLength(25);
+    expect(fourPlayer.state.boardTiles[0].kind).toBe('start');
     expect(new Set(fourPlayer.state.districtOrder).size).toBe(6);
     fourPlayer.state.players.forEach((player) => {
       expect(player.coin).toBe(6);
       expect(player.favor).toBe(2);
-      expect(player.routeHand).toHaveLength(3);
+      expect(player.positionTileIndex).toBe(0);
       expect(player.crestsAvailable).toBe(7);
     });
   });
 
+  test('rolls a die and traverses the path one tile at a time', () => {
+    const rules = createRules(2, 42);
+    const active = rules.activePlayer;
+    const roll = rules.rollDice(active.id);
+    expect(roll).toBeGreaterThanOrEqual(1);
+    expect(roll).toBeLessThanOrEqual(6);
+    expect(rules.state.phase).toBe('moving');
+    const movement = rules.state.movementRemaining;
+    for (let step = 0; step < movement; step++) {
+      const before = active.positionTileIndex;
+      rules.advanceMovementStep();
+      expect(active.positionTileIndex).toBe((before + 1) % rules.state.boardTiles.length);
+    }
+    expect(rules.state.phase).not.toBe('moving');
+  });
+
   test('supports a friendly Joint Venture without rent or resource loss', () => {
     const rules = createRules(2);
-    const districtId = rules.state.districtOrder[0];
+    const ventureIndex = rules.state.boardTiles.findIndex((tile) => tile.kind === 'venture');
+    const districtId = rules.state.boardTiles[ventureIndex].districtId;
     rules.state.players.forEach((player) => {
       player.positionDistrictId = districtId;
+      player.positionTileIndex = ventureIndex;
     });
-    rules.state.phase = 'action';
+    rules.state.phase = 'tileAction';
 
     rules.proposePact(1, { type: 'jointVenture', partnerId: 2 });
     expect(rules.state.phase).toBe('pactResponse');
@@ -61,14 +82,14 @@ describe('Driftspire deterministic rules', () => {
     expect(rules.player(2).coin).toBe(5);
     expect(rules.player(1).stats.pacts).toBe(1);
     expect(rules.player(2).stats.pacts).toBe(1);
-    expect(rules.state.phase).toBe('action');
+    expect(rules.state.phase).toBe('tileAction');
   });
 
   test('resolves six rounds, three Councils, and three Showcases into standings', () => {
     const rules = createRules(4, 707);
     let safety = 0;
     while (rules.state.phase !== 'finished' && safety++ < 200) {
-      if (rules.state.phase === 'move') {
+      if (rules.state.phase === 'roll') {
         playGatherTurn(rules);
       } else if (rules.state.phase === 'council') {
         const voter = rules.currentCouncilVoter;
@@ -92,11 +113,14 @@ describe('Driftspire deterministic rules', () => {
     const rules = createRules(3, 8181);
     let safety = 0;
     while (rules.state.phase !== 'finished' && safety++ < 160) {
-      if (rules.state.phase === 'move') {
+      if (rules.state.phase === 'roll') {
         const active = rules.activePlayer;
-        rules.move(active.id, 0, active.id % 2 === 0 ? -1 : 1, 1);
-        const legal = rules.legalActions(active.id);
-        rules.performAction(active.id, legal.includes('fund') ? 'fund' : 'gather', 0);
+        rules.rollDice(active.id);
+        while (String(rules.state.phase) === 'moving') rules.advanceMovementStep();
+        if (String(rules.state.phase) === 'tileAction') {
+          const legal = rules.legalActions(active.id);
+          rules.performAction(active.id, legal.includes('fund') ? 'fund' : 'gather', 0);
+        }
       } else if (rules.state.phase === 'council') {
         const voter = rules.currentCouncilVoter;
         rules.castCouncilVote(voter.id, 0, 0);
@@ -122,4 +146,3 @@ describe('Driftspire deterministic rules', () => {
     expect(new DriftspireRules(state).state).toEqual(state);
   });
 });
-
