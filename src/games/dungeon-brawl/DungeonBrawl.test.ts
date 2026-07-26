@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { HERO_CONFIGS, ROOMS } from './config';
+import { BOSS_CONFIGS, HERO_CONFIGS, ROOMS } from './config';
 import { Hero } from './entities/Hero';
 import { Enemy } from './entities/Enemy';
+import { DungeonBoss } from './entities/DungeonBoss';
 import { TargetingSystem } from './systems/TargetingSystem';
 import manifest from './manifest';
 
@@ -38,6 +39,23 @@ describe('Dungeon Brawl combat foundations', () => {
     const names = Object.values(HERO_CONFIGS).map(config => config.specialSkillName);
     expect(new Set(names).size).toBe(4);
     expect(ROOMS.map(room => room.id)).toEqual(['chains', 'crypt', 'ember', 'court', 'throne']);
-    expect(manifest.estimatedRoundTime).toBe('5-7 min');
+    expect(ROOMS.map(room => room.miniBoss).filter(Boolean)).toEqual(['crypt_warden', 'ember_fiend', 'blood_champion', 'horned_king']);
+    expect(manifest.estimatedRoundTime).toBe('7-9 min');
+  });
+
+  it('telegraphs every boss attack before emitting damage events', () => {
+    const hero = new Hero(1, 'knight', 240, 160);
+    const boss = new DungeonBoss('blood_champion', 240, 80, 2, 1);
+    boss.attackCooldown = 0;
+    expect(boss.update(0.01, [hero])).toEqual([]);
+    expect(boss.state).toBe('telegraph-charge');
+    expect(boss.update(0.3, [hero])).toEqual([]);
+  });
+
+  it('scales boss health with party size and difficulty', () => {
+    const base = new DungeonBoss('crypt_warden', 240, 80, 2, 1);
+    const scaled = new DungeonBoss('crypt_warden', 240, 80, 4, 1.5);
+    expect(base.maxHp).toBe(BOSS_CONFIGS.crypt_warden.maxHp);
+    expect(scaled.maxHp).toBeGreaterThan(base.maxHp * 1.5);
   });
 });

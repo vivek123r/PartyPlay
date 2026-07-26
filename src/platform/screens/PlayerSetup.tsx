@@ -17,7 +17,9 @@ const DEFAULT_COLORS = ['#ff2e63', '#08d9d6', '#2af598', '#ffde7d'];
 
 const CONTROL_LABELS: Record<string, string> = {
   moveLeft: 'LEFT', moveRight: 'RIGHT', moveUp: 'UP', moveDown: 'DOWN',
-  jump: 'JUMP', action: 'ACTION', skill: 'SKILL', focus: 'FOCUS', info: 'INFO', pause: 'PAUSE',
+  jump: 'JUMP', action: 'ACTION', alternate: 'ALT', block: 'GUARD', skill: 'SKILL', spell: 'SPELL', roll: 'ROLL',
+  crouch: 'CROUCH', slide: 'SLIDE', flip: 'FLIP', showcase: 'SHOWCASE', damage: 'HIT TEST', reset: 'RESET', selectKnight: 'OPEN KNIGHT',
+  focus: 'FOCUS', info: 'INFO', pause: 'PAUSE',
 };
 
 const formatKey = (key: string) => key
@@ -66,6 +68,7 @@ const GAME_SETTINGS: Record<string, Array<{ key: string; label: string; low: str
     { key: 'trafficDensity', label: 'TRAFFIC DENSITY', low: 'OPEN ROAD', high: 'GRIDLOCK', min: 0.75, max: 1.5, step: 0.25, default: 1 },
   ],
   'lava-escape': [{ key: 'speedMultiplier', label: 'RUN SPEED', low: 'TACTICAL', high: 'MAYHEM', min: 0.5, max: 2, step: 0.25, default: 1 }],
+  'knight-lab': [{ key: 'animationSpeed', label: 'ANIMATION SPEED', low: 'SLOW MOTION', high: 'FAST FORWARD', min: 0.5, max: 1.5, step: 0.25, default: 1 }],
   'micro-game': [{ key: 'speedMultiplier', label: 'TEST SPEED', low: 'TACTICAL', high: 'MAYHEM', min: 0.5, max: 2, step: 0.25, default: 1 }],
 };
 
@@ -82,7 +85,7 @@ export const PlayerSetup: React.FC = () => {
   const setPlayers = usePlatformStore((s) => s.setPlayers);
   const setModifiers = usePlatformStore((s) => s.setModifiers);
 
-  const [playerCount, setPlayerCount] = useState(2);
+  const [playerCount, setPlayerCount] = useState(() => selectedGame?.minPlayers ?? 2);
   const [gameOptions, setGameOptions] = useState<Record<string, number>>({ speedMultiplier: 1 });
   const [arena, setArena] = useState('battle-pit');
   const [chosenColors, setChosenColors] = useState(DEFAULT_COLORS);
@@ -92,6 +95,10 @@ export const PlayerSetup: React.FC = () => {
   if (!selectedGame) return null;
 
   const settings = GAME_SETTINGS[selectedGame.id] ?? GAME_SETTINGS['micro-game'];
+  const availablePlayerCounts = Array.from(
+    { length: selectedGame.maxPlayers - selectedGame.minPlayers + 1 },
+    (_, index) => selectedGame.minPlayers + index,
+  );
 
   const handleColorSelect = (playerIdx: number, hex: string) => {
     setChosenColors((current) => current.map((color, index) => index === playerIdx ? hex : color));
@@ -128,7 +135,7 @@ export const PlayerSetup: React.FC = () => {
           <div className="setup-panel-heading">
             <div><span className="setup-kicker">PLAYER CONFIGURATION</span><h2>SELECT PLAYERS</h2></div>
             <div className="player-count-toggle" aria-label="Player count">
-              {[2, 3, 4].map((count) => (
+              {availablePlayerCounts.map((count) => (
                 <button key={count} onClick={() => setPlayerCount(count)} className={playerCount === count ? 'is-active' : ''}>{count}P</button>
               ))}
             </div>

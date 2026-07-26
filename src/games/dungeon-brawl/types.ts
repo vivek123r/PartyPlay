@@ -1,9 +1,19 @@
 export type HeroClassType = 'knight' | 'wizard' | 'rogue' | 'barbarian';
 
-export type EnemyType = 'skeleton' | 'goblin' | 'slime' | 'mini_slime' | 'imp' | 'wraith' | 'brute' | 'minotaur_boss';
+export type EnemyType = 'skeleton' | 'goblin' | 'slime' | 'mini_slime' | 'imp' | 'wraith' | 'brute';
+export type BossType = 'crypt_warden' | 'ember_fiend' | 'blood_champion' | 'horned_king';
 export type ElementType = 'physical' | 'arcane' | 'frost' | 'shadow' | 'fire' | 'earth';
 export type RunPhase = 'select' | 'room-intro' | 'combat' | 'blessing' | 'victory' | 'defeat';
 export type RoomTheme = 'chains' | 'crypt' | 'ember' | 'court' | 'throne';
+export type BossAction =
+  | 'blink'
+  | 'shriek'
+  | 'leap'
+  | 'fire_burst'
+  | 'charge'
+  | 'sweep'
+  | 'slam'
+  | 'summon';
 
 export interface HeroClassConfig {
   type: HeroClassType;
@@ -95,6 +105,9 @@ export interface ProjectileEntity {
   color: number;
   homing?: boolean;
   splashRadius?: number;
+  targetId?: string;
+  pierce?: number;
+  comboStep?: number;
 }
 
 export interface TrapEntity {
@@ -134,6 +147,27 @@ export interface RoomDescriptor {
   theme: RoomTheme;
   waves: EnemyType[][];
   hasBlessingAfter: boolean;
+  miniBoss?: BossType;
+}
+
+export interface BossDescriptor {
+  type: BossType;
+  name: string;
+  maxHp: number;
+  radius: number;
+  primaryColor: number;
+  accentColor: number;
+}
+
+export interface BossCombatEvent {
+  type: 'projectile' | 'hazard' | 'summon' | 'shockwave' | 'charge-hit' | 'teleport';
+  x: number;
+  y: number;
+  angle?: number;
+  count?: number;
+  damage?: number;
+  radius?: number;
+  enemyType?: Exclude<EnemyType, 'mini_slime'>;
 }
 
 export interface Blessing {

@@ -3,8 +3,8 @@ import type { GameManifest } from '@runtime/types';
 const manifest: GameManifest = {
   id: 'dungeon-brawl',
   title: 'DUNGEON BRAWL',
-  description: 'A gothic-neon 2–4 player co-op dungeon gauntlet. Smart-target enemies, master four class kits, claim party blessings, revive allies, and bring down the Horned King.',
-  version: '2.0.0',
+  description: 'A fully animated 2–4 player co-op dungeon gauntlet. Master four class kits, defeat three wardens, claim party blessings, revive allies, and bring down the Horned King.',
+  version: '3.0.0',
   author: 'PartyPlay Studio',
   category: 'Arcade',
   thumbnail: '',
@@ -12,7 +12,7 @@ const manifest: GameManifest = {
   difficulty: 'Hard',
   minPlayers: 2,
   maxPlayers: 4,
-  estimatedRoundTime: '5-7 min',
+  estimatedRoundTime: '7-9 min',
 
   capabilities: {
     supportsPause: true,

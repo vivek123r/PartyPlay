@@ -739,20 +739,31 @@ export default class LavaEscapeGame implements GameModule {
         this.backgroundPlate.height = texture.height * scale;
         this.backgroundBaseX = LAVA_ESCAPE_CONFIG.WIDTH - this.backgroundPlate.width;
       }
-      const parallaxShift = (this.cameraX * 0.035) % 48;
+      // Keep the plate offset monotonic. A modulo wrap here moved the plate
+      // backwards by 48px whenever the remainder reset, which looked like a
+      // brief camera jitter during longer runs.
+      const parallaxShift = Math.min(48, Math.max(0, this.cameraX * 0.035));
       this.backgroundPlate.position.set(Math.round(this.backgroundBaseX + parallaxShift), 0);
-      this.backgroundPlate.alpha = 0.72;
+      // The authored level plates are complete, opaque backdrops. Keeping them
+      // translucent lets the procedural mountain polygons underneath bleed
+      // through as unwanted triangular shadows.
+      this.backgroundPlate.alpha = 1;
     }
     g.rect(0, 0, LAVA_ESCAPE_CONFIG.WIDTH, LAVA_ESCAPE_CONFIG.HEIGHT).fill({ color: palette.sky });
 
-    const farOffset = -Math.floor(this.cameraX * 0.08) % 96;
-    for (let x = farOffset - 96; x < LAVA_ESCAPE_CONFIG.WIDTH + 96; x += 96) {
-      const peak = 45 + ((x / 96 + this.stageIndex) % 3) * 12;
-      g.poly([x, 188, x + 48, peak, x + 96, 188]).fill({ color: palette.far, alpha: 0.8 });
-    }
-    const nearOffset = -Math.floor(this.cameraX * 0.18) % 128;
-    for (let x = nearOffset - 128; x < LAVA_ESCAPE_CONFIG.WIDTH + 128; x += 128) {
-      g.poly([x, 222, x + 34, 116, x + 72, 170, x + 128, 222]).fill({ color: palette.near, alpha: 0.75 });
+    // Use the procedural mountains only as a fallback when an authored plate
+    // could not be loaded. Drawing both layers creates visible triangular
+    // silhouettes over the supplied background art.
+    if (!texture) {
+      const farOffset = -Math.floor(this.cameraX * 0.08) % 96;
+      for (let x = farOffset - 96; x < LAVA_ESCAPE_CONFIG.WIDTH + 96; x += 96) {
+        const peak = 45 + ((x / 96 + this.stageIndex) % 3) * 12;
+        g.poly([x, 188, x + 48, peak, x + 96, 188]).fill({ color: palette.far, alpha: 0.8 });
+      }
+      const nearOffset = -Math.floor(this.cameraX * 0.18) % 128;
+      for (let x = nearOffset - 128; x < LAVA_ESCAPE_CONFIG.WIDTH + 128; x += 128) {
+        g.poly([x, 222, x + 34, 116, x + 72, 170, x + 128, 222]).fill({ color: palette.near, alpha: 0.75 });
+      }
     }
 
     for (let i = 0; i < 18; i++) {

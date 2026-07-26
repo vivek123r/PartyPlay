@@ -5,6 +5,8 @@ import { GameRegistry } from '@runtime/GameRegistry';
 export const GameBrowser: React.FC = () => {
   const setScreen = usePlatformStore((s) => s.setScreen);
   const setSelectedGame = usePlatformStore((s) => s.setSelectedGame);
+  const setPlayers = usePlatformStore((s) => s.setPlayers);
+  const setModifiers = usePlatformStore((s) => s.setModifiers);
 
   const games = GameRegistry.getAll();
 
@@ -37,6 +39,20 @@ export const GameBrowser: React.FC = () => {
           slotId: 'SLOT #02',
           motifIcon: '🐍',
           badgeText: 'GRID BATTLE',
+        };
+      case 'knight-lab':
+        return {
+          cardClass: 'lab-card-theme',
+          btnClass: 'btn-lab',
+          btnText: 'OPEN LAB ▶',
+          accentColor: 'var(--pixel-yellow)',
+          statusLed: '◆ DEV TOOL',
+          statusClass: '',
+          isFaulty: false,
+          stars: 'LAB MODE',
+          slotId: 'TOOL #01',
+          motifIcon: '⚔',
+          badgeText: 'ANIMATION LAB',
         };
       case 'obstacle-survival':
         return {
@@ -179,7 +195,13 @@ export const GameBrowser: React.FC = () => {
                   className={`pixel-btn ${theme.btnClass}`}
                   onClick={() => {
                     setSelectedGame(manifest);
-                    setScreen('setup');
+                    if (manifest.id === 'knight-lab') {
+                      setPlayers([{ id: 1, name: 'Player 1', color: '#ffde7d' }]);
+                      setModifiers({ animationSpeed: 1 });
+                      setScreen('play');
+                    } else {
+                      setScreen('setup');
+                    }
                   }}
                 >
                   {theme.btnText}

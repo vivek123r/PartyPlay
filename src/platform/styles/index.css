@@ -127,6 +127,7 @@ button {
 .player-count-toggle button.is-active { color: #071012; background: var(--pixel-yellow); }
 
 .hero-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.hero-card-grid--1 { grid-template-columns: minmax(0, 1fr); }
 .hero-card { --player-color: var(--pixel-blue); min-width: 0; padding: 10px; border: 2px solid color-mix(in srgb, var(--player-color) 74%, #182831); background: #0a1217; box-shadow: inset 0 0 0 2px #17262e; }
 .player-config-card { min-height: 148px; }
 .hero-card__topline { display: flex; justify-content: space-between; color: var(--player-color); font-family: var(--font-pixel-heading); font-size: .56rem; }
@@ -343,6 +344,11 @@ button {
   font-size: 0.75rem;
   opacity: 0.85;
 }
+
+.lab-card-theme { border: 2px solid var(--pixel-yellow); background: linear-gradient(135deg, #28231b 0%, #1f1e2e 100%); position: relative; }
+.lab-card-theme::before { content: '⚔  ◈  ⚙'; position: absolute; top: 6px; right: 12px; color: var(--pixel-yellow); font-size: .75rem; opacity: .9; }
+.btn-lab { background-color: var(--pixel-yellow); color: var(--pixel-bg); border: 2px solid var(--pixel-border); box-shadow: 0 4px 0 var(--pixel-bg); }
+.btn-lab:hover { background-color: #ffe99f; transform: translateY(-2px); }
 
 /* Keyframes */
 @keyframes fadeIn {

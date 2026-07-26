@@ -157,13 +157,15 @@ export class Hero {
 
   public revive(): void { this.hp = Math.ceil(this.maxHp * 0.35); this.downedTimer = 0; this.reviveProgress = 0; this.isInvulnerable = true; this.invulnerableTimer = 1.2; }
 
-  public render(g: Graphics, clock: number): void {
+  public render(g: Graphics, clock: number, drawBody = true): void {
     const x = Math.round(this.x); const y = Math.round(this.y);
     const bob = this.isAlive ? Math.round(Math.sin(clock * 10 + this.id) * (Math.hypot(this.vx, this.vy) > 10 ? 1 : 0)) : 0;
     g.ellipse(x, y + 7, this.isDowned ? 10 : 8, 3).fill({ color: 0x05030a, alpha: 0.52 });
     if (this.isDowned) {
-      g.rect(x - 8, y - 1, 16, 5).fill({ color: 0x4c3043 });
-      g.rect(x - 4, y - 6, 8, 6).fill({ color: this.config.primaryColor });
+      if (drawBody) {
+        g.rect(x - 8, y - 1, 16, 5).fill({ color: 0x4c3043 });
+        g.rect(x - 4, y - 6, 8, 6).fill({ color: this.config.primaryColor });
+      }
       g.rect(x - 7, y - 12, 14, 2).fill({ color: 0x1b1324 });
       g.rect(x - 7, y - 12, Math.max(0, 14 * this.downedTimer / 11), 2).fill({ color: 0xe05263 });
       return;
@@ -172,13 +174,13 @@ export class Hero {
     if (this.rageTimer > 0) g.circle(x, y - 4, 14 + Math.sin(clock * 18) * 2).stroke({ color: 0xff884a, width: 2, alpha: 0.8 });
     g.circle(x, y - 4, 11).stroke({ color: this.config.secondaryColor, width: 2, alpha: 0.95 });
     const body = this.config.primaryColor;
-    if (this.classType === 'knight') {
+    if (drawBody && this.classType === 'knight') {
       g.rect(x - 6, y - 10 + bob, 12, 14).fill({ color: body }); g.rect(x - 5, y - 17 + bob, 10, 8).fill({ color: 0xc9d5df }); g.rect(x - 3, y - 14 + bob, 6, 2).fill({ color: 0x223044 }); g.rect(x - 10, y - 7 + bob, 4, 9).fill({ color: this.config.secondaryColor });
-    } else if (this.classType === 'wizard') {
+    } else if (drawBody && this.classType === 'wizard') {
       g.poly([x - 7, y + 4, x + 7, y + 4, x + 5, y - 10 + bob, x - 5, y - 10 + bob]).fill({ color: body }); g.poly([x - 7, y - 10 + bob, x, y - 22 + bob, x + 7, y - 10 + bob]).fill({ color: this.config.secondaryColor }); g.rect(x + 7, y - 13 + bob, 2, 17).fill({ color: 0xc59b5f }); g.circle(x + 8, y - 15 + bob, 3).fill({ color: 0x6ff7ff });
-    } else if (this.classType === 'rogue') {
+    } else if (drawBody && this.classType === 'rogue') {
       g.rect(x - 5, y - 10 + bob, 10, 14).fill({ color: body }); g.rect(x - 6, y - 17 + bob, 12, 7).fill({ color: 0x223044 }); g.rect(x - 3, y - 14 + bob, 6, 2).fill({ color: 0x7de38a }); g.rect(x - 10, y - 3 + bob, 5, 2).fill({ color: 0xeaf6ff }); g.rect(x + 5, y - 3 + bob, 5, 2).fill({ color: 0xeaf6ff });
-    } else {
+    } else if (drawBody) {
       g.rect(x - 7, y - 10 + bob, 14, 14).fill({ color: body }); g.rect(x - 5, y - 18 + bob, 10, 8).fill({ color: 0xf0bb83 }); g.rect(x - 6, y - 21 + bob, 12, 4).fill({ color: this.config.secondaryColor }); g.rect(x + 8, y - 15 + bob, 3, 19).fill({ color: 0x6f5045 }); g.rect(x + 6, y - 20 + bob, 8, 7).fill({ color: 0xc9d5df });
     }
     if (this.isAttacking) { const sx = x + Math.cos(this.facingAngle) * 17; const sy = y - 4 + Math.sin(this.facingAngle) * 17; g.circle(sx, sy, 10).stroke({ color: 0xf8f4e8, width: 3, alpha: 0.72 }); }

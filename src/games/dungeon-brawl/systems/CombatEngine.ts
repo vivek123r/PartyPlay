@@ -1,7 +1,7 @@
 import type { AttackEvent, DamageNumber, Particle } from '../types';
 import type { Hero } from '../entities/Hero';
 import type { Enemy } from '../entities/Enemy';
-import type { BossMinotaur } from '../entities/BossMinotaur';
+import type { DungeonBoss } from '../entities/DungeonBoss';
 
 export interface CombatResult { damageNumbers: DamageNumber[]; particles: Particle[]; killed: Enemy[]; hit: boolean; }
 
@@ -11,7 +11,7 @@ export class CombatEngine {
 
   public update(dt: number): void { this.hitStopTimer = Math.max(0, this.hitStopTimer - dt); this.cameraShake = Math.max(0, this.cameraShake - dt); }
 
-  public resolveAttack(hero: Hero, attack: AttackEvent, enemies: Enemy[], boss: BossMinotaur | null): CombatResult {
+  public resolveAttack(hero: Hero, attack: AttackEvent, enemies: Enemy[], boss: DungeonBoss | null): CombatResult {
     const result: CombatResult = { damageNumbers: [], particles: [], killed: [], hit: false };
     const targets = [...enemies.filter(enemy => enemy.hp > 0), ...(boss && boss.hp > 0 ? [boss] : [])];
     const hitLimit = attack.comboStep === 2 ? 4 : 1;
