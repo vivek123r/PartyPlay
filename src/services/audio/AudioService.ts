@@ -20,6 +20,8 @@ export class AudioService {
   private musicVolume = 0.6;
 
   private noiseBuffer: AudioBuffer | null = null;
+  private sampleBuffers = new Map<string, AudioBuffer>();
+  private sampleLoads = new Map<string, Promise<AudioBuffer | null>>();
 
   private engineVoices = new Map<number, EngineVoice>();
 
@@ -152,6 +154,56 @@ export class AudioService {
     } catch {
       // Ignore audio synthesis errors
     }
+  }
+
+  /** Plays a bundled one-shot sample through the SFX bus. Samples are decoded once and cached. */
+  public playSample(url: string, volume = 0.65, pan = 0): void {
+    if (!this.ctx || !this.sfxGain || this.isMutedState) return;
+    void this.loadSample(url).then((buffer) => {
+      if (!buffer || !this.ctx || !this.sfxGain || this.isMutedState) return;
+      try {
+        const source = this.ctx.createBufferSource();
+        const gain = this.ctx.createGain();
+        source.buffer = buffer;
+        gain.gain.setValueAtTime(Math.max(0.001, Math.min(1, volume)), this.ctx.currentTime);
+        let last: AudioNode = source;
+        let panner: StereoPannerNode | null = null;
+        if (pan !== 0) {
+          panner = this.ctx.createStereoPanner();
+          panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), this.ctx.currentTime);
+          last.connect(panner);
+          last = panner;
+        }
+        last.connect(gain);
+        gain.connect(this.sfxGain);
+        source.start();
+        source.onended = () => { source.disconnect(); panner?.disconnect(); gain.disconnect(); };
+      } catch {
+        // Ignore decoding/playback errors; callers retain their synthesized fallback.
+      }
+    });
+  }
+
+  /** Warms one-shot samples so the first combat input never waits for fetch/decode. */
+  public preloadSamples(urls: readonly string[]): void {
+    if (!this.ctx) return;
+    for (const url of urls) void this.loadSample(url);
+  }
+
+  private loadSample(url: string): Promise<AudioBuffer | null> {
+    const cached = this.sampleBuffers.get(url);
+    if (cached) return Promise.resolve(cached);
+    const loading = this.sampleLoads.get(url);
+    if (loading) return loading;
+    if (!this.ctx) return Promise.resolve(null);
+    const request = fetch(url)
+      .then((response) => response.ok ? response.arrayBuffer() : null)
+      .then((data) => data ? this.ctx?.decodeAudioData(data) ?? null : null)
+      .then((buffer) => { if (buffer) this.sampleBuffers.set(url, buffer); return buffer; })
+      .catch(() => null)
+      .finally(() => this.sampleLoads.delete(url));
+    this.sampleLoads.set(url, request);
+    return request;
   }
 
   /** Multi-note one-shot sequence (victory chime, upgrade jingle) */

@@ -67,6 +67,21 @@ export default class MythicFarmGame implements GameModule {
     this.textureGenerator = new TextureGenerator();
     this.textureGenerator.generateAll();
 
+    // 2b. Kick off Sprout Lands PNG sprite loading in background (non-blocking)
+    //     When loaded, upgrade PlayerAvatar from vector to animated sprites.
+    this.textureGenerator.loadSproutLandsAssets().then(() => {
+      if (this.playerAvatar && this.textureGenerator.isSproutLandsLoaded()) {
+        this.playerAvatar.initSprites(this.textureGenerator);
+        this.ctx?.logger.info('[MythicFarm] Sprout Lands sprites loaded — PlayerAvatar upgraded to animated sprites.');
+      }
+      if (this.livestockSystem && this.textureGenerator.isSproutLandsLoaded()) {
+        this.livestockSystem.setTextureGenerator(this.textureGenerator);
+        this.ctx?.logger.info('[MythicFarm] Livestock sprite textures now available.');
+      }
+    }).catch((err) => {
+      this.ctx?.logger.info('[MythicFarm] Sprout Lands sprite load failed, using procedural fallback: ' + err);
+    });
+
     if (this.ctx.audio) {
       this.audioSynthesizer = new AudioSynthesizer(this.ctx.audio);
     }

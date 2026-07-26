@@ -1,4 +1,5 @@
 import { Texture } from 'pixi.js';
+import { publicAsset } from '@shared/assetUrl';
 
 export class VideoEngine {
   private static instance: VideoEngine | null = null;
@@ -18,7 +19,7 @@ export class VideoEngine {
     return VideoEngine.instance;
   }
 
-  public initFireVideo(videoUrl = '/assets/videos/fire.mp4'): Promise<Texture> {
+  public initFireVideo(videoUrl = publicAsset('/assets/videos/fire.mp4')): Promise<Texture> {
     return new Promise((resolve) => {
       // Append cache buster to force loading new video file
       const cacheBustUrl = `${videoUrl}?t=${Date.now()}`;
@@ -43,7 +44,7 @@ export class VideoEngine {
 
       video.onerror = () => {
         const fallbackVideo = document.createElement('video');
-        fallbackVideo.src = `/assets/videos/fire_transparent.webm?t=${Date.now()}`;
+      fallbackVideo.src = `${publicAsset('/assets/videos/fire_transparent.webm')}?t=${Date.now()}`;
         fallbackVideo.autoplay = true;
         fallbackVideo.loop = true;
         fallbackVideo.muted = true;
@@ -62,7 +63,7 @@ export class VideoEngine {
     });
   }
 
-  public initSkyboxVideo(videoUrl = '/assets/videos/synthwave_arcade_showcase.mp4'): Promise<Texture> {
+  public initSkyboxVideo(videoUrl = publicAsset('/assets/videos/synthwave_arcade_showcase.mp4')): Promise<Texture> {
     return new Promise((resolve) => {
       if (this.skyboxTexture && this.isSkyboxLoaded) {
         resolve(this.skyboxTexture);

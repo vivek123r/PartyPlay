@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { usePlatformStore } from '@platform/stores/platformStore';
 import { GameRegistry } from '@runtime/GameRegistry';
 import { GameRunner } from '@runtime/GameRunner';
+import { remoteControllerService } from '@services/remote/RemoteControllerService';
 
 const runner = new GameRunner();
 
@@ -15,6 +16,12 @@ export const GamePlay: React.FC = () => {
   const setCrash = usePlatformStore((s) => s.setCrash);
 
   const [isPaused, setIsPaused] = useState(false);
+  const remoteSnapshot = useSyncExternalStore(
+    remoteControllerService.subscribe,
+    remoteControllerService.getSnapshot,
+    remoteControllerService.getSnapshot,
+  );
+  const remotePlayers = players.filter(player => player.inputDeviceId?.startsWith('remote-player-'));
 
   useEffect(() => {
     if (!selectedGame || !containerRef.current) return;
@@ -91,6 +98,15 @@ export const GamePlay: React.FC = () => {
           ⏸
         </button>
       </div>
+
+      {!!remotePlayers.length && (
+        <div className="remote-game-status">
+          {remotePlayers.map(player => {
+            const status = remoteSnapshot.slots[player.id]?.status ?? 'idle';
+            return <span key={player.id} style={{ '--player-color': player.color } as React.CSSProperties} className={`remote-game-status__player remote-state--${status}`}>P{player.id} PHONE · {status.toUpperCase()}</span>;
+          })}
+        </div>
+      )}
 
       {isPaused && (
         <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(15, 14, 23, 0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 20 }}>

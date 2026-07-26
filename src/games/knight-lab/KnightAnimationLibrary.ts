@@ -1,4 +1,5 @@
 import { Assets, Rectangle, Texture } from 'pixi.js';
+import { publicAsset } from '@shared/assetUrl';
 
 export const KNIGHT_FRAME_WIDTH = 128;
 export const KNIGHT_FRAME_HEIGHT = 128;
@@ -12,7 +13,7 @@ export type KnightClipName = keyof typeof KNIGHT_CLIPS;
 // row 0 faces east/right and row 4 faces west/left.
 export const KNIGHT_DIRECTIONS = ['EAST', 'SOUTHEAST', 'SOUTH', 'SOUTHWEST', 'WEST', 'NORTHWEST', 'NORTH', 'NORTHEAST'] as const;
 
-const ASSET_ROOT = '/assets/2D%20HD%20Character%20Knight/Spritesheets/With%20shadows';
+const ASSET_ROOT = publicAsset('/assets/2D%20HD%20Character%20Knight/Spritesheets/With%20shadows');
 
 export const KNIGHT_CLIPS = {
   idle: { file: 'Idle.png', fps: 8, loop: true },

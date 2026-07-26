@@ -1,9 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BOSS_CONFIGS, HERO_CONFIGS, ROOMS } from './config';
 import { Hero } from './entities/Hero';
 import { Enemy } from './entities/Enemy';
 import { DungeonBoss } from './entities/DungeonBoss';
 import { TargetingSystem } from './systems/TargetingSystem';
+import { DungeonArena } from './systems/DungeonArena';
+import { DungeonAudio } from './systems/DungeonAudio';
+import { ClassCombatEffects, CLASS_EFFECT_SIGNATURES } from './visuals/ClassCombatEffects';
+import { DUNGEON_CLIPS, DUNGEON_TEXTURES } from './visuals/DungeonAssetLibrary';
+import type { DungeonSceneView } from './visuals/DungeonSceneView';
 import manifest from './manifest';
 
 describe('Dungeon Brawl combat foundations', () => {
@@ -57,5 +62,81 @@ describe('Dungeon Brawl combat foundations', () => {
     const scaled = new DungeonBoss('crypt_warden', 240, 80, 4, 1.5);
     expect(base.maxHp).toBe(BOSS_CONFIGS.crypt_warden.maxHp);
     expect(scaled.maxHp).toBeGreaterThan(base.maxHp * 1.5);
+  });
+
+  it('gives every class a distinct basic, impact, skill, and ultimate effect signature', () => {
+    const stages = ['basic', 'impact', 'special', 'ultimate'] as const;
+    for (const stage of stages) {
+      const clips = Object.values(CLASS_EFFECT_SIGNATURES).map(recipe => recipe[stage]);
+      expect(new Set(clips).size).toBe(4);
+    }
+    for (const recipe of Object.values(CLASS_EFFECT_SIGNATURES)) {
+      expect(new Set(Object.values(recipe)).size).toBe(4);
+    }
+  });
+
+  it('uses semantic, layout-aware filenames for every curated runtime asset', () => {
+    const urls = [
+      ...Object.values(DUNGEON_CLIPS).map(descriptor => descriptor.url),
+      ...Object.values(DUNGEON_TEXTURES),
+    ];
+    for (const url of urls) {
+      const filename = url.split('/').at(-1) ?? '';
+      expect(filename).toContain('--');
+      expect(filename).toMatch(/(?:sheet-\d+x\d+x\d+|static-\d+x\d+|\d+x\d+)\.png$/);
+    }
+  });
+
+  it('dispatches the correct class-specific effects for basic, skill, and ultimate actions', () => {
+    const calls: string[] = [];
+    const scene = {
+      playEffect: (clip: string) => { calls.push(clip); },
+    } as unknown as DungeonSceneView;
+    const effects = new ClassCombatEffects(scene);
+    const classes = ['knight', 'wizard', 'rogue', 'barbarian'] as const;
+
+    for (const [index, classType] of classes.entries()) {
+      const hero = new Hero(index + 1, classType, 100, 100);
+      hero.requestAttack('target', 0);
+      effects.playBasic(hero, hero.consumeAttack()!);
+      effects.playSpecial(hero, 0, { x: 80, y: 100 });
+      effects.playUltimate(hero, 140, 100);
+
+      const recipe = CLASS_EFFECT_SIGNATURES[classType];
+      expect(calls).toContain(recipe.basic);
+      expect(calls).toContain(recipe.special);
+      expect(calls).toContain(recipe.ultimate);
+      calls.length = 0;
+    }
+  });
+
+  it('gives each room solid tactical cover and pushes actors out of it', () => {
+    const arena = new DungeonArena();
+    for (const room of ROOMS) {
+      arena.setTheme(room.theme);
+      expect(arena.obstacles.length).toBeGreaterThanOrEqual(3);
+      expect(arena.traps.length).toBeGreaterThanOrEqual(2);
+      const obstacle = arena.obstacles[0];
+      const resolved = arena.resolveCircle(obstacle.x, obstacle.y, 10);
+      expect(resolved.collided).toBe(true);
+      expect(arena.isBlocked(resolved.x, resolved.y, 9)).toBe(false);
+    }
+  });
+
+  it('preloads attack samples and layers an audible transient over normal attacks', () => {
+    const output = {
+      playTone: vi.fn(),
+      playSample: vi.fn(),
+      preloadSamples: vi.fn(),
+    };
+    const sound = new DungeonAudio(output);
+    sound.playAttack('knight', -.12);
+    expect(output.preloadSamples).toHaveBeenCalledOnce();
+    expect(output.playSample).toHaveBeenCalledWith(
+      '/assets/dungeon-brawl/audio/knight-sword-swing.wav',
+      .82,
+      -.12,
+    );
+    expect(output.playTone).toHaveBeenCalledOnce();
   });
 });

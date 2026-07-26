@@ -11,6 +11,7 @@ import { GamePlay } from './screens/GamePlay';
 import { GameResults } from './screens/GameResults';
 import { Settings } from './screens/Settings';
 import { CrashScreen } from './screens/CrashScreen';
+import { RemoteControllerScreen } from './screens/RemoteControllerScreen';
 
 export const App: React.FC = () => {
   const currentScreen = usePlatformStore((s) => s.currentScreen);
@@ -49,6 +50,8 @@ export const App: React.FC = () => {
       return <GameResults />;
     case 'settings':
       return <Settings />;
+    case 'remote':
+      return <RemoteControllerScreen />;
     case 'crash':
       return <CrashScreen />;
     default:

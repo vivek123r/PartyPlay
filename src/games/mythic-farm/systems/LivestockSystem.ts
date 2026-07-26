@@ -1,5 +1,7 @@
 import type { FarmState, AnimalEntity, AnimalSpecies, AnimalConfig } from '../types';
 import type { AudioSynthesizer } from '../utils/AudioSynthesizer';
+import type { TextureGenerator } from '../utils/TextureGenerator';
+import { AnimatedSprite, Texture } from 'pixi.js';
 
 export const ANIMAL_CONFIGS: Record<AnimalSpecies, AnimalConfig> = {
   golden_goat: {
@@ -51,13 +53,55 @@ export const ANIMAL_CONFIGS: Record<AnimalSpecies, AnimalConfig> = {
 export class LivestockSystem {
   private farmState: FarmState;
   private audioSynthesizer: AudioSynthesizer | null;
+  private textureGen: TextureGenerator | null = null;
   private animals: AnimalEntity[] = [];
 
-  constructor(farmState: FarmState, audioSynthesizer: AudioSynthesizer | null = null) {
+  constructor(
+    farmState: FarmState,
+    audioSynthesizer: AudioSynthesizer | null = null,
+    textureGen?: TextureGenerator
+  ) {
     this.farmState = farmState;
     this.audioSynthesizer = audioSynthesizer;
+    this.textureGen = textureGen ?? null;
     this.animals = farmState.animals || [];
     this.farmState.animals = this.animals;
+  }
+
+  /**
+   * Provide or update the TextureGenerator (called once Sprout Lands assets load).
+   */
+  public setTextureGenerator(textureGen: TextureGenerator): void {
+    this.textureGen = textureGen;
+  }
+
+  /**
+   * Creates an AnimatedSprite for an animal using real Sprout Lands sprites.
+   * Quadrupeds (goat, chocobo) → cow sprite; Small creatures (bee, moth) → chicken sprite.
+   * Returns null if sprites are not loaded yet (procedural fallback used by caller).
+   */
+  public getAnimalSprite(species: AnimalSpecies): AnimatedSprite | null {
+    if (!this.textureGen || !this.textureGen.isSproutLandsLoaded()) return null;
+
+    const isQuadruped = species === 'golden_goat' || species === 'feathered_chocobo';
+    const frameCount = isQuadruped ? 3 : 4;
+    const prefix = isQuadruped ? 'cow_idle' : 'chicken_idle';
+
+    const frames: Texture[] = [];
+    for (let f = 0; f < frameCount; f++) {
+      const tex = this.textureGen.getTexture(`${prefix}_${f}`);
+      if (tex && tex !== Texture.EMPTY) frames.push(tex);
+    }
+    if (frames.length === 0) return null;
+
+    const anim = new AnimatedSprite(frames);
+    anim.animationSpeed = isQuadruped ? 0.06 : 0.12;
+    anim.anchor.set(0.5, 0.8);
+    // Scale: cows are 32×32px, chickens are 16×16px — render at 32px for visibility
+    anim.width = isQuadruped ? 32 : 20;
+    anim.height = isQuadruped ? 32 : 20;
+    anim.play();
+    return anim;
   }
 
   /**
@@ -119,6 +163,10 @@ export class LivestockSystem {
     return true;
   }
 
+  public collectProduct(animalId: string): string | null {
+    return this.harvestProduct(animalId);
+  }
+
   /**
    * Harvest ready animal product (Golden Milk, Astral Honey, Silk Thread, Golden Eggs).
    */
@@ -127,7 +175,7 @@ export class LivestockSystem {
     if (!animal || !animal.productReady) return null;
 
     const config = ANIMAL_CONFIGS[animal.species];
-    const item = config.itemYield;
+    const item = config ? config.itemYield : 'product';
 
     const inv = this.farmState.inventory;
     if (typeof inv === 'object' && !Array.isArray(inv)) {
@@ -147,14 +195,15 @@ export class LivestockSystem {
    */
   public buyAnimal(species: AnimalSpecies, name?: string): AnimalEntity | null {
     const config = ANIMAL_CONFIGS[species];
-    if (this.farmState.coins < config.cost) return null;
+    const cost = config ? config.cost : 500;
+    if (this.farmState.coins < cost) return null;
 
-    this.farmState.coins -= config.cost;
+    this.farmState.coins -= cost;
 
     const animal: AnimalEntity = {
       id: `animal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       species,
-      name: name || config.name,
+      name: name || config?.name || species,
       x: 100 + Math.random() * 300,
       y: 100 + Math.random() * 200,
       fedToday: true,

@@ -8,6 +8,10 @@ import type {
   FarmState,
   TileData,
   ToolType,
+  TileType,
+  TileTypeProperties,
+  LandPlotConfig,
+  AutotileMapping,
 } from './types';
 
 // ==========================================
@@ -307,13 +311,138 @@ export const WORKSHOP_RECIPES = {
 };
 
 // ==========================================
-// 10. Land Expansion Plots
+// 10. Land Expansion Plots & Autotile Maps
 // ==========================================
 export const LAND_PLOT_UNLOCK_COSTS: Record<number, { levelReq: number; coinCost: number }> = {
   0: { levelReq: 1, coinCost: 0 },      // Plot 0: Top-Left (Unlocked by default)
   1: { levelReq: 3, coinCost: 500 },    // Plot 1: Top-Right
   2: { levelReq: 5, coinCost: 1500 },   // Plot 2: Bottom-Left
   3: { levelReq: 8, coinCost: 4000 },   // Plot 3: Bottom-Right
+};
+
+export const LAND_PLOT_CONFIGS: Record<number, LandPlotConfig> = {
+  0: {
+    plotId: 0,
+    name: 'Northwest Meadow (Starter Plot)',
+    levelReq: 1,
+    coinCost: 0,
+    bounds: { minX: 0, maxX: 7, minY: 0, maxY: 4 },
+  },
+  1: {
+    plotId: 1,
+    name: 'Northeast Orchard Expansion',
+    levelReq: 3,
+    coinCost: 500,
+    bounds: { minX: 8, maxX: 15, minY: 0, maxY: 4 },
+  },
+  2: {
+    plotId: 2,
+    name: 'Southwest Livestock Pasture',
+    levelReq: 5,
+    coinCost: 1500,
+    bounds: { minX: 0, maxX: 7, minY: 5, maxY: 9 },
+  },
+  3: {
+    plotId: 3,
+    name: 'Southeast Automation Workshop',
+    levelReq: 8,
+    coinCost: 4000,
+    bounds: { minX: 8, maxX: 15, minY: 5, maxY: 9 },
+  },
+};
+
+export const TILE_TYPE_CONFIG: Record<TileType, TileTypeProperties> = {
+  untilled_grass: {
+    type: 'untilled_grass',
+    walkable: true,
+    tillable: true,
+    plantable: false,
+    waterable: false,
+    unlockable: true,
+    defaultTextureKey: 'tile_untilled',
+  },
+  tilled_dirt: {
+    type: 'tilled_dirt',
+    walkable: true,
+    tillable: false,
+    plantable: true,
+    waterable: true,
+    unlockable: true,
+    defaultTextureKey: 'tile_tilled',
+  },
+  watered_dirt: {
+    type: 'watered_dirt',
+    walkable: true,
+    tillable: false,
+    plantable: true,
+    waterable: false,
+    unlockable: true,
+    defaultTextureKey: 'tile_watered',
+  },
+  stone_path: {
+    type: 'stone_path',
+    walkable: true,
+    tillable: false,
+    plantable: false,
+    waterable: false,
+    unlockable: true,
+    defaultTextureKey: 'tile_stone',
+  },
+  locked_plot: {
+    type: 'locked_plot',
+    walkable: false,
+    tillable: false,
+    plantable: false,
+    waterable: false,
+    unlockable: true,
+    defaultTextureKey: 'tile_locked',
+  },
+  fence: {
+    type: 'fence',
+    walkable: false,
+    tillable: false,
+    plantable: false,
+    waterable: false,
+    unlockable: true,
+    defaultTextureKey: 'tile_fence',
+  },
+  water_edge: {
+    type: 'water_edge',
+    walkable: false,
+    tillable: false,
+    plantable: false,
+    waterable: false,
+    unlockable: false,
+    defaultTextureKey: 'tile_water',
+  },
+  building_floor: {
+    type: 'building_floor',
+    walkable: true,
+    tillable: false,
+    plantable: false,
+    waterable: false,
+    unlockable: true,
+    defaultTextureKey: 'tile_house',
+  },
+};
+
+export const AUTOTILE_BITMASK_MAP: Record<number, AutotileMapping> = {
+  0: { col: 5, row: 0 },
+  1: { col: 3, row: 2 },
+  2: { col: 4, row: 0 },
+  3: { col: 0, row: 2 },
+  4: { col: 3, row: 0 },
+  5: { col: 3, row: 1 },
+  6: { col: 0, row: 0 },
+  7: { col: 0, row: 1 },
+  8: { col: 4, row: 2 },
+  9: { col: 2, row: 2 },
+  10: { col: 4, row: 1 },
+  11: { col: 1, row: 2 },
+  12: { col: 2, row: 0 },
+  13: { col: 2, row: 1 },
+  14: { col: 1, row: 0 },
+  15: { col: 1, row: 1 },
 };
 
 // ==========================================

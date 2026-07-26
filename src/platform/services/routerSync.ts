@@ -24,6 +24,8 @@ export function initRouterSync(): () => void {
         if (store.currentScreen !== 'browser') store.setScreen('browser');
       } else if (hash === '#/settings') {
         if (store.currentScreen !== 'settings') store.setScreen('settings');
+      } else if (hash.startsWith('#/remote')) {
+        if (store.currentScreen !== 'remote') store.setScreen('remote');
       } else if (hash.startsWith('#/games/')) {
         const parts = hash.split('/');
         const gameId = parts[2];
@@ -75,6 +77,9 @@ export function initRouterSync(): () => void {
           break;
         case 'settings':
           targetHash = '#/settings';
+          break;
+        case 'remote':
+          targetHash = window.location.hash.startsWith('#/remote') ? window.location.hash : '#/remote';
           break;
         case 'setup':
         case 'play':

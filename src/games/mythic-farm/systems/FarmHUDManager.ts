@@ -1,5 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
-import type { FarmState, HotbarSlot } from '../types';
+import type { FarmState, HotbarSlot, ToolType, ToolTier } from '../types';
+import { TOOL_TIER_CONFIG } from '../config';
 import { PixelFont } from '../../turbo-rider/render/PixelFont';
 
 export class FarmHUDManager {
@@ -21,6 +22,48 @@ export class FarmHUDManager {
   constructor(farmState: FarmState) {
     this.farmState = farmState;
     this.container.addChild(this.g);
+  }
+
+  public upgradeTool(tool: ToolType | string): void {
+    const currentTier = this.farmState.toolTiers?.[tool as keyof typeof this.farmState.toolTiers] || 'basic';
+    const nextTier: Record<string, ToolTier> = {
+      basic: 'copper',
+      copper: 'gold',
+      gold: 'titanium',
+      titanium: 'titanium',
+    };
+    const target = nextTier[currentTier];
+    if (target && target !== currentTier && this.farmState.toolTiers) {
+      const cost = TOOL_TIER_CONFIG[target as ToolTier].upgradeCostCoins || 0;
+      if (this.farmState.coins >= cost) {
+        this.farmState.coins -= cost;
+        this.farmState.toolTiers[tool as keyof typeof this.farmState.toolTiers] = target;
+      }
+    }
+  }
+
+  public getHotbarSlots(): HotbarSlot[] {
+    return this.defaultHotbar;
+  }
+
+  public showToast(msg: string): void {
+    this.addNotification(msg);
+  }
+
+  public getActiveToasts(): Array<{ text: string }> {
+    return this.notifications;
+  }
+
+  public fulfillOrder(orderId: string): boolean {
+    if (!this.farmState.activeOrders) return false;
+    const order = this.farmState.activeOrders.find((o: any) => o.id === orderId);
+    if (order) {
+      order.completed = true;
+      this.farmState.coins += order.rewardCoins || 0;
+      this.farmState.farmExp += order.rewardExp || 0;
+      return true;
+    }
+    return false;
   }
 
   public addNotification(text: string, color: number = 0x00f0ff): void {

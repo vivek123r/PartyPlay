@@ -1,4 +1,9 @@
-import { Texture } from 'pixi.js';
+import { Assets, Rectangle, Texture } from 'pixi.js';
+import { AUTOTILE_BITMASK_MAP } from '../config';
+import { publicAsset } from '@shared/assetUrl';
+
+const FARM_ASSET_ROOT = '/assets/Farming/Sprout Lands - Sprites - Basic pack';
+const farmAsset = (path: string): string => publicAsset(`${FARM_ASSET_ROOT}/${path}`);
 
 export type TextureKey =
   | 'tile_untilled'
@@ -14,6 +19,183 @@ export type TextureKey =
 
 export class TextureGenerator {
   private cache: Map<string, Texture> = new Map();
+  private loadedSproutLands = false;
+
+  /**
+   * Asynchronously loads Sprout Lands PNG sprite assets via PixiJS Assets.load.
+   */
+  public async loadSproutLandsAssets(): Promise<void> {
+    if (this.loadedSproutLands) return;
+    try {
+      const urls = {
+        grass: farmAsset('Tilesets/Grass.png'),
+        tilled: farmAsset('Tilesets/Tilled_Dirt.png'),
+        fences: farmAsset('Tilesets/Fences.png'),
+        house: farmAsset('Tilesets/Wooden House.png'),
+        tools: farmAsset('Objects/Basic_tools_and_meterials.png'),
+      };
+
+      const [grassTex, tilledTex, fenceTex, houseTex, toolsTex] = await Promise.all([
+        Assets.load<Texture>(urls.grass),
+        Assets.load<Texture>(urls.tilled),
+        Assets.load<Texture>(urls.fences),
+        Assets.load<Texture>(urls.house),
+        Assets.load<Texture>(urls.tools),
+      ]);
+
+      if (grassTex?.source) grassTex.source.scaleMode = 'nearest';
+      if (tilledTex?.source) tilledTex.source.scaleMode = 'nearest';
+      if (fenceTex?.source) fenceTex.source.scaleMode = 'nearest';
+      if (houseTex?.source) houseTex.source.scaleMode = 'nearest';
+      if (toolsTex?.source) toolsTex.source.scaleMode = 'nearest';
+
+      // Base terrain tiles
+      this.cache.set('tile_untilled', new Texture({ source: grassTex.source, frame: new Rectangle(16, 16, 16, 16) }));
+      this.cache.set('tile_tilled', new Texture({ source: tilledTex.source, frame: new Rectangle(16, 16, 16, 16) }));
+      this.cache.set('tile_watered', new Texture({ source: tilledTex.source, frame: new Rectangle(16, 16, 16, 16) }));
+
+      // Extract full 11x7 autotile maps (Grass & Tilled Dirt)
+      for (let r = 0; r < 7; r++) {
+        for (let c = 0; c < 11; c++) {
+          const frame = new Rectangle(c * 16, r * 16, 16, 16);
+          this.cache.set(`grass_autotile_${c}_${r}`, new Texture({ source: grassTex.source, frame }));
+          this.cache.set(`tilled_autotile_${c}_${r}`, new Texture({ source: tilledTex.source, frame }));
+        }
+      }
+
+      // Populate bitmask map keys (0..15)
+      for (const [bmStr, mapping] of Object.entries(AUTOTILE_BITMASK_MAP)) {
+        const bm = parseInt(bmStr, 10);
+        const frame = new Rectangle(mapping.col * 16, mapping.row * 16, 16, 16);
+        this.cache.set(`grass_autotile_bm_${bm}`, new Texture({ source: grassTex.source, frame }));
+        this.cache.set(`tilled_autotile_bm_${bm}`, new Texture({ source: tilledTex.source, frame }));
+      }
+
+      // Fences (4x4 tileset)
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          const frame = new Rectangle(c * 16, r * 16, 16, 16);
+          this.cache.set(`fence_${c}_${r}`, new Texture({ source: fenceTex.source, frame }));
+        }
+      }
+      this.cache.set('tile_fence', new Texture({ source: fenceTex.source, frame: new Rectangle(0, 0, 16, 16) }));
+
+      // Wooden House (7x5 tileset)
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 7; c++) {
+          const frame = new Rectangle(c * 16, r * 16, 16, 16);
+          this.cache.set(`house_${c}_${r}`, new Texture({ source: houseTex.source, frame }));
+        }
+      }
+      this.cache.set('tile_house', new Texture({ source: houseTex.source, frame: new Rectangle(16, 16, 16, 16) }));
+
+      // Tools & Materials
+      this.cache.set('tool_watering_can_basic', new Texture({ source: toolsTex.source, frame: new Rectangle(0, 0, 16, 16) }));
+      this.cache.set('item_watering_can', new Texture({ source: toolsTex.source, frame: new Rectangle(0, 0, 16, 16) }));
+      this.cache.set('tool_axe_basic', new Texture({ source: toolsTex.source, frame: new Rectangle(16, 0, 16, 16) }));
+      this.cache.set('item_axe', new Texture({ source: toolsTex.source, frame: new Rectangle(16, 0, 16, 16) }));
+      this.cache.set('tool_hoe_basic', new Texture({ source: toolsTex.source, frame: new Rectangle(32, 0, 16, 16) }));
+      this.cache.set('item_hoe', new Texture({ source: toolsTex.source, frame: new Rectangle(32, 0, 16, 16) }));
+      this.cache.set('item_stone', new Texture({ source: toolsTex.source, frame: new Rectangle(0, 16, 16, 16) }));
+      this.cache.set('item_wood', new Texture({ source: toolsTex.source, frame: new Rectangle(16, 16, 16, 16) }));
+
+      // ── Character Walk Animations ────────────────────────────────────────
+      // Basic Charakter Spritesheet.png: 192×192px, 4×4 frames @ 48×48px
+      // Row 0=Down, Row 1=Left, Row 2=Right, Row 3=Up; Col 0..3 = walk cycle
+      const charTex = await Assets.load<Texture>(
+        farmAsset('Characters/Basic Charakter Spritesheet.png')
+      );
+      if (charTex?.source) charTex.source.scaleMode = 'nearest';
+      const WALK_DIRS = ['down', 'left', 'right', 'up'];
+      for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 4; col++) {
+          const frame = new Rectangle(col * 48, row * 48, 48, 48);
+          this.cache.set(`character_walk_${WALK_DIRS[row]}_${col}`, new Texture({ source: charTex.source, frame }));
+        }
+      }
+
+      // ── Tool Action Animations ────────────────────────────────────────────
+      // Basic Charakter Actions.png: 96×576px, 2×12 frames @ 48×48px
+      // Row order: hoe_down, hoe_up, can_down, can_up, axe_down, axe_up, scythe_down, scythe_up, ...
+      const actionTex = await Assets.load<Texture>(
+        farmAsset('Characters/Basic Charakter Actions.png')
+      );
+      if (actionTex?.source) actionTex.source.scaleMode = 'nearest';
+      const ACTION_ROWS = ['hoe_down', 'hoe_up', 'can_down', 'can_up', 'axe_down', 'axe_up', 'scythe_down', 'scythe_up'];
+      for (let row = 0; row < ACTION_ROWS.length; row++) {
+        // col 0 = character frame (with tool visible), col 1 = tool-only frame
+        const frame = new Rectangle(0, row * 48, 48, 48);
+        this.cache.set(`action_${ACTION_ROWS[row]}`, new Texture({ source: actionTex.source, frame }));
+      }
+
+      // ── Crop Growth Stage Sprites ─────────────────────────────────────────
+      // Basic_Plants.png: 96×32px, 6×2 grid @ 16×16px
+      // Col: 0=wheat, 1=pumpkin, 2=strawberry(crystal_berry), 3=dragonfruit, 4=sunflower, 5=elder_oak
+      // Row 0 = seedling/sprout stages (0,1) | Row 1 = flowering/ripe stages (2,3)
+      const plantsTex = await Assets.load<Texture>(
+        farmAsset('Objects/Basic_Plants.png')
+      );
+      if (plantsTex?.source) plantsTex.source.scaleMode = 'nearest';
+      const PLANT_COLS: Record<string, number> = {
+        wheat: 0, pumpkin: 1, crystal_berry: 2, dragonfruit: 3, sunflower: 4, elder_oak: 5,
+      };
+      for (const [species, col] of Object.entries(PLANT_COLS)) {
+        const youngFrame = new Rectangle(col * 16, 0, 16, 16);
+        const matureFrame = new Rectangle(col * 16, 16, 16, 16);
+        // Stages 0 & 1 → young plant sprite (row 0)
+        this.cache.set(`crop_${species}_0`, new Texture({ source: plantsTex.source, frame: youngFrame }));
+        this.cache.set(`crop_${species}_1`, new Texture({ source: plantsTex.source, frame: youngFrame }));
+        // Stages 2 & 3 → mature/ripe sprite (row 1)
+        this.cache.set(`crop_${species}_2`, new Texture({ source: plantsTex.source, frame: matureFrame }));
+        this.cache.set(`crop_${species}_3`, new Texture({ source: plantsTex.source, frame: matureFrame }));
+        // Withered → keep procedural fallback (no sheet entry)
+      }
+
+      // ── Chicken Sprites ───────────────────────────────────────────────────
+      // Free Chicken Sprites.png: 64×32px, 4×2 frames @ 16×16px
+      // Row 0 = idle cycle (4 frames), Row 1 = walk cycle (4 frames)
+      const chickenTex = await Assets.load<Texture>(
+        farmAsset('Characters/Free Chicken Sprites.png')
+      );
+      if (chickenTex?.source) chickenTex.source.scaleMode = 'nearest';
+      for (let f = 0; f < 4; f++) {
+        this.cache.set(`chicken_idle_${f}`, new Texture({ source: chickenTex.source, frame: new Rectangle(f * 16, 0, 16, 16) }));
+        this.cache.set(`chicken_walk_${f}`, new Texture({ source: chickenTex.source, frame: new Rectangle(f * 16, 16, 16, 16) }));
+      }
+
+      // ── Cow Sprites ───────────────────────────────────────────────────────
+      // Free Cow Sprites.png: 96×64px, 3×2 frames @ 32×32px
+      // Row 0 = idle cycle (3 frames), Row 1 = walk cycle (3 frames)
+      const cowTex = await Assets.load<Texture>(
+        farmAsset('Characters/Free Cow Sprites.png')
+      );
+      if (cowTex?.source) cowTex.source.scaleMode = 'nearest';
+      for (let f = 0; f < 3; f++) {
+        this.cache.set(`cow_idle_${f}`, new Texture({ source: cowTex.source, frame: new Rectangle(f * 32, 0, 32, 32) }));
+        this.cache.set(`cow_walk_${f}`, new Texture({ source: cowTex.source, frame: new Rectangle(f * 32, 32, 32, 32) }));
+      }
+
+      // ── Egg & Nest Items ──────────────────────────────────────────────────
+      // Egg_And_Nest.png: 64×16px, 4×1 frames @ 16×16px
+      const eggNestTex = await Assets.load<Texture>(
+        farmAsset('Characters/Egg_And_Nest.png')
+      );
+      if (eggNestTex?.source) eggNestTex.source.scaleMode = 'nearest';
+      this.cache.set('egg_item',       new Texture({ source: eggNestTex.source, frame: new Rectangle(0,  0, 16, 16) }));
+      this.cache.set('nest_empty',     new Texture({ source: eggNestTex.source, frame: new Rectangle(16, 0, 16, 16) }));
+      this.cache.set('nest_with_egg',  new Texture({ source: eggNestTex.source, frame: new Rectangle(32, 0, 16, 16) }));
+      this.cache.set('item_egg',       new Texture({ source: eggNestTex.source, frame: new Rectangle(0,  0, 16, 16) }));
+
+      this.loadedSproutLands = true;
+
+    } catch (e) {
+      console.warn('[TextureGenerator] Failed to load Sprout Lands assets (using procedural fallback):', e);
+    }
+  }
+
+  public isSproutLandsLoaded(): boolean {
+    return this.loadedSproutLands;
+  }
 
   /**
    * Retrieves a cached texture or generates a new procedural pixel texture.
@@ -25,6 +207,34 @@ export class TextureGenerator {
     const texture = this.generateTextureByKey(key);
     this.cache.set(key, texture);
     return texture;
+  }
+
+  public getTileTexture(type: string): Texture {
+    if (type === 'grass') return this.getTexture('tile_untilled');
+    if (type === 'tilled') return this.getTexture('tile_tilled');
+    if (type === 'watered') return this.getTexture('tile_watered');
+    if (type.startsWith('tile_')) return this.getTexture(type);
+    return this.getTexture('tile_' + type);
+  }
+
+  public getCropTextures(species: string): Texture[] {
+    return [
+      this.getTexture(`crop_${species}_0`),
+      this.getTexture(`crop_${species}_1`),
+      this.getTexture(`crop_${species}_2`),
+      this.getTexture(`crop_${species}_3`),
+    ];
+  }
+
+  public getCharacterWalkTextures(direction: string): Texture[] {
+    return [
+      this.getTexture(`character_walk_${direction}_0`),
+      this.getTexture(`character_walk_${direction}_1`),
+    ];
+  }
+
+  public clearCache(): void {
+    this.clear();
   }
 
   /**
@@ -126,7 +336,7 @@ export class TextureGenerator {
   // Tile Drawing Routines
   // ==========================================
   private drawTile(ctx: CanvasRenderingContext2D, key: string, w: number, h: number): void {
-    if (key === 'tile_untilled') {
+    if (key === 'tile_untilled' || key.startsWith('grass_autotile')) {
       // Grass tile
       ctx.fillStyle = '#4a8505';
       ctx.fillRect(0, 0, w, h);
@@ -140,7 +350,7 @@ export class TextureGenerator {
       ctx.fillRect(5, 7, 1, 1);
       ctx.fillRect(10, 14, 2, 1);
       ctx.fillRect(1, 13, 1, 1);
-    } else if (key === 'tile_tilled') {
+    } else if (key === 'tile_tilled' || key.startsWith('tilled_autotile')) {
       // Tilled soil
       ctx.fillStyle = '#5c3a21';
       ctx.fillRect(0, 0, w, h);
@@ -154,7 +364,7 @@ export class TextureGenerator {
       ctx.fillRect(3, 1, 2, 1);
       ctx.fillRect(9, 6, 3, 1);
       ctx.fillRect(2, 11, 2, 1);
-    } else if (key === 'tile_watered') {
+    } else if (key === 'tile_watered' || key.startsWith('watered_autotile')) {
       // Damp watered soil
       ctx.fillStyle = '#3b2312';
       ctx.fillRect(0, 0, w, h);

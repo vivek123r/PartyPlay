@@ -7,7 +7,7 @@ export const manifest: GameManifest = {
   version: '1.0.0',
   author: 'PartyPlay Studios',
   category: 'Party',
-  thumbnail: '/assets/relic-rush-thumb.png',
+  thumbnail: publicAsset('/assets/relic-rush-thumb.png'),
   tags: ['Co-Op', 'Race', 'Traps', 'Adventure', 'Cross-Lane'],
   difficulty: 'Medium',
   minPlayers: 2,
@@ -79,3 +79,4 @@ export const manifest: GameManifest = {
 };
 
 export default manifest;
+import { publicAsset } from '@shared/assetUrl';

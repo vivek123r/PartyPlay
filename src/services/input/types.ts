@@ -1,6 +1,6 @@
 export interface InputDevice {
   id: string;
-  type: 'keyboard' | 'gamepad' | 'touch';
+  type: 'keyboard' | 'gamepad' | 'touch' | 'remote';
   poll(): Map<string, boolean>;
   enable(): void;
   disable(): void;

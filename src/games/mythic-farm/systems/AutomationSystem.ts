@@ -1,6 +1,7 @@
 import type { FarmState, TileData, AutomationBuilding } from '../types';
 import type { Grid } from '../entities/Grid';
 import type { AudioSynthesizer } from '../utils/AudioSynthesizer';
+import { CROP_SPECIES } from '../config';
 
 export class AutomationSystem {
   private farmState: FarmState;
@@ -107,13 +108,15 @@ export class AutomationSystem {
           const t = matrix[r][c];
           if (t.crop && t.crop.stage === 3 && !t.crop.withered) {
             // Add harvested crop directly to inventory
-            const itemId = t.crop.speciesId;
+            const species = CROP_SPECIES[t.crop.speciesId];
+            const harvestId = species?.harvestItemId || `crop_${t.crop.speciesId}`;
             if (typeof this.farmState.inventory === 'object' && !Array.isArray(this.farmState.inventory)) {
-              this.farmState.inventory[itemId] = (this.farmState.inventory[itemId] || 0) + 1;
+              this.farmState.inventory[harvestId] = (this.farmState.inventory[harvestId] || 0) + 1;
+              this.farmState.inventory[t.crop.speciesId] = (this.farmState.inventory[t.crop.speciesId] || 0) + 1;
             }
 
             // Reset or clear crop
-            t.crop = undefined;
+            this.grid.removeCrop(c, r);
             this.grid.updateTileGraphics(t);
             harvestedCount++;
           }

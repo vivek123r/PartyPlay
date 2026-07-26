@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import { usePlatformStore } from '@platform/stores/platformStore';
 import type { GameModifiers, PlayerConfig } from '@runtime/types';
+import { RemotePairingModal } from '@platform/components/RemotePairingModal';
+import { remoteControllerService } from '@services/remote/RemoteControllerService';
 
 const RETRO_SWATCHES = [
   { hex: '#ff2e63', name: 'Neon Crimson' },
@@ -89,6 +91,18 @@ export const PlayerSetup: React.FC = () => {
   const [gameOptions, setGameOptions] = useState<Record<string, number>>({ speedMultiplier: 1 });
   const [arena, setArena] = useState('battle-pit');
   const [chosenColors, setChosenColors] = useState(DEFAULT_COLORS);
+  const [phonePlayers, setPhonePlayers] = useState<Set<number>>(() => {
+    const snapshot = remoteControllerService.getSnapshot();
+    return new Set(Object.values(snapshot.slots)
+      .filter(slot => slot.status === 'connected' && slot.profile?.gameId === selectedGame?.id)
+      .map(slot => slot.playerId));
+  });
+  const [pairingPlayerId, setPairingPlayerId] = useState<number | null>(null);
+  const remoteSnapshot = useSyncExternalStore(
+    remoteControllerService.subscribe,
+    remoteControllerService.getSnapshot,
+    remoteControllerService.getSnapshot,
+  );
 
   const isSnakeArena = selectedGame?.id === 'snake-arena';
 
@@ -109,12 +123,46 @@ export const PlayerSetup: React.FC = () => {
       id: index + 1,
       name: `Player ${index + 1}`,
       color: chosenColors[index] || DEFAULT_COLORS[index],
+      inputDeviceId: phonePlayers.has(index + 1)
+        && remoteSnapshot.slots[index + 1]?.status === 'connected'
+        && remoteSnapshot.slots[index + 1]?.profile?.gameId === selectedGame.id
+        ? `remote-player-${index + 1}`
+        : 'keyboard-main',
     }));
     setPlayers(activePlayers);
     const modifiers: GameModifiers = { ...gameOptions };
     if (isSnakeArena) modifiers.arena = arena;
     setModifiers(modifiers);
     setScreen('play');
+  };
+
+  const setControllerMode = (playerId: number, mode: 'keyboard' | 'phone') => {
+    setPhonePlayers((current) => {
+      const next = new Set(current);
+      if (mode === 'phone') next.add(playerId);
+      else next.delete(playerId);
+      return next;
+    });
+    if (mode === 'keyboard') {
+      remoteControllerService.disconnect(playerId);
+      if (pairingPlayerId === playerId) setPairingPlayerId(null);
+    }
+  };
+
+  const waitingPhonePlayers = Array.from(phonePlayers).filter(
+    playerId => playerId <= playerCount && (
+      remoteSnapshot.slots[playerId]?.status !== 'connected'
+      || remoteSnapshot.slots[playerId]?.profile?.gameId !== selectedGame.id
+    ),
+  );
+  const canStart = waitingPhonePlayers.length === 0;
+  const pairingProfile = pairingPlayerId === null ? null : {
+    playerId: pairingPlayerId,
+    playerName: `Player ${pairingPlayerId}`,
+    playerColor: chosenColors[pairingPlayerId - 1] || DEFAULT_COLORS[pairingPlayerId - 1],
+    gameId: selectedGame.id,
+    gameTitle: selectedGame.title,
+    actions: Object.keys(selectedGame.defaultControls[pairingPlayerId - 1]?.bindings ?? {}),
   };
 
   return (
@@ -143,13 +191,30 @@ export const PlayerSetup: React.FC = () => {
 
           <div className={`hero-card-grid hero-card-grid--${playerCount}`}>
             {Array.from({ length: playerCount }).map((_, playerIndex) => {
+              const playerId = playerIndex + 1;
               const color = chosenColors[playerIndex] || DEFAULT_COLORS[playerIndex];
               const controlRows = getControlRows(selectedGame.defaultControls[playerIndex]?.bindings);
+              const usesPhone = phonePlayers.has(playerId);
+              const remoteSlot = remoteSnapshot.slots[playerId];
+              const phoneConnected = remoteSlot?.status === 'connected' && remoteSlot.profile?.gameId === selectedGame.id;
               return (
                 <article className="hero-card player-config-card" key={playerIndex} style={{ '--player-color': color } as React.CSSProperties}>
-                  <div className="hero-card__topline"><span>P{playerIndex + 1} // CONTROLLER {playerIndex + 1}</span><span className="hero-card__ready">READY</span></div>
+                  <div className="hero-card__topline"><span>P{playerId} // {usesPhone ? 'PHONE' : `KEYBOARD ${playerId}`}</span><span className={`hero-card__ready ${usesPhone ? `remote-state--${phoneConnected ? 'connected' : remoteSlot?.status ?? 'idle'}` : ''}`}>{usesPhone ? (phoneConnected ? 'CONNECTED' : remoteSlot?.profile?.gameId === selectedGame.id ? (remoteSlot.status ?? 'WAITING').toUpperCase() : 'WAITING') : 'READY'}</span></div>
                   <div className="player-config-card__summary"><span className="player-config-card__swatch" style={{ backgroundColor: color }} /><div><span>PLAYER {playerIndex + 1}</span><h3>ACTIVE PLAYER</h3></div></div>
-                  <div className="player-controls"><span>KEY MAP // P{playerIndex + 1}</span><div>{controlRows.map((row) => <strong key={row}>{row}</strong>)}</div></div>
+                  <div className="controller-mode-toggle" aria-label={`Player ${playerId} controller`}>
+                    <button className={!usesPhone ? 'is-active' : ''} onClick={() => setControllerMode(playerId, 'keyboard')}>⌨ KEYBOARD</button>
+                    <button className={usesPhone ? 'is-active' : ''} onClick={() => setControllerMode(playerId, 'phone')}>▣ PHONE</button>
+                  </div>
+                  {usesPhone ? (
+                    <div className="player-controls player-controls--phone">
+                      <span>DIRECT CONTROLLER // P{playerId}</span>
+                      {phoneConnected
+                        ? <strong>● PHONE CONNECTED</strong>
+                        : <button className="connect-phone-button" onClick={() => setPairingPlayerId(playerId)}>SHOW PAIRING QR</button>}
+                    </div>
+                  ) : (
+                    <div className="player-controls"><span>KEY MAP // P{playerId}</span><div>{controlRows.map((row) => <strong key={row}>{row}</strong>)}</div></div>
+                  )}
                   <div className="hero-card__palette" aria-label={`Player ${playerIndex + 1} colour`}>
                     {RETRO_SWATCHES.map((swatch) => (
                       <button
@@ -189,11 +254,18 @@ export const PlayerSetup: React.FC = () => {
           </section>}
 
           <div className="setup-launch-panel">
-            <span>ALL SYSTEMS NOMINAL</span>
-            <button className="pixel-btn pixel-btn-primary setup-launch" onClick={handleStart}>START GAME <b>▶</b></button>
+            <span>{canStart ? 'ALL SYSTEMS NOMINAL' : `WAITING FOR ${waitingPhonePlayers.length} PHONE${waitingPhonePlayers.length > 1 ? 'S' : ''}`}</span>
+            <button className="pixel-btn pixel-btn-primary setup-launch" disabled={!canStart} onClick={handleStart}>START GAME <b>▶</b></button>
           </div>
         </aside>
       </section>
+      {pairingProfile && (
+        <RemotePairingModal
+          profile={pairingProfile}
+          onClose={() => setPairingPlayerId(null)}
+          onConnected={() => setPairingPlayerId(null)}
+        />
+      )}
     </main>
   );
 };

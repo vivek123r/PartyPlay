@@ -69,8 +69,11 @@ export class FarmingSystem {
           success = true;
         }
       } else if (toolType === 'watering_can') {
-        if (this.grid.waterTile(x, y)) {
-          success = true;
+        const crop = this.grid.getCrop(x, y);
+        if (!crop || !crop.entity.isGiant) {
+          if (this.grid.waterTile(x, y)) {
+            success = true;
+          }
         }
       } else if (toolType === 'scythe') {
         const crop = this.grid.getCrop(x, y);
@@ -115,13 +118,19 @@ export class FarmingSystem {
     }
 
     const inventory = this.state.inventory || {};
-    const count = inventory[seedItemId] || 0;
-    if (count <= 0) return false;
+    let count = inventory[seedItemId];
+    if (count === undefined) {
+      // Check alternative keys like seed_wheat vs wheat_seed
+      const altKey = seedItemId.startsWith('seed_')
+        ? seedItemId.replace(/^seed_/, '') + '_seed'
+        : 'seed_' + seedItemId.replace(/_seed$/, '');
+      count = inventory[altKey];
+    }
+    if (count !== undefined && count <= 0) return false;
 
-    // Deduce speciesId from seed itemId (e.g. 'seed_wheat' -> 'wheat')
-    let speciesId = seedItemId.replace(/^seed_/, '');
+    // Deduce speciesId from seed itemId (e.g. 'seed_wheat' or 'wheat_seed' -> 'wheat')
+    let speciesId = seedItemId.replace(/^seed_/, '').replace(/_seed$/, '');
     if (!CROP_SPECIES[speciesId]) {
-      // Fallback check
       if (CROP_SPECIES[seedItemId]) {
         speciesId = seedItemId;
       } else {
@@ -129,10 +138,12 @@ export class FarmingSystem {
       }
     }
 
-    // Deduct seed item from inventory
-    inventory[seedItemId] -= 1;
-    if (inventory[seedItemId] <= 0) {
-      delete inventory[seedItemId];
+    // Deduct seed item from inventory if tracked
+    if (count !== undefined && count > 0) {
+      if (inventory[seedItemId] !== undefined) {
+        inventory[seedItemId] -= 1;
+        if (inventory[seedItemId] <= 0) delete inventory[seedItemId];
+      }
     }
 
     const cropEntity = {

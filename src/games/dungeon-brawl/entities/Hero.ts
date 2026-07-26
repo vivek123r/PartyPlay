@@ -170,9 +170,9 @@ export class Hero {
       g.rect(x - 7, y - 12, Math.max(0, 14 * this.downedTimer / 11), 2).fill({ color: 0xe05263 });
       return;
     }
-    if (this.barrierTimer > 0) g.circle(x, y - 4, 15).stroke({ color: 0x6ff7ff, width: 2, alpha: 0.7 });
-    if (this.rageTimer > 0) g.circle(x, y - 4, 14 + Math.sin(clock * 18) * 2).stroke({ color: 0xff884a, width: 2, alpha: 0.8 });
-    g.circle(x, y - 4, 11).stroke({ color: this.config.secondaryColor, width: 2, alpha: 0.95 });
+    if (drawBody && this.barrierTimer > 0) g.circle(x, y - 4, 15).stroke({ color: 0x6ff7ff, width: 2, alpha: 0.7 });
+    if (drawBody && this.rageTimer > 0) g.circle(x, y - 4, 14 + Math.sin(clock * 18) * 2).stroke({ color: 0xff884a, width: 2, alpha: 0.8 });
+    if (drawBody) g.circle(x, y - 4, 11).stroke({ color: this.config.secondaryColor, width: 2, alpha: 0.95 });
     const body = this.config.primaryColor;
     if (drawBody && this.classType === 'knight') {
       g.rect(x - 6, y - 10 + bob, 12, 14).fill({ color: body }); g.rect(x - 5, y - 17 + bob, 10, 8).fill({ color: 0xc9d5df }); g.rect(x - 3, y - 14 + bob, 6, 2).fill({ color: 0x223044 }); g.rect(x - 10, y - 7 + bob, 4, 9).fill({ color: this.config.secondaryColor });
@@ -183,7 +183,7 @@ export class Hero {
     } else if (drawBody) {
       g.rect(x - 7, y - 10 + bob, 14, 14).fill({ color: body }); g.rect(x - 5, y - 18 + bob, 10, 8).fill({ color: 0xf0bb83 }); g.rect(x - 6, y - 21 + bob, 12, 4).fill({ color: this.config.secondaryColor }); g.rect(x + 8, y - 15 + bob, 3, 19).fill({ color: 0x6f5045 }); g.rect(x + 6, y - 20 + bob, 8, 7).fill({ color: 0xc9d5df });
     }
-    if (this.isAttacking) { const sx = x + Math.cos(this.facingAngle) * 17; const sy = y - 4 + Math.sin(this.facingAngle) * 17; g.circle(sx, sy, 10).stroke({ color: 0xf8f4e8, width: 3, alpha: 0.72 }); }
+    if (drawBody && this.isAttacking) { const sx = x + Math.cos(this.facingAngle) * 17; const sy = y - 4 + Math.sin(this.facingAngle) * 17; g.circle(sx, sy, 10).stroke({ color: 0xf8f4e8, width: 3, alpha: 0.72 }); }
     if (this.isInvulnerable && Math.floor(clock * 18) % 2 === 0) g.rect(x - 10, y - 24, 20, 30).stroke({ color: 0xffffff, width: 1, alpha: 0.7 });
   }
 }

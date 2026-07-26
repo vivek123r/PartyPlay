@@ -141,12 +141,41 @@ export interface WeatherSystemConfig {
 export class WeatherSystem {
   private overlay: WeatherOverlay | null = null;
   private audioSynth: AudioSynthesizer | null = null;
+  private state?: FarmState;
+  private grid?: any;
 
-  constructor(config: WeatherSystemConfig = {}) {
-    if (config.overlayEnabled !== false) {
+  constructor(configOrState: WeatherSystemConfig | FarmState = {}, grid?: any) {
+    if (
+      (configOrState as FarmState).currentSeason !== undefined ||
+      (configOrState as FarmState).coins !== undefined
+    ) {
+      this.state = configOrState as FarmState;
+      this.grid = grid;
       this.overlay = new WeatherOverlay();
+    } else {
+      const config = configOrState as WeatherSystemConfig;
+      if (config.overlayEnabled !== false) {
+        this.overlay = new WeatherOverlay();
+      }
+      this.audioSynth = config.audioSynthesizer || null;
     }
-    this.audioSynth = config.audioSynthesizer || null;
+  }
+
+  public processDailyWeather(): any {
+    if (this.state) {
+      const res = this.advanceDay(this.state, true);
+      this.state.currentWeather = this.generateWeatherForSeason(this.state.currentSeason);
+      const morningRes = this.processMorningWeather(this.state, this.grid);
+      return { ...res, ...morningRes };
+    }
+    return { wateredTiles: 0, witheredCrops: 0, lightningStruck: false };
+  }
+
+  public applyWeatherEffects(): any {
+    if (this.state) {
+      return this.processMorningWeather(this.state, this.grid);
+    }
+    return { wateredTiles: 0, witheredCrops: 0, lightningStruck: false };
   }
 
   public getOverlay(): WeatherOverlay | null {

@@ -11,6 +11,7 @@ import { PowerUpManager } from './core/PowerUpManager';
 import { EnvironmentFX } from './render/EnvironmentFX';
 import { PixelFont } from './render/PixelFont';
 import { VideoEngine } from './render/VideoEngine';
+import { publicAsset } from '@shared/assetUrl';
 import type { SelfBikeDraw } from './render/ProjectionEngine';
 import type { TrackSegment, OpponentSprite } from './types';
 
@@ -80,7 +81,7 @@ export default class TurboRiderGame implements GameModule {
     // to every viewport — which couldn't be tinted or scaled per bike and was the likely
     // cause of nitro visuals bleeding between players; it's now drawn procedurally instead
     // (see render/BikeSprite.ts), so the fire video is no longer loaded.
-    VideoEngine.getInstance().initSkyboxVideo('/assets/videos/synthwave_arcade_showcase.mp4').catch(() => {});
+    VideoEngine.getInstance().initSkyboxVideo(publicAsset('/assets/videos/synthwave_arcade_showcase.mp4')).catch(() => {});
 
     const count = Math.min(4, Math.max(2, this.ctx.players.length));
     this.bikes = this.ctx.players.slice(0, count).map((p, idx) => {

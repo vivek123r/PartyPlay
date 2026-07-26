@@ -168,9 +168,9 @@ export class Crop extends Container {
 
     const regrows = this.species.regrows;
     if (regrows) {
-      // Multi-Harvest Regrowth: Reset to Stage 2 (Flowering) with 2/3 progress
-      this.entity.stage = 2;
-      this.entity.growthProgress = 2 / 3;
+      // Multi-Harvest Regrowth: Reset to Stage 1 (Sprout)
+      this.entity.stage = 1;
+      this.entity.growthProgress = 1 / 3;
       this.updateTexture();
     }
 

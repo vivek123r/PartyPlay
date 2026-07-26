@@ -39,6 +39,29 @@ interface ProjectileVisual {
 
 interface TimedEffect {
   animator: SpriteAnimator;
+  delay: number;
+  elapsed: number;
+  duration?: number;
+  baseAlpha: number;
+  fadeOut: boolean;
+  vx: number;
+  vy: number;
+  rotationSpeed: number;
+}
+
+export interface DungeonEffectOptions {
+  rotation?: number;
+  tint?: number;
+  scale?: number;
+  scaleX?: number;
+  scaleY?: number;
+  alpha?: number;
+  delay?: number;
+  duration?: number;
+  fadeOut?: boolean;
+  vx?: number;
+  vy?: number;
+  rotationSpeed?: number;
 }
 
 const HERO_IDLE: Record<Hero['classType'], DungeonClipKey> = {
@@ -60,30 +83,81 @@ const ROOM_PROPS: Record<RoomTheme, Array<{ key: DungeonTextureKey; x: number; y
     { key: 'ruinsBlue2', x: 42, y: 86, scale: 0.52 },
     { key: 'ruinsBlue3', x: 446, y: 210, scale: 0.52 },
     { key: 'crystalBlue', x: 438, y: 62, scale: 0.4 },
+    { key: 'crystalBlue', x: 102, y: 82, scale: 0.25 },
+    { key: 'crystalViolet', x: 378, y: 186, scale: 0.22 },
   ],
   crypt: [
     { key: 'ruinsGray2', x: 44, y: 94, scale: 0.58 },
     { key: 'ruinsBlue3', x: 441, y: 211, scale: 0.54 },
     { key: 'crystalGreen', x: 51, y: 217, scale: 0.43 },
     { key: 'crystalGreen', x: 427, y: 55, scale: 0.34 },
+    { key: 'crystalGreen', x: 108, y: 82, scale: 0.2 },
+    { key: 'crystalBlue', x: 372, y: 193, scale: 0.2 },
   ],
   ember: [
     { key: 'ruinsBrown2', x: 43, y: 91, scale: 0.57 },
     { key: 'ruinsBrown3', x: 439, y: 210, scale: 0.56 },
     { key: 'crystalRed', x: 54, y: 216, scale: 0.45 },
     { key: 'crystalRed', x: 426, y: 58, scale: 0.36 },
+    { key: 'crystalRed', x: 119, y: 86, scale: 0.24 },
+    { key: 'crystalYellow', x: 361, y: 193, scale: 0.23 },
   ],
   court: [
     { key: 'ruinsGray3', x: 42, y: 95, scale: 0.56 },
     { key: 'ruinsBrown2', x: 440, y: 208, scale: 0.58 },
     { key: 'crystalViolet', x: 51, y: 216, scale: 0.42 },
     { key: 'crystalRed', x: 429, y: 58, scale: 0.36 },
+    { key: 'crystalViolet', x: 101, y: 77, scale: 0.22 },
+    { key: 'crystalRed', x: 379, y: 201, scale: 0.22 },
   ],
   throne: [
     { key: 'ruinsSand2', x: 42, y: 92, scale: 0.58 },
     { key: 'ruinsSand3', x: 442, y: 208, scale: 0.58 },
     { key: 'crystalYellow', x: 51, y: 216, scale: 0.42 },
     { key: 'crystalRed', x: 428, y: 57, scale: 0.38 },
+    { key: 'crystalYellow', x: 102, y: 115, scale: 0.26 },
+    { key: 'crystalYellow', x: 378, y: 115, scale: 0.26 },
+  ],
+};
+
+interface RoomObject {
+  x: number;
+  y: number;
+  region: [number, number, number, number];
+  scale?: number;
+  tint?: number;
+}
+
+const ROOM_OBJECTS: Record<RoomTheme, RoomObject[]> = {
+  chains: [
+    { x: 366, y: 75, region: [80, 48, 16, 16], scale: 1.35 },
+    { x: 65, y: 221, region: [112, 112, 16, 16], scale: 1.2 },
+    { x: 414, y: 222, region: [160, 16, 16, 16], scale: 1.1 },
+  ],
+  crypt: [
+    { x: 108, y: 86, region: [192, 112, 32, 16], scale: 1.42 },
+    { x: 372, y: 86, region: [192, 112, 32, 16], scale: 1.42 },
+    { x: 108, y: 197, region: [144, 112, 16, 16], scale: 1.4 },
+    { x: 372, y: 197, region: [144, 112, 16, 16], scale: 1.4 },
+    { x: 238, y: 72, region: [144, 48, 16, 16], scale: 1.22 },
+  ],
+  ember: [
+    { x: 78, y: 71, region: [112, 112, 16, 16], scale: 1.25, tint: 0xffb067 },
+    { x: 402, y: 211, region: [112, 112, 16, 16], scale: 1.25, tint: 0xff8a56 },
+    { x: 239, y: 61, region: [208, 48, 16, 16], scale: 1.1 },
+  ],
+  court: [
+    { x: 240, y: 141, region: [160, 16, 16, 16], scale: 1.35, tint: 0xffd36b },
+    { x: 74, y: 219, region: [48, 80, 16, 16], scale: 1.15 },
+    { x: 406, y: 219, region: [144, 80, 16, 16], scale: 1.15 },
+    { x: 239, y: 78, region: [240, 48, 16, 16], scale: 1.05 },
+  ],
+  throne: [
+    { x: 240, y: 50, region: [80, 80, 16, 16], scale: 1.5, tint: 0xf2c14e },
+    { x: 102, y: 209, region: [80, 48, 16, 16], scale: 1.35 },
+    { x: 378, y: 209, region: [48, 48, 16, 16], scale: 1.35 },
+    { x: 72, y: 58, region: [160, 16, 16, 16], scale: 1.05 },
+    { x: 408, y: 58, region: [160, 16, 16, 16], scale: 1.05 },
   ],
 };
 
@@ -134,13 +208,21 @@ export class DungeonSceneView {
     }
 
     for (const prop of ROOM_PROPS[theme]) this.addRoomSprite(prop.key, prop.x, prop.y, prop.scale);
+    for (const object of ROOM_OBJECTS[theme]) this.addAtlasSprite(object);
 
-    if (theme === 'ember' || theme === 'court' || theme === 'throne') {
-      const positions = theme === 'throne' ? [[92, 68], [388, 68]] : [[86, 198], [394, 72]];
+    {
+      const positions = theme === 'throne'
+        ? [[92, 68], [388, 68]]
+        : theme === 'crypt'
+          ? [[65, 65], [415, 214]]
+          : theme === 'chains'
+            ? [[61, 60], [419, 210]]
+            : [[86, 198], [394, 72]];
       for (const [x, y] of positions) {
-        const animator = new SpriteAnimator(this.library, theme === 'throne' ? 'fx.fire-large' : 'fx.fire');
+        const animator = new SpriteAnimator(this.library, theme === 'throne' || theme === 'ember' ? 'fx.fire-large' : 'fx.fire');
         animator.sprite.position.set(x, y);
         animator.sprite.zIndex = y;
+        animator.sprite.tint = theme === 'crypt' ? 0x68ffbd : theme === 'chains' ? 0x77cfff : theme === 'court' ? 0xff5577 : 0xffffff;
         this.ambient.push(animator);
         this.roomLayer.addChild(animator.sprite);
       }
@@ -164,8 +246,18 @@ export class DungeonSceneView {
     this.ambient.forEach((animator) => animator.update(dt));
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const effect = this.effects[i];
+      effect.elapsed += dt;
+      if (effect.elapsed < effect.delay) continue;
+      effect.animator.sprite.visible = true;
       effect.animator.update(dt);
-      if (effect.animator.completed) {
+      effect.animator.sprite.x += effect.vx * dt;
+      effect.animator.sprite.y += effect.vy * dt;
+      effect.animator.sprite.rotation += effect.rotationSpeed * dt;
+      const activeTime = effect.elapsed - effect.delay;
+      if (effect.fadeOut && effect.duration) {
+        effect.animator.sprite.alpha = effect.baseAlpha * Math.max(0, 1 - activeTime / effect.duration);
+      }
+      if (effect.animator.completed || (effect.duration !== undefined && activeTime >= effect.duration)) {
         effect.animator.destroy();
         this.effects.splice(i, 1);
       }
@@ -176,7 +268,7 @@ export class DungeonSceneView {
     clip: Extract<DungeonClipKey, `fx.${string}`>,
     x: number,
     y: number,
-    options: { rotation?: number; tint?: number; scale?: number; alpha?: number } = {},
+    options: DungeonEffectOptions = {},
   ): void {
     const animator = new SpriteAnimator(this.library, clip);
     if (animator.sprite.texture === Texture.EMPTY) { animator.destroy(); return; }
@@ -184,8 +276,23 @@ export class DungeonSceneView {
     animator.sprite.rotation = options.rotation ?? 0;
     animator.sprite.tint = options.tint ?? 0xffffff;
     animator.sprite.alpha = options.alpha ?? 1;
-    if (options.scale) animator.sprite.scale.set(animator.sprite.scale.x * options.scale, animator.sprite.scale.y * options.scale);
-    this.effects.push({ animator });
+    animator.sprite.scale.set(
+      animator.sprite.scale.x * (options.scale ?? 1) * (options.scaleX ?? 1),
+      animator.sprite.scale.y * (options.scale ?? 1) * (options.scaleY ?? 1),
+    );
+    const delay = options.delay ?? 0;
+    animator.sprite.visible = delay <= 0;
+    this.effects.push({
+      animator,
+      delay,
+      elapsed: 0,
+      duration: options.duration,
+      baseAlpha: options.alpha ?? 1,
+      fadeOut: options.fadeOut ?? false,
+      vx: options.vx ?? 0,
+      vy: options.vy ?? 0,
+      rotationSpeed: options.rotationSpeed ?? 0,
+    });
     this.effectLayer.addChild(animator.sprite);
   }
 
@@ -309,7 +416,11 @@ export class DungeonSceneView {
           sprite.tint = projectile.element === 'arrow' ? 0xf2c14e : 0x7de38a;
           view = { sprite };
         } else {
-          const clip: DungeonClipKey = projectile.element === 'lava_wave' ? 'fx.fire-large' : 'fx.fire-ball';
+          const clip: DungeonClipKey = projectile.element === 'lava_wave'
+            ? 'fx.fire-large'
+            : projectile.element === 'arcane_bolt'
+              ? 'fx.magic-bolt'
+              : 'fx.fire-ball';
           const animator = new SpriteAnimator(this.library, clip);
           animator.sprite.tint = projectile.element === 'arcane_bolt' ? 0x6ff7ff : projectile.element === 'fire_orb' ? 0xff884a : 0xf2c14e;
           if (projectile.element === 'meteor') animator.sprite.scale.set(animator.sprite.scale.x * 1.45, animator.sprite.scale.y * 1.45);
@@ -349,8 +460,10 @@ export class DungeonSceneView {
 
   private heroClip(hero: Hero, moving: boolean): DungeonClipKey {
     if (hero.isCasting) {
+      if (hero.classType === 'knight') return 'hero.knight.attack-right';
       if (hero.classType === 'wizard') return 'hero.wizard.cast';
-      if (hero.classType === 'barbarian' && hero.rageTimer <= 0) return 'hero.barbarian.attack-2';
+      if (hero.classType === 'rogue') return 'hero.rogue.attack';
+      return 'hero.barbarian.attack-2';
     }
     if (hero.isAttacking) {
       if (hero.classType === 'knight') return this.knightAttackClip(hero.facingAngle);
@@ -388,6 +501,18 @@ export class DungeonSceneView {
     sprite.scale.set(scale);
     sprite.alpha = 0.88;
     sprite.zIndex = y;
+    this.roomLayer.addChild(sprite);
+  }
+
+  private addAtlasSprite(object: RoomObject): void {
+    const [x, y, width, height] = object.region;
+    const texture = this.library.getRegion('dungeonObjects', x, y, width, height);
+    if (!texture) return;
+    const sprite = new Sprite({ texture, anchor: { x: 0.5, y: 0.78 }, roundPixels: true });
+    sprite.position.set(object.x, object.y);
+    sprite.scale.set(object.scale ?? 1);
+    sprite.tint = object.tint ?? 0xffffff;
+    sprite.zIndex = object.y + 1;
     this.roomLayer.addChild(sprite);
   }
 

@@ -11,6 +11,7 @@ import { EventService } from '@services/events/EventService';
 import { AssetService } from '@services/asset/AssetService';
 import { LoggerService } from '@services/logger/LoggerService';
 import { createPRNG } from '@shared/utils/random';
+import { remoteControllerService } from '@services/remote/RemoteControllerService';
 
 TextureSource.defaultOptions.scaleMode = 'nearest';
 
@@ -32,6 +33,9 @@ export class GameRunner {
   constructor() {
     // Register default keyboard device
     this.inputService.registerDevice(new KeyboardDevice());
+    for (let playerId = 1; playerId <= 4; playerId++) {
+      this.inputService.registerDevice(remoteControllerService.createInputDevice(playerId));
+    }
   }
 
   public async launchGame(
@@ -99,9 +103,13 @@ export class GameRunner {
       // 5. Configure input bindings
       this.inputService.clearBindings();
       entry.manifest.defaultControls.forEach((binding) => {
-        if (players.some((p) => p.id === binding.playerId)) {
-          this.inputService.bindPlayer(binding);
-        }
+        const player = players.find((candidate) => candidate.id === binding.playerId);
+        if (!player) return;
+        const deviceId = player.inputDeviceId ?? binding.deviceId;
+        const bindings = deviceId.startsWith('remote-player-')
+          ? Object.fromEntries(Object.keys(binding.bindings).map(action => [action, [action]]))
+          : binding.bindings;
+        this.inputService.bindPlayer({ playerId: binding.playerId, deviceId, bindings });
       });
 
       // 6. Construct GameContext (Pure Dependency Injection)

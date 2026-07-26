@@ -6,3 +6,6 @@ export * from './input/KeyboardDevice';
 export * from './input/InputService';
 export * from './audio/AudioService';
 export * from './asset/AssetService';
+export * from './remote/types';
+export * from './remote/SignalCodec';
+export * from './remote/RemoteControllerService';

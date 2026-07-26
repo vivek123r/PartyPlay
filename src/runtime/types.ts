@@ -62,6 +62,7 @@ export interface PlayerConfig {
   id: number;
   color: string;
   name: string;
+  inputDeviceId?: string;
 }
 
 /** Pure Dependency Injection Container passed to games */

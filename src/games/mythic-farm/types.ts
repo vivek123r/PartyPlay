@@ -10,6 +10,39 @@ export type FertilizerType = 'speed' | 'quality' | 'bountiful' | 'water_retentio
 // ==========================================
 // 2. Grid & Soil Types
 // ==========================================
+export type TileType = 
+  | 'untilled_grass'
+  | 'tilled_dirt'
+  | 'watered_dirt'
+  | 'stone_path'
+  | 'locked_plot'
+  | 'fence'
+  | 'water_edge'
+  | 'building_floor';
+
+export interface TileTypeProperties {
+  type: TileType;
+  walkable: boolean;
+  tillable: boolean;
+  plantable: boolean;
+  waterable: boolean;
+  unlockable: boolean;
+  defaultTextureKey: string;
+}
+
+export interface LandPlotConfig {
+  plotId: number;
+  name: string;
+  levelReq: number;
+  coinCost: number;
+  bounds: { minX: number; maxX: number; minY: number; maxY: number };
+}
+
+export interface AutotileMapping {
+  col: number;
+  row: number;
+}
+
 export interface TileData {
   x: number;               // Grid tile column (0..15)
   y: number;               // Grid tile row (0..9)
@@ -21,6 +54,7 @@ export interface TileData {
   station?: ProcessingStation;  // Processing workshop station on tile
   unlocked?: boolean;       // Land plot expansion unlock status
   plotId?: number;          // Land plot index (0..3)
+  type?: TileType;          // Tile type designation
 }
 
 // ==========================================

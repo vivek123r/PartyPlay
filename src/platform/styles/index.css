@@ -429,3 +429,95 @@ input[type=range]::-webkit-slider-runnable-track {
   background: var(--pixel-muted);
   border: 2px solid var(--pixel-border);
 }
+
+/* Backend-free phone controller pairing */
+.controller-mode-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 5px 0 7px; }
+.controller-mode-toggle button { padding: 7px 4px; border: 1px solid #36505a; background: #0a1218; color: #7d969d; font-size: .47rem; }
+.controller-mode-toggle button.is-active { border-color: var(--player-color); color: var(--player-color); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--player-color) 40%, transparent); }
+.player-controls--phone { min-height: 57px; }
+.player-controls--phone strong { color: var(--pixel-green); }
+.connect-phone-button { width: 100%; padding: 8px; border: 1px solid var(--player-color); background: color-mix(in srgb, var(--player-color) 13%, #071014); color: var(--player-color); font-size: .5rem; }
+.remote-state--connected { color: var(--pixel-green) !important; }
+.remote-state--connecting, .remote-state--creating-offer, .remote-state--awaiting-answer { color: var(--pixel-yellow) !important; }
+.remote-state--reconnecting, .remote-state--error { color: var(--pixel-red) !important; }
+.setup-launch:disabled { cursor: not-allowed; filter: grayscale(.75); opacity: .52; transform: none; }
+
+.remote-pairing-backdrop { position: fixed; inset: 0; z-index: 10001; display: grid; place-items: center; padding: 20px; background: rgba(3, 7, 11, .92); backdrop-filter: blur(4px); }
+.remote-pairing-modal { position: relative; display: flex; width: min(94vw, 590px); max-height: 94vh; flex-direction: column; align-items: center; overflow: auto; padding: 27px 30px 24px; border: 2px solid var(--player-color); background: #091117; box-shadow: 8px 8px 0 #020406, 0 0 40px color-mix(in srgb, var(--player-color) 20%, transparent); text-align: center; }
+.remote-pairing-modal::before { position: absolute; inset: 5px; border: 1px solid color-mix(in srgb, var(--player-color) 35%, transparent); content: ''; pointer-events: none; }
+.remote-pairing-modal h2 { margin: 9px 0 6px; color: var(--player-color); font-size: clamp(1rem, 3vw, 1.5rem); line-height: 1.4; }
+.remote-pairing-close { position: absolute; top: 9px; right: 11px; z-index: 2; color: #a9bec2; font-size: 1.5rem; }
+.remote-pairing-description { max-width: 480px; margin: 6px 0 14px; color: #a9bec2; font-size: .95rem; }
+.remote-qr-image { position: relative; z-index: 10000; display: block; max-width: min(82vw, 420px); height: auto; border: 10px solid #fff; background: #fff; image-rendering: auto !important; filter: none !important; }
+.remote-qr-loading, .remote-qr-error { display: grid; width: min(82vw, 420px); aspect-ratio: 1; place-items: center; border: 2px solid #41535b; color: #9fb1b6; font-family: var(--font-pixel-heading); font-size: .58rem; }
+.remote-qr-error { color: var(--pixel-red); }
+.remote-pairing-steps { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; margin: 15px 0; text-align: left; }
+.remote-pairing-steps b { display: grid; width: 21px; height: 21px; place-items: center; background: var(--player-color); color: #071014; font-family: var(--font-pixel-heading); font-size: .5rem; }
+.remote-pairing-steps span { align-self: center; color: #c5d6d9; font-family: var(--font-pixel-heading); font-size: .48rem; }
+.remote-pairing-next { width: min(100%, 380px); }
+.remote-pairing-note { margin-top: 16px; color: #658087; font-family: var(--font-pixel-heading); font-size: .36rem; line-height: 1.7; }
+.remote-pairing-error { margin: 12px 0 0; color: var(--pixel-red); font-weight: 700; }
+.remote-pairing-loader { display: grid; min-height: 280px; place-items: center; align-content: center; gap: 24px; color: var(--player-color, var(--pixel-blue)); font-family: var(--font-pixel-heading); font-size: .62rem; }
+.remote-pairing-loader span { width: 52px; height: 52px; border: 6px solid #23353c; border-top-color: currentColor; animation: remoteSpin .8s steps(8) infinite; }
+@keyframes remoteSpin { to { transform: rotate(360deg); } }
+
+.remote-scanner { width: min(100%, 520px); }
+.remote-scanner__viewport { position: relative; overflow: hidden; aspect-ratio: 4 / 3; border: 2px solid var(--player-color); background: #020406; }
+.remote-scanner video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.remote-scanner__corners { position: absolute; inset: 13%; border: 3px solid rgba(255,255,255,.8); box-shadow: 0 0 0 999px rgba(0,0,0,.28); pointer-events: none; }
+.remote-scanner > p { margin: 9px 0; color: #a9bec2; }
+.remote-manual-answer { padding-top: 8px; border-top: 1px solid #29414a; color: #789097; text-align: left; }
+.remote-manual-answer summary { cursor: pointer; font-family: var(--font-pixel-heading); font-size: .46rem; }
+.remote-manual-answer textarea { width: 100%; margin: 9px 0; padding: 9px; border: 1px solid #45606a; background: #050a0e; color: #d8e7e9; font: .7rem monospace; resize: vertical; }
+
+.remote-phone-screen { position: relative; width: 100vw; height: 100dvh; overflow: hidden; background: radial-gradient(circle at 50% 35%, #182936 0, #091117 50%, #05080c 100%); color: #f3fbfb; touch-action: none; user-select: none; -webkit-user-select: none; }
+.remote-phone-screen--loading, .remote-phone-screen--error, .remote-phone-screen--answer { display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: auto; padding: 24px; text-align: center; touch-action: pan-y; }
+.remote-phone-screen--error h1, .remote-phone-screen--answer h1 { margin: 12px 0; color: var(--player-color, var(--pixel-red)); font-size: clamp(1.1rem, 6vw, 2rem); line-height: 1.35; }
+.remote-phone-screen--error p, .remote-phone-screen--answer p { max-width: 520px; color: #b4c8cd; }
+.remote-phone-kicker { color: var(--pixel-blue); font-family: var(--font-pixel-heading); font-size: .55rem; }
+.remote-copy-answer { margin-top: 12px; font-size: .5rem; }
+.remote-phone-status { margin-top: 15px; color: var(--pixel-yellow); font-family: var(--font-pixel-heading); font-size: .48rem; }
+.remote-controller { display: grid; grid-template-rows: 52px 1fr auto; border: 3px solid var(--player-color); }
+.remote-controller__header { z-index: 2; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-width: 0; padding: 7px 13px; border-bottom: 2px solid color-mix(in srgb, var(--player-color) 55%, #183039); background: rgba(3,9,13,.9); }
+.remote-controller__header div { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.remote-controller__header span { display: grid; width: 30px; height: 30px; place-items: center; background: var(--player-color); color: #071014; font-family: var(--font-pixel-heading); font-size: .55rem; }
+.remote-controller__header strong { overflow: hidden; color: var(--player-color); font-family: var(--font-pixel-heading); font-size: .55rem; text-overflow: ellipsis; white-space: nowrap; }
+.remote-controller__header > b { color: #b5c9ce; font-family: var(--font-pixel-heading); font-size: .48rem; }
+.remote-controller__header i { justify-self: end; color: var(--pixel-green); font-family: var(--font-pixel-heading); font-size: .43rem; font-style: normal; }
+.remote-controller__surface { display: grid; grid-template-columns: minmax(210px, .9fr) minmax(230px, 1.1fr); min-height: 0; gap: clamp(24px, 7vw, 90px); align-items: center; padding: clamp(12px, 3vw, 30px) clamp(18px, 5vw, 70px); }
+.remote-dpad { display: grid; grid-template: repeat(3, minmax(56px, 1fr)) / repeat(3, minmax(56px, 1fr)); width: min(42vh, 300px); max-width: 100%; aspect-ratio: 1; justify-self: center; filter: drop-shadow(7px 8px 0 #020406); }
+.remote-control-button { position: relative; border: 2px solid #8da8af; background: #17272e; color: #f1f7f8; font-size: clamp(.55rem, 1.8vw, .9rem); touch-action: none; -webkit-tap-highlight-color: transparent; }
+.remote-control-button:active { transform: translate(3px, 3px); border-color: #fff; background: var(--player-color); color: #071014; box-shadow: inset 0 0 0 4px rgba(255,255,255,.2); }
+.remote-dpad__up { grid-area: 1 / 2; border-bottom: 0; }
+.remote-dpad__left { grid-area: 2 / 1; border-right: 0; }
+.remote-dpad__center { grid-area: 2 / 2; background: #17272e; }
+.remote-dpad__right { grid-area: 2 / 3; border-left: 0; }
+.remote-dpad__down { grid-area: 3 / 2; border-top: 0; }
+.remote-action-pad { display: grid; grid-template-columns: repeat(2, minmax(88px, 1fr)); gap: clamp(12px, 2.5vw, 24px); width: min(100%, 430px); justify-self: center; }
+.remote-action-pad__button { min-height: clamp(72px, 16vh, 132px); border-radius: 18px; border-color: var(--player-color); background: color-mix(in srgb, var(--player-color) 18%, #122229); box-shadow: 6px 7px 0 #020406, inset 0 0 0 3px rgba(255,255,255,.04); }
+.remote-action-pad__button--1, .remote-action-pad__button--4 { border-color: var(--pixel-yellow); }
+.remote-no-actions { grid-column: 1 / -1; color: #789097; font-family: var(--font-pixel-heading); font-size: .6rem; text-align: center; }
+.remote-controller__utility { z-index: 2; display: flex; gap: 8px; min-height: 48px; overflow-x: auto; padding: 7px 12px; border-top: 2px solid #29414a; background: #071014; scrollbar-width: none; }
+.remote-control-button--utility { min-width: 86px; padding: 8px 12px; border-color: #617a82; font-size: .43rem; }
+.remote-game-status { position: absolute; top: 20px; left: 20px; z-index: 12; display: flex; flex-direction: column; gap: 5px; pointer-events: none; }
+.remote-game-status__player { padding: 6px 9px; border: 1px solid currentColor; background: rgba(5,10,14,.82); color: var(--player-color); font-family: var(--font-pixel-heading); font-size: .42rem; }
+
+@media (orientation: portrait) {
+  .remote-controller { grid-template-rows: 52px 1fr auto; overflow: auto; }
+  .remote-controller__surface { grid-template-columns: 1fr; gap: 14px; overflow: auto; padding: 14px 22px; }
+  .remote-dpad { width: min(54vw, 245px); }
+  .remote-action-pad { grid-template-columns: repeat(2, minmax(82px, 1fr)); width: min(100%, 360px); }
+  .remote-action-pad__button { min-height: 76px; }
+  .remote-controller__header > b { display: none; }
+  .remote-controller__header { grid-template-columns: 1fr auto; }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .remote-controller { grid-template-rows: 42px 1fr auto; }
+  .remote-controller__header { padding-block: 4px; }
+  .remote-controller__header span { width: 26px; height: 26px; }
+  .remote-controller__surface { padding-block: 8px; }
+  .remote-dpad { width: min(54vh, 245px); }
+  .remote-action-pad__button { min-height: 66px; }
+  .remote-controller__utility { min-height: 40px; padding-block: 4px; }
+}

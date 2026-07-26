@@ -112,7 +112,7 @@ export interface ProjectileEntity {
 
 export interface TrapEntity {
   id: string;
-  type: 'spikes' | 'fire_brazier' | 'fire_vent';
+  type: 'spikes' | 'fire_brazier' | 'fire_vent' | 'void_rift' | 'poison_pool' | 'blood_pool';
   x: number;
   y: number;
   w: number;
@@ -120,6 +120,15 @@ export interface TrapEntity {
   isActive: boolean;
   timer: number;
   damage: number;
+}
+
+export interface DungeonObstacle {
+  id: string;
+  kind: 'pillar' | 'tomb' | 'rubble' | 'altar' | 'throne';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 export interface LootItem {

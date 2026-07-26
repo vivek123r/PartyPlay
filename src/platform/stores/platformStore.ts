@@ -9,6 +9,7 @@ export type ScreenState =
   | 'play'
   | 'results'
   | 'settings'
+  | 'remote'
   | 'crash';
 
 export interface StandingsResult {

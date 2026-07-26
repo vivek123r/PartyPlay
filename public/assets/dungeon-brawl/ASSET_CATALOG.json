@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "catalog_purpose": "Machine-readable guide for humans and AI agents integrating the curated Dungeon Brawl assets.",
+  "original_asset_dump": "/home/viv/Projects/Assets",
+  "original_asset_dump_is_untouched": true,
+  "runtime_asset_root": "/assets/dungeon-brawl",
+  "naming_convention": {
+    "pattern": "{subject}--{action-or-purpose}--{variant-or-layout}.png",
+    "sheet_suffix": "sheet-{frameCount}x{frameWidth}x{frameHeight}",
+    "static_suffix": "static-{width}x{height}",
+    "frame_order": "left-to-right in a single horizontal row",
+    "direction_words": ["up", "up-right", "right", "down-right", "down"]
+  },
+  "runtime_registries": {
+    "animation_geometry_and_fps": "src/games/dungeon-brawl/visuals/DungeonAssetLibrary.ts::DUNGEON_CLIPS",
+    "static_texture_aliases": "src/games/dungeon-brawl/visuals/DungeonAssetLibrary.ts::DUNGEON_TEXTURES",
+    "class_effect_recipes": "src/games/dungeon-brawl/visuals/ClassCombatEffects.ts::CLASS_EFFECT_SIGNATURES",
+    "room_obstacles_hazards_and_collision": "src/games/dungeon-brawl/systems/DungeonArena.ts",
+    "room_prop_compositions": "src/games/dungeon-brawl/visuals/DungeonSceneView.ts::ROOM_PROPS+ROOM_OBJECTS"
+  },
+  "classes": {
+    "knight": {
+      "visual_identity": "blue lancer knight; steel and gold; close-range vanguard",
+      "folder": "heroes/knight",
+      "animation_ids": [
+        "hero.knight.idle",
+        "hero.knight.run",
+        "hero.knight.attack-right",
+        "hero.knight.attack-downright",
+        "hero.knight.attack-down",
+        "hero.knight.attack-upright",
+        "hero.knight.attack-up"
+      ],
+      "basic_attack_effect": "fx.slash-horizontal",
+      "impact_effect": "fx.hit-knight",
+      "skill_effect": "fx.energy-shield",
+      "ultimate_effect": "fx.slash-circular"
+    },
+    "wizard": {
+      "visual_identity": "purple monk wizard; blue arcane energy and frost; ranged caster",
+      "folder": "heroes/wizard",
+      "animation_ids": ["hero.wizard.idle", "hero.wizard.run", "hero.wizard.cast"],
+      "basic_attack_effect": "fx.magic-charged",
+      "projectile_effect": "fx.magic-bolt",
+      "impact_effect": "fx.hit-wizard",
+      "skill_effect": "fx.frost-splash",
+      "ultimate_effect": "fx.arcane-runes"
+    },
+    "rogue": {
+      "visual_identity": "black archer rogue; gold arrows and green shadow energy; ranged ranger",
+      "folder": "heroes/rogue",
+      "animation_ids": ["hero.rogue.idle", "hero.rogue.run", "hero.rogue.attack"],
+      "projectile_texture": "heroes/rogue/arrow-projectile--static-64x64.png",
+      "basic_attack_effect": "fx.magic-spark",
+      "impact_effect": "fx.hit-rogue",
+      "skill_effect": "fx.shadow-cross",
+      "ultimate_effect": "fx.magic-waveform"
+    },
+    "barbarian": {
+      "visual_identity": "red warrior barbarian; orange heavy impacts and fire; close-range breaker",
+      "folder": "heroes/barbarian",
+      "animation_ids": [
+        "hero.barbarian.idle",
+        "hero.barbarian.run",
+        "hero.barbarian.attack-1",
+        "hero.barbarian.attack-2",
+        "hero.barbarian.guard"
+      ],
+      "basic_attack_effect": "fx.slash-upward",
+      "impact_effect": "fx.hit-barbarian",
+      "skill_effect": "fx.ground-impact",
+      "ultimate_effect": "fx.rage-explosion"
+    }
+  },
+  "enemies": {
+    "skeleton": {
+      "visual": "skeleton-mummy",
+      "files": ["enemies/skeleton-mummy--idle-walk--sheet-6x69x83.png"]
+    },
+    "goblin": {
+      "visual": "green-orc-goblin",
+      "files": [
+        "enemies/green-orc-goblin--idle--sheet-6x100x100.png",
+        "enemies/green-orc-goblin--walk--sheet-8x100x100.png",
+        "enemies/green-orc-goblin--attack--sheet-6x100x100.png"
+      ]
+    },
+    "slime": {
+      "visual": "green-slime",
+      "files": ["enemies/green-slime--idle-squish--sheet-4x118x79.png"]
+    },
+    "imp": {
+      "visual": "red-demon-imp",
+      "files": [
+        "enemies/red-demon-imp--idle--sheet-6x100x100.png",
+        "enemies/red-demon-imp--walk--sheet-8x100x100.png",
+        "enemies/red-demon-imp--attack--sheet-7x100x100.png"
+      ]
+    },
+    "wraith": {
+      "visual": "blue-ghost-wraith",
+      "files": [
+        "enemies/blue-ghost-wraith--idle--sheet-7x64x80.png",
+        "enemies/blue-ghost-wraith--chase--sheet-4x64x80.png",
+        "enemies/blue-ghost-wraith--attack--sheet-4x64x80.png"
+      ]
+    },
+    "brute": {
+      "visual": "ogre-brute",
+      "files": ["enemies/ogre-brute--idle-walk--sheet-5x128x128.png"]
+    }
+  },
+  "bosses": {
+    "crypt_warden": {
+      "visual": "vampire",
+      "file": "bosses/vampire-crypt-warden--idle--sheet-4x121x110.png"
+    },
+    "ember_fiend": {
+      "visual": "jumping demon",
+      "file": "bosses/jumping-demon-ember-fiend--idle--sheet-6x101x98.png"
+    },
+    "blood_champion": {
+      "visual": "centaur",
+      "file": "bosses/centaur-blood-champion--idle--sheet-4x112x144.png"
+    },
+    "horned_king": {
+      "visual": "red horned demon",
+      "file": "bosses/red-demon-horned-king--idle--sheet-5x112x153.png"
+    }
+  },
+  "effect_files_by_runtime_id": {
+    "fx.slash-circular": "effects/effect--sword-slash-circular--sheet-6x52x48.png",
+    "fx.slash-horizontal": "effects/effect--sword-slash-horizontal--sheet-5x65x40.png",
+    "fx.slash-upward": "effects/effect--sword-slash-upward--sheet-5x52x56.png",
+    "fx.arcane-runes": "heroes/wizard/purple-monk-wizard--cast-aura--sheet-11x192x192.png",
+    "fx.magic-bolt": "effects/effect--arcane-bolt-projectile--sheet-4x48x32.png",
+    "fx.magic-pulse": "effects/effect--arcane-pulse-beam--sheet-4x63x32.png",
+    "fx.magic-charged": "effects/effect--arcane-charged-orb--sheet-6x63x48.png",
+    "fx.shadow-cross": "effects/effect--shadow-cross-trail--sheet-6x32x32.png",
+    "fx.magic-spark": "effects/effect--arcane-spark-projectile--sheet-5x63x32.png",
+    "fx.magic-waveform": "effects/effect--shadow-waveform-trail--sheet-4x95x32.png",
+    "fx.hit-knight": "effects/effect--knight-gold-impact--sheet-7x32x32.png",
+    "fx.hit-wizard": "effects/effect--wizard-arcane-impact--sheet-7x32x32.png",
+    "fx.hit-rogue": "effects/effect--rogue-shadow-impact--sheet-7x32x32.png",
+    "fx.hit-barbarian": "effects/effect--barbarian-heavy-impact--sheet-5x32x32.png",
+    "fx.ground-impact": "effects/effect--barbarian-ground-rupture--sheet-9x112x128.png",
+    "fx.rage-explosion": "effects/effect--barbarian-rage-explosion--sheet-10x192x192.png",
+    "fx.frost-splash": "effects/effect--wizard-frost-nova-splash--sheet-9x192x192.png",
+    "fx.shadow-dust": "effects/effect--rogue-shadow-dash-dust--sheet-10x64x64.png",
+    "fx.fire-ball": "effects/effect--fireball-projectile--sheet-3x52x29.png",
+    "fx.energy-shield": "effects/effect--knight-energy-shield--sheet-8x51x47.png",
+    "fx.energy-smack": "effects/effect--arcane-impact-large--sheet-8x128x96.png",
+    "fx.electro-shock": "effects/effect--lightning-shock--sheet-9x128x96.png",
+    "fx.enemy-death": "effects/effect--enemy-death-burst--sheet-8x56x64.png",
+    "fx.dust": "effects/effect--movement-dust--sheet-8x64x64.png",
+    "fx.explosion": "effects/effect--orange-explosion--sheet-8x192x192.png",
+    "fx.fire": "effects/effect--small-fire-loop--sheet-8x64x64.png",
+    "fx.fire-large": "effects/effect--large-fire-loop--sheet-12x64x64.png"
+  },
+  "environment_groups": {
+    "atlases": [
+      "environment/dungeon--tileset--16px-grid--304x144.png",
+      "environment/dungeon--object-atlas--16px-grid--272x144.png"
+    ],
+    "room_props": "environment/room-prop--*.png"
+  },
+  "ui_files": {
+    "boss_bar_base": "ui/hud--boss-health-bar-base--320x64.png",
+    "boss_bar_fill": "ui/hud--boss-health-bar-fill--64x64.png",
+    "player_bar_base": "ui/hud--player-health-bar-base--320x64.png",
+    "player_bar_fill": "ui/hud--player-health-bar-fill--64x64.png",
+    "paper_panel": "ui/hud--fantasy-paper-panel--320x320.png",
+    "banner": "ui/hud--fantasy-banner--448x448.png",
+    "item_icon_atlas": "ui/hud--fantasy-item-icons-atlas--576x336.png"
+  },
+  "audio_files": {
+    "source_folder": "/home/viv/Projects/Assets/sound affects/All sounds",
+    "license_status": "user-provided; license/redistribution terms not verified",
+    "runtime_registry": "src/games/dungeon-brawl/systems/DungeonAudio.ts::DUNGEON_SOUND_FILES",
+    "files": {
+      "class_attacks": ["audio/knight-sword-swing.wav", "audio/wizard-energy-attack.wav", "audio/rogue-shoot.wav", "audio/barbarian-hard-hit.wav"],
+      "class_skills": ["audio/knight-shield-power.wav", "audio/wizard-shock.wav", "audio/rogue-teleport.wav", "audio/barbarian-crush.wav"],
+      "class_ultimates": ["audio/knight-thunder-strike.wav", "audio/wizard-thunder-strike.wav", "audio/rogue-continuous-shooting.wav", "audio/barbarian-big-boom.wav"],
+      "encounter": ["audio/enemy-alert.wav", "audio/boss-intro.wav", "audio/enemy-laser.wav", "audio/summon.wav", "audio/teleport.wav"],
+      "results": ["audio/boss-defeated.wav", "audio/gameover-dead.wav", "audio/pickup.wav", "audio/powerup.wav", "audio/select.wav", "audio/next-level.wav"]
+    }
+  }
+}
