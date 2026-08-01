@@ -10,7 +10,12 @@ export type ScreenState =
   | 'results'
   | 'settings'
   | 'remote'
-  | 'crash';
+  | 'crash'
+  | 'run-and-gun-title'
+  | 'run-and-gun-character'
+  | 'run-and-gun-setup'
+  | 'run-and-gun-controls'
+  | 'run-and-gun-settings';
 
 export interface StandingsResult {
   winnerId?: number;
