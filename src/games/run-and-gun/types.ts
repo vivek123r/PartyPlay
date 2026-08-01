@@ -116,6 +116,8 @@ export interface Projectile {
   height: number;
   damage: number;
   fromPlayer: boolean;
+  /** Boss ordnance is drawn larger; kept as a flag instead of inferring it from width. */
+  fromBoss?: boolean;
   playerId?: number;
   weaponType?: WeaponType;
   isExplosive?: boolean;
@@ -148,6 +150,16 @@ export interface PowerUp {
   alive: boolean;
 }
 
+export interface Explosion {
+  x: number;
+  y: number;
+  radius: number;
+  timer: number;
+  maxTime: number;
+  /** Stable per-instance offset so smoke puffs are not all aligned. */
+  seed: number;
+}
+
 export interface Platform {
   x: number;
   y: number;
@@ -163,6 +175,15 @@ export interface EnemySpawn {
   patrolRight?: number;
 }
 
+/** Terrain themes the level scrolls through; drives ground, platform and prop styling. */
+export type Biome = 'field' | 'trench' | 'base' | 'arena';
+
+export interface Zone {
+  /** World x where this biome takes over from the previous one. */
+  startX: number;
+  biome: Biome;
+}
+
 export interface LevelData {
   width: number;
   height: number;
@@ -171,14 +192,30 @@ export interface LevelData {
   enemySpawns: EnemySpawn[];
   playerSpawns: Array<{ x: number; y: number }>;
   environment: EnvironmentObjects;
+  zones?: Zone[];
   skyColor: number;
   mountainColor: number;
   groundColor: number;
 }
 
+/** Every prop's `y` is its baseline — the world y its feet rest on. */
 export interface EnvironmentObjects {
-  trees: Array<{ x: number; groundY: number }>;
+  trees: Array<{ x: number; groundY: number; variant?: 'broadleaf' | 'pine' | 'dead'; scale?: number }>;
   crates: Array<{ x: number; y: number }>;
-  barrels: Array<{ x: number; y: number }>;
-  signs: Array<{ x: number; y: number }>;
+  barrels: Array<{ x: number; y: number; variant?: 'wood' | 'fuel' }>;
+  signs: Array<{ x: number; y: number; variant?: 'skull' | 'arrow' | 'radiation' }>;
+  sandbags?: Array<{ x: number; y: number; width?: number }>;
+  bunkers?: Array<{ x: number; y: number }>;
+  wrecks?: Array<{ x: number; y: number }>;
+  fences?: Array<{ x: number; y: number; width?: number }>;
+  tents?: Array<{ x: number; y: number }>;
+  brokenWalls?: Array<{ x: number; y: number; width?: number }>;
+  rubble?: Array<{ x: number; y: number }>;
+  craters?: Array<{ x: number; y: number; width?: number }>;
+  puddles?: Array<{ x: number; y: number; width?: number }>;
+  lamps?: Array<{ x: number; y: number }>;
+  towers?: Array<{ x: number; y: number; height?: number }>;
+  ammoBoxes?: Array<{ x: number; y: number }>;
+  fireBarrels?: Array<{ x: number; y: number }>;
+  flags?: Array<{ x: number; y: number }>;
 }

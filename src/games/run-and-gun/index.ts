@@ -9,10 +9,39 @@ import type {
   PowerUpType,
   EnemyType,
   LevelData,
+  Explosion,
 } from './types';
 import { LEVEL_1 } from './config/level1';
 import { CHARACTERS } from './config/characters';
-import { drawSky, drawMountains, drawClouds, drawGround, drawPlatform, drawTree, drawCrate, drawBarrel, drawWarningSign, drawPlayer, drawSoldier, drawTurret, drawBoss, drawPlayerBullet, drawEnemyBullet, drawBossBullet, drawParticle, drawPowerUp, drawVignette } from './rendering';
+import {
+  buildSky,
+  drawSkyAnim,
+  buildMountains,
+  buildSkyline,
+  buildTreeLine,
+  drawClouds,
+  drawFog,
+  drawWeather,
+  buildGround,
+  buildGroundFeatures,
+  buildPlatforms,
+  buildEnvironment,
+  drawEnvironmentAnim,
+  biomeAt,
+  drawPlayer,
+  drawTetherEdge,
+  drawSoldier,
+  drawTurret,
+  drawBoss,
+  drawPlayerBullet,
+  drawEnemyBullet,
+  drawBossBullet,
+  drawParticle,
+  drawPowerUp,
+  drawExplosion,
+  drawShockRing,
+  drawVignette,
+} from './rendering';
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -31,37 +60,67 @@ const ENEMY_SPEED = 45;
 const ENEMY_SHOOT_COOLDOWN_SOLDIER = 1.8;
 const ENEMY_SHOOT_COOLDOWN_TURRET = 1.2;
 const ENEMY_SHOOT_COOLDOWN_BOSS = 0.7;
-const SCROLL_DEAD_ZONE = 160;
 const PARTICLE_MAX_LIFE = 0.5;
+const EXPLOSION_DURATION = 0.42;
+
+/** How far from the left edge the leading player is held while the screen scrolls. */
+const CAMERA_LEAD_MARGIN = 264;
+/** Players are kept this far inside the viewport so nobody can be left off-screen. */
+const VIEW_EDGE_PAD = 4;
+
+interface ParallaxLayer {
+  container: Container;
+  factor: number;
+  shake: boolean;
+}
 
 export default class RunAndGunGame implements GameModule {
   private _state: InternalGameState = 'Initializing';
   private ctx!: GameContext;
 
   // Containers
-  private bgContainer!: Container;
+  private skyContainer!: Container;
   private cloudContainer!: Container;
-  private mountainContainer!: Container;
+  private mtnFarContainer!: Container;
+  private skylineContainer!: Container;
+  private mtnMidContainer!: Container;
+  private treeLineContainer!: Container;
+  private mtnNearContainer!: Container;
+  private fogContainer!: Container;
   private worldContainer!: Container;
   private envContainer!: Container;
-  private entityContainer!: Container;
-  private projectileContainer!: Container;
-  private powerUpContainer!: Container;
+  private envAnimContainer!: Container;
   private particleContainer!: Container;
-  private hudContainer!: Container;
+  private entityContainer!: Container;
+  private powerUpContainer!: Container;
+  private projectileContainer!: Container;
+  private fxContainer!: Container;
+  private weatherContainer!: Container;
   private effectContainer!: Container;
+  private hudContainer!: Container;
+
+  private parallaxLayers: ParallaxLayer[] = [];
 
   // Graphics
   private skyGfx!: Graphics;
+  private skyAnimGfx!: Graphics;
   private cloudGfx!: Graphics;
-  private mountainGfx!: Graphics;
+  private mtnFarGfx!: Graphics;
+  private skylineGfx!: Graphics;
+  private mtnMidGfx!: Graphics;
+  private treeLineGfx!: Graphics;
+  private mtnNearGfx!: Graphics;
+  private fogGfx!: Graphics;
   private groundGfx!: Graphics;
-  private worldGfx!: Graphics;
+  private platformGfx!: Graphics;
   private envGfx!: Graphics;
+  private envAnimGfx!: Graphics;
   private entityGfx!: Graphics;
   private projectileGfx!: Graphics;
   private powerUpGfx!: Graphics;
   private particleGfx!: Graphics;
+  private fxGfx!: Graphics;
+  private weatherGfx!: Graphics;
   private hudGfx!: Graphics;
   private effectGfx!: Graphics;
 
@@ -71,6 +130,7 @@ export default class RunAndGunGame implements GameModule {
   private p1LivesText!: Text;
   private p2LivesText!: Text;
   private scoreText!: Text;
+  private bossNameText!: Text;
 
   // Game state
   private level: LevelData = LEVEL_1;
@@ -79,6 +139,7 @@ export default class RunAndGunGame implements GameModule {
   private projectiles: Projectile[] = [];
   private particles: Particle[] = [];
   private powerUps: PowerUp[] = [];
+  private explosions: Explosion[] = [];
   private cameraX = 0;
   private score = 0;
   private gameOver = false;
@@ -86,6 +147,9 @@ export default class RunAndGunGame implements GameModule {
   private nextPowerUpId = 1;
   private playerCount = 1;
   private musicStarted = false;
+  private time = 0;
+  /** Which viewport edge each player is currently being held against, if any. */
+  private pinnedEdge = new Map<number, 'left' | 'right' | null>();
 
   // Juiciness & Screen Shake
   private shakeTimer = 0;
@@ -115,96 +179,8 @@ export default class RunAndGunGame implements GameModule {
     const enemyHpMul = diffMultipliers.enemyHealthMultiplier || 1;
     const bossHpMul = diffMultipliers.bossHealthMultiplier || 1;
 
-    // Create containers (ordered back-to-front)
-    this.bgContainer = new Container();
-    this.cloudContainer = new Container();
-    this.mountainContainer = new Container();
-    this.worldContainer = new Container();
-    this.envContainer = new Container();
-    this.particleContainer = new Container();
-    this.entityContainer = new Container();
-    this.powerUpContainer = new Container();
-    this.projectileContainer = new Container();
-    this.hudContainer = new Container();
-    this.effectContainer = new Container();
-
-    stage.addChild(this.bgContainer);
-    stage.addChild(this.cloudContainer);
-    stage.addChild(this.mountainContainer);
-    stage.addChild(this.worldContainer);
-    stage.addChild(this.envContainer);
-    stage.addChild(this.particleContainer);
-    stage.addChild(this.entityContainer);
-    stage.addChild(this.powerUpContainer);
-    stage.addChild(this.projectileContainer);
-    stage.addChild(this.hudContainer);
-    stage.addChild(this.effectContainer);
-
-    this.skyGfx = new Graphics();
-    this.cloudGfx = new Graphics();
-    this.mountainGfx = new Graphics();
-    this.groundGfx = new Graphics();
-    this.worldGfx = new Graphics();
-    this.envGfx = new Graphics();
-    this.entityGfx = new Graphics();
-    this.powerUpGfx = new Graphics();
-    this.projectileGfx = new Graphics();
-    this.particleGfx = new Graphics();
-    this.hudGfx = new Graphics();
-    this.effectGfx = new Graphics();
-
-    this.bgContainer.addChild(this.skyGfx);
-    this.cloudContainer.addChild(this.cloudGfx);
-    this.mountainContainer.addChild(this.mountainGfx);
-    this.worldContainer.addChild(this.groundGfx);
-    this.worldContainer.addChild(this.worldGfx);
-    this.envContainer.addChild(this.envGfx);
-    this.entityContainer.addChild(this.entityGfx);
-    this.powerUpContainer.addChild(this.powerUpGfx);
-    this.projectileContainer.addChild(this.projectileGfx);
-    this.particleContainer.addChild(this.particleGfx);
-    this.hudContainer.addChild(this.hudGfx);
-    this.effectContainer.addChild(this.effectGfx);
-
-    // HUD text
-    this.p1HealthText = new Text({
-      text: '',
-      style: { fontFamily: 'Press Start 2P', fontSize: 6, fill: 0xffffff },
-    });
-    this.p2HealthText = new Text({
-      text: '',
-      style: { fontFamily: 'Press Start 2P', fontSize: 6, fill: 0xffffff },
-    });
-    this.p1LivesText = new Text({
-      text: '',
-      style: { fontFamily: 'Pixelify Sans', fontSize: 7, fill: 0xffffff },
-    });
-    this.p2LivesText = new Text({
-      text: '',
-      style: { fontFamily: 'Pixelify Sans', fontSize: 7, fill: 0xffffff },
-    });
-    this.scoreText = new Text({
-      text: '',
-      style: { fontFamily: 'Press Start 2P', fontSize: 5, fill: 0xffde7d },
-    });
-
-    this.p1HealthText.x = 8;
-    this.p1HealthText.y = 8;
-    this.p2HealthText.x = this.viewportW - 8;
-    this.p2HealthText.y = 8;
-    this.p1LivesText.x = 8;
-    this.p1LivesText.y = 18;
-    this.p2LivesText.x = this.viewportW - 8;
-    this.p2LivesText.y = 18;
-    this.scoreText.x = this.viewportW / 2;
-    this.scoreText.y = 8;
-    this.scoreText.anchor.set(0.5, 0);
-
-    this.hudContainer.addChild(this.p1HealthText);
-    this.hudContainer.addChild(this.p2HealthText);
-    this.hudContainer.addChild(this.p1LivesText);
-    this.hudContainer.addChild(this.p2LivesText);
-    this.hudContainer.addChild(this.scoreText);
+    this.buildSceneGraph(stage);
+    this.bakeStaticScenery();
 
     // Spawn players
     this.playerCount = this.ctx.players.length;
@@ -221,6 +197,166 @@ export default class RunAndGunGame implements GameModule {
     this._state = 'Ready';
   }
 
+  /** Layer stack, back to front. Each parallax layer is offset by the camera every frame,
+   * which keeps every backdrop moving at exactly its own rate — no per-pixel scroll maths. */
+  private buildSceneGraph(stage: Container): void {
+    this.skyContainer = new Container();
+    this.cloudContainer = new Container();
+    this.mtnFarContainer = new Container();
+    this.skylineContainer = new Container();
+    this.mtnMidContainer = new Container();
+    this.treeLineContainer = new Container();
+    this.mtnNearContainer = new Container();
+    this.fogContainer = new Container();
+    this.worldContainer = new Container();
+    this.envContainer = new Container();
+    this.envAnimContainer = new Container();
+    this.particleContainer = new Container();
+    this.entityContainer = new Container();
+    this.powerUpContainer = new Container();
+    this.projectileContainer = new Container();
+    this.fxContainer = new Container();
+    this.weatherContainer = new Container();
+    this.effectContainer = new Container();
+    this.hudContainer = new Container();
+
+    this.parallaxLayers = [
+      { container: this.skyContainer, factor: 0, shake: false },
+      { container: this.cloudContainer, factor: 0.20, shake: false },
+      { container: this.mtnFarContainer, factor: 0.25, shake: false },
+      { container: this.skylineContainer, factor: 0.32, shake: false },
+      { container: this.mtnMidContainer, factor: 0.40, shake: false },
+      { container: this.mtnNearContainer, factor: 0.70, shake: false },
+      // Tree line rides in front of the foothills, otherwise the hills swallow it
+      { container: this.treeLineContainer, factor: 0.78, shake: false },
+      { container: this.fogContainer, factor: 0.90, shake: true },
+      { container: this.worldContainer, factor: 1, shake: true },
+      { container: this.envContainer, factor: 1, shake: true },
+      { container: this.envAnimContainer, factor: 1, shake: true },
+      { container: this.particleContainer, factor: 1, shake: true },
+      { container: this.entityContainer, factor: 1, shake: true },
+      { container: this.powerUpContainer, factor: 1, shake: true },
+      { container: this.projectileContainer, factor: 1, shake: true },
+      { container: this.fxContainer, factor: 1, shake: true },
+    ];
+
+    for (const layer of this.parallaxLayers) stage.addChild(layer.container);
+    // Screen-space layers sit on top; the HUD is last so nothing ever covers it.
+    stage.addChild(this.weatherContainer);
+    stage.addChild(this.effectContainer);
+    stage.addChild(this.hudContainer);
+
+    this.skyGfx = new Graphics();
+    this.skyAnimGfx = new Graphics();
+    this.cloudGfx = new Graphics();
+    this.mtnFarGfx = new Graphics();
+    this.skylineGfx = new Graphics();
+    this.mtnMidGfx = new Graphics();
+    this.treeLineGfx = new Graphics();
+    this.mtnNearGfx = new Graphics();
+    this.fogGfx = new Graphics();
+    this.groundGfx = new Graphics();
+    this.platformGfx = new Graphics();
+    this.envGfx = new Graphics();
+    this.envAnimGfx = new Graphics();
+    this.entityGfx = new Graphics();
+    this.powerUpGfx = new Graphics();
+    this.projectileGfx = new Graphics();
+    this.particleGfx = new Graphics();
+    this.fxGfx = new Graphics();
+    this.weatherGfx = new Graphics();
+    this.hudGfx = new Graphics();
+    this.effectGfx = new Graphics();
+
+    this.skyContainer.addChild(this.skyGfx);
+    this.skyContainer.addChild(this.skyAnimGfx);
+    this.cloudContainer.addChild(this.cloudGfx);
+    this.mtnFarContainer.addChild(this.mtnFarGfx);
+    this.skylineContainer.addChild(this.skylineGfx);
+    this.mtnMidContainer.addChild(this.mtnMidGfx);
+    this.treeLineContainer.addChild(this.treeLineGfx);
+    this.mtnNearContainer.addChild(this.mtnNearGfx);
+    this.fogContainer.addChild(this.fogGfx);
+    this.worldContainer.addChild(this.groundGfx);
+    this.worldContainer.addChild(this.platformGfx);
+    this.envContainer.addChild(this.envGfx);
+    this.envAnimContainer.addChild(this.envAnimGfx);
+    this.entityContainer.addChild(this.entityGfx);
+    this.powerUpContainer.addChild(this.powerUpGfx);
+    this.projectileContainer.addChild(this.projectileGfx);
+    this.particleContainer.addChild(this.particleGfx);
+    this.fxContainer.addChild(this.fxGfx);
+    this.weatherContainer.addChild(this.weatherGfx);
+    this.effectContainer.addChild(this.effectGfx);
+    this.hudContainer.addChild(this.hudGfx);
+
+    this.buildHudText();
+  }
+
+  private buildHudText(): void {
+    const pixelFont = { fontFamily: 'Press Start 2P', fontSize: 6, fill: 0xffffff };
+
+    this.p1HealthText = new Text({ text: '', style: { ...pixelFont } });
+    this.p2HealthText = new Text({ text: '', style: { ...pixelFont } });
+    this.p1LivesText = new Text({
+      text: '',
+      style: { fontFamily: 'Pixelify Sans', fontSize: 7, fill: 0xff4444 },
+    });
+    this.p2LivesText = new Text({
+      text: '',
+      style: { fontFamily: 'Pixelify Sans', fontSize: 7, fill: 0xff4444 },
+    });
+    this.scoreText = new Text({
+      text: '',
+      style: { fontFamily: 'Press Start 2P', fontSize: 5, fill: 0xffde7d },
+    });
+    this.bossNameText = new Text({
+      text: '',
+      style: { fontFamily: 'Press Start 2P', fontSize: 5, fill: 0xff8888 },
+    });
+
+    this.p1HealthText.position.set(8, 2);
+    this.p1LivesText.position.set(8, 17);
+
+    // Right-anchored so long labels never spill off the edge
+    this.p2HealthText.anchor.set(1, 0);
+    this.p2LivesText.anchor.set(1, 0);
+    this.p2HealthText.position.set(this.viewportW - 8, 2);
+    this.p2LivesText.position.set(this.viewportW - 8, 17);
+
+    this.scoreText.anchor.set(0.5, 0);
+    this.scoreText.position.set(this.viewportW / 2, 3);
+
+    this.bossNameText.anchor.set(0.5, 0);
+    this.bossNameText.position.set(this.viewportW / 2, this.viewportH - 16);
+
+    this.hudContainer.addChild(this.p1HealthText);
+    this.hudContainer.addChild(this.p2HealthText);
+    this.hudContainer.addChild(this.p1LivesText);
+    this.hudContainer.addChild(this.p2LivesText);
+    this.hudContainer.addChild(this.scoreText);
+    this.hudContainer.addChild(this.bossNameText);
+  }
+
+  /** Everything that never changes is drawn exactly once in world space. */
+  private bakeStaticScenery(): void {
+    buildSky(this.skyGfx, this.viewportW, this.viewportH);
+
+    const horizonY = this.viewportH - 28;
+    buildMountains(this.mtnFarGfx, 'far', horizonY);
+    buildMountains(this.mtnMidGfx, 'mid', horizonY);
+    buildMountains(this.mtnNearGfx, 'near', horizonY);
+
+    const span = (factor: number) => this.level.width * factor + this.viewportW;
+    buildSkyline(this.skylineGfx, span(0.32), this.viewportH - 34);
+    buildTreeLine(this.treeLineGfx, span(0.78), this.level.groundY + 1);
+
+    buildGround(this.groundGfx, this.level);
+    buildGroundFeatures(this.groundGfx, this.level);
+    buildPlatforms(this.platformGfx, this.level);
+    buildEnvironment(this.envGfx, this.level);
+  }
+
   start(): void {
     if (this._state !== 'Ready') return;
     this._state = 'Playing';
@@ -232,6 +368,8 @@ export default class RunAndGunGame implements GameModule {
 
   update(dt: number): void {
     if (this._state !== 'Playing') return;
+
+    this.time += dt;
 
     if (this.shakeTimer > 0) {
       this.shakeTimer -= dt;
@@ -245,7 +383,9 @@ export default class RunAndGunGame implements GameModule {
     this.updateEnemies(dt);
     this.updatePowerUps(dt);
     this.updateProjectiles(dt);
+    this.updateExplosions(dt);
     this.updateCamera();
+    this.constrainPlayersToView(dt);
     this.updateParticles(dt);
     this.checkWinLose();
     this.render();
@@ -268,10 +408,9 @@ export default class RunAndGunGame implements GameModule {
     this.enemies = [];
     this.projectiles = [];
     this.particles = [];
+    this.explosions = [];
     this._state = 'Destroyed';
   }
-
-  // ── Player ────────────────────────────────────────────────
 
   // ── Player ────────────────────────────────────────────────
 
@@ -424,8 +563,8 @@ export default class RunAndGunGame implements GameModule {
       // Ground/platform collision
       this.resolvePlayerCollision(player);
 
-      // Fall off screen = death
-      if (player.y > this.viewportH + 60) {
+      // Fall out of the world = death
+      if (player.y > this.level.height + 60) {
         this.killPlayer(player);
       }
     }
@@ -465,6 +604,7 @@ export default class RunAndGunGame implements GameModule {
   }
 
   private killPlayer(player: PlayerState): void {
+    if (player.isDead) return;
     player.health = 0;
     player.lives--;
     player.isDead = true;
@@ -490,16 +630,41 @@ export default class RunAndGunGame implements GameModule {
     });
   }
 
+  /** Co-op respawn: drop back in beside a living team-mate rather than at the level start,
+   * so a death never strands one player behind the scroll. */
   private respawnPlayer(player: PlayerState): void {
+    const mate = this.players.find((p) => p.playerId !== player.playerId && !p.isDead);
+
+    let x: number;
+    let y: number;
+    if (mate) {
+      x = mate.x + (mate.facingRight ? -26 : 26);
+      y = mate.y - 52;
+    } else {
+      x = this.cameraX + this.viewportW * 0.3;
+      y = this.level.groundY - PLAYER_HEIGHT - 70;
+    }
+
+    // Always land inside the current view and inside the level
+    const minX = Math.max(0, this.cameraX + 12);
+    const maxX = Math.min(this.level.width - PLAYER_WIDTH, this.cameraX + this.viewportW - PLAYER_WIDTH - 12);
+    x = Math.max(minX, Math.min(maxX, x));
+    y = Math.max(-24, Math.min(y, this.level.groundY - PLAYER_HEIGHT));
+
     player.health = PLAYER_MAX_HP;
     player.isDead = false;
     player.deathTimer = 0;
     player.invincibleTimer = INVINCIBLE_DURATION;
-    const spawn = this.level.playerSpawns[player.playerId - 1] || this.level.playerSpawns[0];
-    player.x = spawn.x;
-    player.y = spawn.y;
+    player.isCrouching = false;
+    player.height = PLAYER_HEIGHT;
+    player.isOnGround = false;
+    player.x = x;
+    player.y = y;
     player.vx = 0;
-    player.vy = 0;
+    player.vy = 40;
+
+    this.spawnDustPuff(x + PLAYER_WIDTH / 2, y + PLAYER_HEIGHT);
+    this.ctx.audio.playArpeggio([400, 600, 800], 0.06, 'square', 0.12);
   }
 
   private damagePlayer(player: PlayerState, damage: number): void {
@@ -606,9 +771,9 @@ export default class RunAndGunGame implements GameModule {
       if (enemy.type === 'soldier') {
         this.updateSoldierAI(enemy, dt);
       } else if (enemy.type === 'turret') {
-        this.updateTurretAI(enemy, dt);
+        this.updateTurretAI(enemy);
       } else if (enemy.type === 'boss') {
-        this.updateBossAI(enemy, dt);
+        this.updateBossAI(enemy);
       }
 
       // Gravity and ground
@@ -623,21 +788,13 @@ export default class RunAndGunGame implements GameModule {
           enemy.isOnGround = true;
         }
       }
-
-      // Off-screen removal (non-boss)
-      if (enemy.type !== 'boss' && (enemy.x + enemy.width < this.cameraX - 100 || enemy.x > this.cameraX + this.viewportW + 100)) {
-        continue;
-      }
     }
 
     // Clean up dead enemies
-    this.enemies = this.enemies.filter((e) => {
-      if (e.isDead && e.deathTimer <= -1.5) return false;
-      return true;
-    });
+    this.enemies = this.enemies.filter((e) => !(e.isDead && e.deathTimer <= -1.5));
   }
 
-  private updateSoldierAI(enemy: EnemyState, _dt: number): void {
+  private updateSoldierAI(enemy: EnemyState, dt: number): void {
     if (!enemy.isOnGround) return;
 
     // Patrol
@@ -648,21 +805,24 @@ export default class RunAndGunGame implements GameModule {
         enemy.facingRight = false;
       }
       enemy.vx = enemy.facingRight ? ENEMY_SPEED : -ENEMY_SPEED;
-      enemy.x += enemy.vx * 0.016;
+      enemy.x += enemy.vx * dt;
     }
 
     // Shoot at nearest alive player
     this.tryShootAtPlayer(enemy);
   }
 
-  private updateTurretAI(enemy: EnemyState, _dt: number): void {
+  private updateTurretAI(enemy: EnemyState): void {
+    // Track the nearest player even between shots so the barrel reads as aimed
+    const nearest = this.findNearestAlivePlayer(enemy.x, enemy.y);
+    if (nearest) enemy.facingRight = nearest.x > enemy.x;
     this.tryShootAtPlayer(enemy);
   }
 
-  private updateBossAI(enemy: EnemyState, _dt: number): void {
+  private updateBossAI(enemy: EnemyState): void {
     if (!enemy.isOnGround) return;
 
-    // Oscillate gently
+    // Oscillate gently around the arena centre
     const baseX = 2200;
     const amp = 40;
     enemy.x = baseX + Math.sin(enemy.behaviorTimer * 1.5) * amp;
@@ -703,7 +863,8 @@ export default class RunAndGunGame implements GameModule {
       enemy.y + enemy.height / 2 - 4,
       Math.cos(angle) * ENEMY_BULLET_SPEED,
       Math.sin(angle) * ENEMY_BULLET_SPEED,
-      enemy.type === 'boss' ? 2 : 1
+      enemy.type === 'boss' ? 2 : 1,
+      enemy.type === 'boss'
     );
 
     if (enemy.type === 'boss') {
@@ -716,17 +877,22 @@ export default class RunAndGunGame implements GameModule {
   private spawnBossAttack(boss: EnemyState): void {
     this.ctx.audio.playNoiseBurst({ duration: 0.12, gain: 0.12 });
 
-    // Spread shot
     const spawnX = boss.x + boss.width / 2;
     const spawnY = boss.y + boss.height / 2 - 4;
-    const angles = [-0.3, -0.15, 0, 0.15, 0.3];
 
-    for (const a of angles) {
+    // Fan the spread toward whoever it is facing instead of always firing left
+    const target = this.findNearestAlivePlayer(boss.x, boss.y);
+    const baseAngle = target
+      ? Math.atan2((target.y + target.height / 2) - spawnY, (target.x + target.width / 2) - spawnX)
+      : (boss.facingRight ? 0 : Math.PI);
+
+    for (const offset of [-0.3, -0.15, 0, 0.15, 0.3]) {
+      const a = baseAngle + offset;
       this.spawnEnemyBullet(
         spawnX,
         spawnY,
-        Math.cos(Math.PI + a) * ENEMY_BULLET_SPEED * 1.2,
-        Math.sin(Math.PI + a) * ENEMY_BULLET_SPEED * 1.2,
+        Math.cos(a) * ENEMY_BULLET_SPEED * 1.2,
+        Math.sin(a) * ENEMY_BULLET_SPEED * 1.2,
         1,
         true
       );
@@ -795,11 +961,12 @@ export default class RunAndGunGame implements GameModule {
     }
 
     if (enemy.type === 'boss') {
+      this.spawnExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, 30);
       this.triggerScreenShake(5, 0.4);
       this.ctx.audio.playArpeggio([200, 300, 400, 600], 0.1, 'square', 0.15);
       this.ctx.audio.playNoiseBurst({ duration: 0.3, filterFreq: 300, filterFreqEnd: 50, gain: 0.2 });
     } else {
-      // 30% chance to drop a powerup on non-boss kill
+      // Chance to drop a powerup on non-boss kill
       if (Math.random() < 0.35) {
         this.spawnPowerUp(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
       }
@@ -968,13 +1135,14 @@ export default class RunAndGunGame implements GameModule {
       height: isBoss ? 6 : 4,
       damage,
       fromPlayer: false,
+      fromBoss: isBoss,
       alive: true,
     });
   }
 
   private triggerScreenShake(intensity: number, duration = 0.2): void {
-    this.shakeIntensity = intensity;
-    this.shakeTimer = duration;
+    this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+    this.shakeTimer = Math.max(this.shakeTimer, duration);
   }
 
   private updateProjectiles(dt: number): void {
@@ -1002,6 +1170,7 @@ export default class RunAndGunGame implements GameModule {
 
       // Collision check
       if (proj.fromPlayer) {
+        const shooter = this.players.find((p) => p.playerId === proj.playerId);
         // Player bullet vs enemies
         for (const enemy of this.enemies) {
           if (enemy.isDead) continue;
@@ -1011,10 +1180,9 @@ export default class RunAndGunGame implements GameModule {
             }
 
             if (proj.isExplosive) {
-              this.createExplosionAt(proj.x, proj.y, proj.explosionRadius || 28, proj.damage);
-            } else {
-              const shooter = this.players.find((p) => p.playerId === proj.playerId);
-              if (shooter) this.damageEnemy(enemy, proj.damage, shooter);
+              this.createExplosionAt(proj.x, proj.y, proj.explosionRadius || 28, proj.damage, shooter);
+            } else if (shooter) {
+              this.damageEnemy(enemy, proj.damage, shooter);
             }
             break;
           }
@@ -1035,14 +1203,26 @@ export default class RunAndGunGame implements GameModule {
       if (proj.y + proj.height > this.level.groundY) {
         proj.alive = false;
         if (proj.isExplosive) {
-          this.createExplosionAt(proj.x, proj.y, proj.explosionRadius || 28, proj.damage);
+          this.createExplosionAt(
+            proj.x,
+            this.level.groundY - 2,
+            proj.explosionRadius || 28,
+            proj.damage,
+            this.players.find((p) => p.playerId === proj.playerId),
+          );
         }
       }
       for (const plat of this.level.platforms) {
         if (this.rectOverlapsRect(proj.x, proj.y, proj.width, proj.height, plat.x, plat.y, plat.width, plat.height)) {
           proj.alive = false;
           if (proj.isExplosive) {
-            this.createExplosionAt(proj.x, proj.y, proj.explosionRadius || 28, proj.damage);
+            this.createExplosionAt(
+              proj.x,
+              proj.y,
+              proj.explosionRadius || 28,
+              proj.damage,
+              this.players.find((p) => p.playerId === proj.playerId),
+            );
           }
           break;
         }
@@ -1052,23 +1232,58 @@ export default class RunAndGunGame implements GameModule {
     this.projectiles = this.projectiles.filter((p) => p.alive);
   }
 
-  private createExplosionAt(x: number, y: number, radius: number, damage: number): void {
+  private createExplosionAt(x: number, y: number, radius: number, damage: number, source?: PlayerState): void {
     this.triggerScreenShake(4, 0.25);
+    this.spawnExplosion(x, y, radius);
+
     // Visual particles
     for (let i = 0; i < 15; i++) {
       this.spawnParticle(x, y, 0xffaa22);
     }
-    // Area damage to nearby enemies
-    for (const enemy of this.enemies) {
-      if (enemy.isDead) continue;
-      const dx = enemy.x + enemy.width / 2 - x;
-      const dy = enemy.y + enemy.height / 2 - y;
-      if (dx * dx + dy * dy <= radius * radius) {
-        const p1 = this.players[0];
-        if (p1) this.damageEnemy(enemy, damage, p1);
+    for (let i = 0; i < 5; i++) {
+      this.particles.push({
+        x: x + (Math.random() * 12 - 6),
+        y: y + (Math.random() * 12 - 6),
+        vx: Math.random() * 20 - 10,
+        vy: -12 - Math.random() * 18,
+        life: 0.7,
+        maxLife: 0.7,
+        color: 0x555566,
+        type: 'smoke',
+        alive: true,
+      });
+    }
+
+    // Area damage to nearby enemies, credited to whoever fired
+    const credit = source || this.players.find((p) => !p.isDead) || this.players[0];
+    if (credit) {
+      for (const enemy of this.enemies) {
+        if (enemy.isDead) continue;
+        const dx = enemy.x + enemy.width / 2 - x;
+        const dy = enemy.y + enemy.height / 2 - y;
+        if (dx * dx + dy * dy <= radius * radius) {
+          this.damageEnemy(enemy, damage, credit);
+        }
       }
     }
     this.ctx.audio.playNoiseBurst({ duration: 0.25, filterFreq: 500, filterFreqEnd: 80, gain: 0.2 });
+  }
+
+  private spawnExplosion(x: number, y: number, radius: number): void {
+    this.explosions.push({
+      x,
+      y,
+      radius,
+      timer: EXPLOSION_DURATION,
+      maxTime: EXPLOSION_DURATION,
+      seed: Math.random() * Math.PI * 2,
+    });
+  }
+
+  private updateExplosions(dt: number): void {
+    if (this.explosions.length === 0) return;
+    for (const ex of this.explosions) ex.timer -= dt;
+    this.explosions = this.explosions.filter((ex) => ex.timer > 0);
   }
 
   // ── Power-Ups & Particle Helpers ─────────────────────────────────────────
@@ -1091,7 +1306,19 @@ export default class RunAndGunGame implements GameModule {
       if (!pup.alive) continue;
       pup.y += pup.vy * dt;
 
-      // Stop on ground
+      // Rest on a platform if one is directly underneath, otherwise on the ground
+      if (pup.vy > 0) {
+        for (const plat of this.level.platforms) {
+          if (
+            pup.x + 12 > plat.x && pup.x < plat.x + plat.width &&
+            pup.y + 12 > plat.y && pup.y + 12 <= plat.y + plat.height + 6
+          ) {
+            pup.y = plat.y - 12;
+            pup.vy = 0;
+            break;
+          }
+        }
+      }
       if (pup.y + 12 > this.level.groundY) {
         pup.y = this.level.groundY - 12;
         pup.vy = 0;
@@ -1150,24 +1377,55 @@ export default class RunAndGunGame implements GameModule {
 
   // ── Camera ────────────────────────────────────────────────
 
+  /** The screen follows whichever player is furthest ahead, and only ever moves forward.
+   * Either player can therefore push the level on alone. */
   private updateCamera(): void {
     const alivePlayers = this.players.filter((p) => !p.isDead);
-    if (alivePlayers.length === 0) return;
-
-    if (alivePlayers.length === 1) {
-      const p = alivePlayers[0];
-      if (p.x > this.cameraX + SCROLL_DEAD_ZONE) {
-        this.cameraX = p.x - SCROLL_DEAD_ZONE;
-      }
-    } else {
-      // 2-player: center between players
-      const minX = Math.min(...alivePlayers.map((p) => p.x));
-      const maxX = Math.max(...alivePlayers.map((p) => p.x + p.width));
-      const centerX = (minX + maxX) / 2;
-      this.cameraX = centerX - this.viewportW / 2;
+    if (alivePlayers.length > 0) {
+      let lead = -Infinity;
+      for (const p of alivePlayers) lead = Math.max(lead, p.x + p.width / 2);
+      const target = lead - CAMERA_LEAD_MARGIN;
+      if (target > this.cameraX) this.cameraX = target;
     }
 
     this.cameraX = Math.max(0, Math.min(this.level.width - this.viewportW, this.cameraX));
+  }
+
+  /** Nobody is ever allowed off-screen: a player who lags behind is carried along by the
+   * left edge instead of vanishing (which used to leave both players outside the view). */
+  private constrainPlayersToView(dt: number): void {
+    const left = this.cameraX + VIEW_EDGE_PAD;
+
+    for (const player of this.players) {
+      if (player.isDead) {
+        this.pinnedEdge.set(player.playerId, null);
+        continue;
+      }
+      const right = this.cameraX + this.viewportW - player.width - VIEW_EDGE_PAD;
+      let edge: 'left' | 'right' | null = null;
+
+      if (player.x < left) {
+        player.x = left;
+        if (player.vx < 0) player.vx = 0;
+        edge = 'left';
+      } else if (player.x > right) {
+        player.x = right;
+        if (player.vx > 0) player.vx = 0;
+        edge = 'right';
+      }
+
+      // Keep the walk cycle running while the edge carries them, so a dragged
+      // player does not slide along with frozen legs.
+      if (edge && player.isOnGround) {
+        player.animTimer += dt;
+        if (player.animTimer > 0.12) {
+          player.animTimer = 0;
+          player.animFrame = (player.animFrame + 1) % 2;
+        }
+      }
+
+      this.pinnedEdge.set(player.playerId, edge);
+    }
   }
 
   // ── Particles ─────────────────────────────────────────────
@@ -1192,7 +1450,7 @@ export default class RunAndGunGame implements GameModule {
       p.life -= dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vy += 100 * dt; // particle gravity
+      p.vy += (p.type === 'smoke' ? -20 : 100) * dt;
       if (p.life <= 0) p.alive = false;
     }
     this.particles = this.particles.filter((p) => p.alive);
@@ -1226,9 +1484,9 @@ export default class RunAndGunGame implements GameModule {
     if (bossDead) {
       this.gameOver = true;
       this.ctx.audio.stopAllLoops();
-      const winnerId = this.players[0].playerId;
+      const survivor = this.players.find((p) => !p.isDead) || this.players[0];
       this.ctx.events.emit('game:over', {
-        winnerId,
+        winnerId: survivor.playerId,
         isTeamVictory: true,
         standings: this.players.map((p) => ({
           playerId: p.playerId,
@@ -1252,55 +1510,36 @@ export default class RunAndGunGame implements GameModule {
 
   private render(): void {
     const cx = this.cameraX;
-    const time = performance.now() / 1000;
+    const time = this.time;
 
-    // ── Screen Shake Application ──
+    // ── Screen Shake ──
     let shakeX = 0;
     let shakeY = 0;
     if (this.shakeTimer > 0) {
-      shakeX = (Math.random() - 0.5) * 2 * this.shakeIntensity;
-      shakeY = (Math.random() - 0.5) * 2 * this.shakeIntensity;
+      shakeX = Math.round((Math.random() - 0.5) * 2 * this.shakeIntensity);
+      shakeY = Math.round((Math.random() - 0.5) * 2 * this.shakeIntensity);
     }
 
-    this.worldContainer.x = shakeX; this.worldContainer.y = shakeY;
-    this.envContainer.x = shakeX; this.envContainer.y = shakeY;
-    this.entityContainer.x = shakeX; this.entityContainer.y = shakeY;
-    this.powerUpContainer.x = shakeX; this.powerUpContainer.y = shakeY;
-    this.projectileContainer.x = shakeX; this.projectileContainer.y = shakeY;
-    this.particleContainer.x = shakeX; this.particleContainer.y = shakeY;
-
-    // ── Background
-    drawSky(this.skyGfx, this.viewportW, this.viewportH);
-    drawClouds(this.cloudGfx, cx, this.viewportW, time);
-    drawMountains(this.mountainGfx, cx, this.viewportW, this.viewportH);
-    drawGround(this.groundGfx, cx, this.level.groundY, this.viewportW, this.viewportH);
-
-    // ── Environment objects
-    this.envGfx.clear();
-    const env = this.level.environment;
-    for (const tree of env.trees) {
-      drawTree(this.envGfx, tree.x, tree.groundY, cx, this.viewportW);
-    }
-    for (const crate of env.crates) {
-      drawCrate(this.envGfx, crate.x, crate.y, cx, this.viewportW);
-    }
-    for (const barrel of env.barrels) {
-      drawBarrel(this.envGfx, barrel.x, barrel.y, cx, this.viewportW);
-    }
-    for (const sign of env.signs) {
-      drawWarningSign(this.envGfx, sign.x, sign.y, cx, this.viewportW);
+    // ── Parallax: one offset per layer replaces all per-pixel scroll maths ──
+    for (const layer of this.parallaxLayers) {
+      layer.container.x = -Math.round(cx * layer.factor) + (layer.shake ? shakeX : 0);
+      layer.container.y = layer.shake ? shakeY : 0;
     }
 
-    // ── Platforms
-    this.worldGfx.clear();
-    for (const plat of this.level.platforms) {
-      drawPlatform(this.worldGfx, plat, cx, this.viewportW);
-    }
+    // ── Animated backdrop bits (everything else is baked) ──
+    drawSkyAnim(this.skyAnimGfx, this.viewportW, this.viewportH, time);
+    drawClouds(this.cloudGfx, this.level.width * 0.2 + this.viewportW, time);
+    drawFog(this.fogGfx, this.level.width * 0.9 + this.viewportW, this.level.groundY, time);
+    drawEnvironmentAnim(this.envAnimGfx, this.level, time);
+
+    const biome = biomeAt(this.level, cx + this.viewportW / 2);
+    const emberMix = biome === 'arena' ? 0.65 : biome === 'base' ? 0.25 : biome === 'trench' ? 0.15 : 0.05;
+    drawWeather(this.weatherGfx, cx, this.viewportW, this.viewportH, time, emberMix);
 
     // ── Power-Ups
     this.powerUpGfx.clear();
     for (const pup of this.powerUps) {
-      drawPowerUp(this.powerUpGfx, pup, cx);
+      drawPowerUp(this.powerUpGfx, pup, time);
     }
 
     // ── Enemies
@@ -1308,11 +1547,11 @@ export default class RunAndGunGame implements GameModule {
     for (const enemy of this.enemies) {
       if (enemy.x + enemy.width < cx - 40 || enemy.x > cx + this.viewportW + 40) continue;
       if (enemy.type === 'soldier') {
-        drawSoldier(this.entityGfx, enemy, cx);
+        drawSoldier(this.entityGfx, enemy);
       } else if (enemy.type === 'turret') {
-        drawTurret(this.entityGfx, enemy, cx);
+        drawTurret(this.entityGfx, enemy);
       } else if (enemy.type === 'boss') {
-        drawBoss(this.entityGfx, enemy, cx);
+        drawBoss(this.entityGfx, enemy);
       }
     }
 
@@ -1321,97 +1560,131 @@ export default class RunAndGunGame implements GameModule {
     for (const proj of this.projectiles) {
       if (!proj.alive) continue;
       if (proj.fromPlayer) {
-        drawPlayerBullet(this.projectileGfx, proj, cx);
-      } else if (proj.width === 6) {
-        drawBossBullet(this.projectileGfx, proj, cx);
+        drawPlayerBullet(this.projectileGfx, proj);
+      } else if (proj.fromBoss) {
+        drawBossBullet(this.projectileGfx, proj);
       } else {
-        drawEnemyBullet(this.projectileGfx, proj, cx);
+        drawEnemyBullet(this.projectileGfx, proj);
       }
     }
 
     // ── Particles
     this.particleGfx.clear();
     for (const p of this.particles) {
-      drawParticle(this.particleGfx, p, cx);
+      drawParticle(this.particleGfx, p);
     }
 
-    // ── Players
+    // ── Explosions
+    this.fxGfx.clear();
+    for (const ex of this.explosions) {
+      drawExplosion(this.fxGfx, ex);
+      drawShockRing(this.fxGfx, ex);
+    }
+
+    // ── Players (drawn over enemies on the same graphics)
     for (const player of this.players) {
-      drawPlayer(this.entityGfx, player, cx);
+      drawPlayer(this.entityGfx, player);
     }
 
     // ── HUD
     this.hudGfx.clear();
-    this.renderHUD();
+    this.renderHUD(time);
 
-    // ── Screen effects (vignette)
-    this.effectGfx.clear();
-    const intensity = this.cameraX > 1800 ? 0.3 : 0.1;
+    // ── Screen effects (vignette sits under the HUD so it can never cover it)
+    const intensity = biome === 'arena' ? 0.45 : biome === 'base' ? 0.3 : 0.18;
     drawVignette(this.effectGfx, this.viewportW, this.viewportH, intensity);
   }
 
-  private renderHUD(): void {
-    // Player 1 HUD
-    const p1 = this.players[0];
-    if (p1) {
-      // Health bar background
-      this.hudGfx.rect(8, 8, 64, 5);
-      this.hudGfx.fill(0x333333);
-
-      // Health bar fill
-      const p1HealthPct = Math.max(0, p1.health / PLAYER_MAX_HP);
-      this.hudGfx.rect(8, 8, Math.round(64 * p1HealthPct), 5);
-      this.hudGfx.fill(parseColor(p1.color));
-
-      // Health bar border
-      this.hudGfx.rect(8, 8, 64, 1); this.hudGfx.fill(0xffffff);
-      this.hudGfx.rect(8, 12, 64, 1); this.hudGfx.fill(0xffffff);
-
-      const charDef = CHARACTERS.find((c) => c.id === p1.characterId) || CHARACTERS[0];
-      const activePup = p1.activePowerUp ? ` [${p1.activePowerUp.toUpperCase()}]` : ``;
-      this.p1HealthText.text = `P1 ${charDef.name.toUpperCase()}${activePup}`;
-      this.p1HealthText.style.fill = parseColor(p1.color);
-      this.p1HealthText.x = 8;
-      this.p1HealthText.y = 2;
-
-      // Lives
-      this.p1LivesText.text = '♥'.repeat(p1.lives);
-      this.p1LivesText.style.fill = 0xff4444;
-      this.p1LivesText.x = 8;
-      this.p1LivesText.y = 16;
+  private renderHUD(time: number): void {
+    this.renderPlayerHud(this.players[0], 8, false);
+    if (this.playerCount >= 2) {
+      this.renderPlayerHud(this.players[1], this.viewportW - 72, true);
     }
 
-    // Player 2 HUD
-    if (this.playerCount >= 2) {
-      const p2 = this.players[1];
-      if (p2) {
-        const barX = this.viewportW - 72;
-
-        this.hudGfx.rect(barX, 8, 64, 5);
-        this.hudGfx.fill(0x333333);
-
-        const p2HealthPct = Math.max(0, p2.health / PLAYER_MAX_HP);
-        const fillW = Math.round(64 * p2HealthPct);
-        this.hudGfx.rect(barX + 64 - fillW, 8, fillW, 5);
-        this.hudGfx.fill(parseColor(p2.color));
-
-        this.hudGfx.rect(barX, 8, 64, 1); this.hudGfx.fill(0xffffff);
-        this.hudGfx.rect(barX, 12, 64, 1); this.hudGfx.fill(0xffffff);
-
-        this.p2HealthText.text = `P2`;
-        this.p2HealthText.style.fill = parseColor(p2.color);
-        this.p2HealthText.x = barX;
-        this.p2HealthText.y = 2;
-
-        this.p2LivesText.text = '♥'.repeat(p2.lives);
-        this.p2LivesText.style.fill = 0xff4444;
-        this.p2LivesText.x = barX;
-        this.p2LivesText.y = 16;
+    // Edge markers for a partner currently being dragged by the scroll
+    if (this.players.length > 1) {
+      for (const player of this.players) {
+        const edge = this.pinnedEdge.get(player.playerId);
+        if (!edge || player.isDead) continue;
+        drawTetherEdge(
+          this.hudGfx,
+          edge,
+          player.y,
+          player.height,
+          this.viewportW,
+          parseColor(player.color),
+          time,
+        );
       }
     }
 
-    // Score
+    this.renderBossHud();
+
     this.scoreText.text = `${this.score}`;
+  }
+
+  private renderPlayerHud(player: PlayerState | undefined, barX: number, rightSide: boolean): void {
+    if (!player) return;
+
+    const nameText = rightSide ? this.p2HealthText : this.p1HealthText;
+    const livesText = rightSide ? this.p2LivesText : this.p1LivesText;
+    const color = parseColor(player.color);
+    const barY = 11;
+    const barW = 64;
+
+    // Frame first, fill inside it — the old order painted the border over the bar
+    this.hudGfx.rect(barX - 1, barY - 1, barW + 2, 7); this.hudGfx.fill(0x0f0e17);
+    this.hudGfx.rect(barX, barY, barW, 5); this.hudGfx.fill(0x333344);
+
+    const pct = Math.max(0, player.health / PLAYER_MAX_HP);
+    const fillW = Math.round(barW * pct);
+    if (fillW > 0) {
+      const fx = rightSide ? barX + barW - fillW : barX;
+      this.hudGfx.rect(fx, barY, fillW, 5); this.hudGfx.fill(color);
+      this.hudGfx.rect(fx, barY, fillW, 1); this.hudGfx.fill(0xffffff);
+    }
+
+    // Segment ticks so the three hit points are readable at a glance
+    for (let i = 1; i < PLAYER_MAX_HP; i++) {
+      this.hudGfx.rect(barX + Math.round((barW / PLAYER_MAX_HP) * i), barY, 1, 5);
+      this.hudGfx.fill(0x0f0e17);
+    }
+
+    const charDef = CHARACTERS.find((c) => c.id === player.characterId) || CHARACTERS[0];
+    nameText.text = `P${player.playerId} ${charDef.name}`;
+    nameText.style.fill = color;
+
+    const pup = player.activePowerUp;
+    livesText.text = `${'♥'.repeat(Math.max(0, player.lives))}${pup ? `  ${pup.toUpperCase()} ${Math.ceil(player.powerUpTimer)}s` : ''}`;
+    livesText.style.fill = pup ? 0xffde7d : 0xff4444;
+  }
+
+  private renderBossHud(): void {
+    const boss = this.enemies.find((e) => e.type === 'boss' && !e.isDead);
+    const onScreen = boss
+      && boss.x + boss.width > this.cameraX - 20
+      && boss.x < this.cameraX + this.viewportW + 20;
+
+    if (!boss || !onScreen) {
+      this.bossNameText.text = '';
+      return;
+    }
+
+    const barW = 180;
+    const barX = Math.round((this.viewportW - barW) / 2);
+    const barY = this.viewportH - 9;
+
+    this.hudGfx.rect(barX - 1, barY - 1, barW + 2, 6); this.hudGfx.fill(0x0f0e17);
+    this.hudGfx.rect(barX, barY, barW, 4); this.hudGfx.fill(0x331a1a);
+
+    const pct = Math.max(0, boss.health / boss.maxHealth);
+    const fillW = Math.round(barW * pct);
+    if (fillW > 0) {
+      this.hudGfx.rect(barX, barY, fillW, 4); this.hudGfx.fill(0xcc2222);
+      this.hudGfx.rect(barX, barY, fillW, 1); this.hudGfx.fill(0xff7766);
+    }
+
+    this.bossNameText.text = 'GENERAL VULCAN';
   }
 }
 
