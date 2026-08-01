@@ -18,6 +18,55 @@ export interface RendererContext {
 
 export type GameCategory = 'Party' | 'Arcade' | 'Puzzle' | 'Sports' | 'Strategy' | 'Survival';
 
+/** Input ownership is deliberately separate from the input device. Existing games treat an
+ * omitted value as a local human, so adding bots does not change their behaviour. */
+export type PlayerType = 'human' | 'bot';
+export type AIDifficulty = 'easy' | 'normal' | 'hard';
+
+export type GameSetupOptionValue = string | number | boolean;
+
+interface GameSetupOptionBase {
+  /** Key written to GameContext.modifiers when the match starts. */
+  key: string;
+  label: string;
+  description?: string;
+}
+
+export interface GameSetupSelectOption extends GameSetupOptionBase {
+  type: 'select';
+  options: Array<{ value: string | number; label: string }>;
+  defaultValue: string | number;
+}
+
+export interface GameSetupToggleOption extends GameSetupOptionBase {
+  type: 'toggle';
+  defaultValue: boolean;
+  enabledLabel?: string;
+  disabledLabel?: string;
+}
+
+export interface GameSetupRangeOption extends GameSetupOptionBase {
+  type: 'range';
+  min: number;
+  max: number;
+  step: number;
+  defaultValue: number;
+  lowLabel: string;
+  highLabel: string;
+  valueFormat?: 'multiplier' | 'seconds' | 'percent' | 'integer';
+}
+
+/** Manifest-authored controls rendered by the shared Ready Room. */
+export type GameSetupOption = GameSetupSelectOption | GameSetupToggleOption | GameSetupRangeOption;
+
+export interface GamePlayerSetup {
+  /** Enables per-slot human/bot selection in the shared Ready Room. */
+  supportsBots?: boolean;
+  defaultPlayerType?: PlayerType;
+  aiDifficultyOptions?: AIDifficulty[];
+  defaultAIDifficulty?: AIDifficulty;
+}
+
 export interface GameManifest {
   id: string;
   title: string;
@@ -39,6 +88,9 @@ export interface GameManifest {
    * or nearest-neighbour upscaling stops being pixel-exact. */
   logicalWidth?: number;
   logicalHeight?: number;
+  /** CSS presentation scaling. `integer` preserves exact pixel multiples; `fit` expands the
+   * 16:9 canvas to the largest size available inside the gameplay viewport. */
+  displayScale?: 'integer' | 'fit';
 
   capabilities: {
     supportsPause: boolean;
@@ -55,6 +107,11 @@ export interface GameManifest {
     bindings: Record<string, string[]>;
   }>;
   defaultModifiers: Record<string, any>;
+  /** Optional game-specific Ready Room configuration. Omitted manifests retain legacy setup. */
+  setup?: {
+    options?: GameSetupOption[];
+    players?: GamePlayerSetup;
+  };
 }
 
 export interface GameModifiers {
@@ -70,6 +127,10 @@ export interface PlayerConfig {
   color: string;
   name: string;
   inputDeviceId?: string;
+  /** Undefined remains a local human for backwards compatibility. */
+  type?: PlayerType;
+  /** Used only when type is `bot`. */
+  aiDifficulty?: AIDifficulty;
 }
 
 /** Pure Dependency Injection Container passed to games */

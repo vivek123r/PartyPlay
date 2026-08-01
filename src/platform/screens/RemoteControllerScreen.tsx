@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QrCodeView } from '@platform/components/QrCodeView';
 import { RemotePhoneClient } from '@services/remote/RemoteControllerService';
-import type { RemoteConnectionStatus } from '@services/remote/types';
+import type { RemoteCompanionView, RemoteConnectionStatus } from '@services/remote/types';
 
 const MOVEMENT_ACTIONS = new Set(['moveUp', 'moveDown', 'moveLeft', 'moveRight']);
 const UTILITY_ACTIONS = new Set([
@@ -61,12 +61,26 @@ const ControllerButton: React.FC<ControllerButtonProps> = ({ action, client, cla
   );
 };
 
+const CompanionPanel: React.FC<{ view: RemoteCompanionView }> = ({ view }) => (
+  <section className="remote-companion-panel" aria-label="Private game information">
+    <div className="remote-companion-panel__heading">
+      <strong>{view.title}</strong>
+      {view.subtitle && <span>{view.subtitle}</span>}
+    </div>
+    {!!view.metrics?.length && <div className="remote-companion-panel__metrics">
+      {view.metrics.map((metric, index) => <div key={`${metric.label}-${index}`} className={`remote-companion-metric remote-companion-metric--${metric.tone ?? 'neutral'}`}><span>{metric.label}</span><b>{metric.value}</b></div>)}
+    </div>}
+    {!!view.details?.length && <ul className="remote-companion-panel__details">{view.details.map((detail, index) => <li key={`${detail}-${index}`}>{detail}</li>)}</ul>}
+  </section>
+);
+
 export const RemoteControllerScreen: React.FC = () => {
   const [client, setClient] = useState<RemotePhoneClient | null>(null);
   const [answer, setAnswer] = useState('');
   const [status, setStatus] = useState<RemoteConnectionStatus>('connecting');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [companionView, setCompanionView] = useState<RemoteCompanionView | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -103,6 +117,14 @@ export const RemoteControllerScreen: React.FC = () => {
       createdClient?.destroy();
     };
   }, []);
+
+  useEffect(() => {
+    if (!client) {
+      setCompanionView(null);
+      return undefined;
+    }
+    return client.subscribeCompanion(setCompanionView);
+  }, [client]);
 
   const primaryActions = useMemo(
     () => client?.profile.actions.filter(action => !MOVEMENT_ACTIONS.has(action) && !UTILITY_ACTIONS.has(action)) ?? [],
@@ -168,7 +190,7 @@ export const RemoteControllerScreen: React.FC = () => {
 
   return (
     <main
-      className="remote-phone-screen remote-controller"
+      className={`remote-phone-screen remote-controller ${companionView ? 'remote-controller--with-companion' : ''}`}
       style={{ '--player-color': client.profile.playerColor } as React.CSSProperties}
       onPointerDown={requestWakeLock}
     >
@@ -177,6 +199,8 @@ export const RemoteControllerScreen: React.FC = () => {
         <b>{client.profile.gameTitle}</b>
         <i>● DIRECT</i>
       </header>
+
+      {companionView && <CompanionPanel view={companionView} />}
 
       <section className="remote-controller__surface">
         <div className="remote-dpad" aria-label="Movement controls">

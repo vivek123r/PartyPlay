@@ -36,10 +36,21 @@ class GameRegistryService {
         });
       }
     }
+
+    // Rento is the production evolution of the experimental Driftspire
+    // cartridge. Keep Driftspire's source and saves intact for development,
+    // while exposing only its replacement in the public game library.
+    if (this.entries.has('rento')) {
+      this.entries.delete('driftspire');
+    }
   }
 
   public getAll(): GameRegistryEntry[] {
-    return Array.from(this.entries.values());
+    return Array.from(this.entries.values()).sort((left, right) => {
+      if (left.manifest.id === 'rento') return -1;
+      if (right.manifest.id === 'rento') return 1;
+      return left.manifest.title.localeCompare(right.manifest.title);
+    });
   }
 
   public get(id: string): GameRegistryEntry | undefined {

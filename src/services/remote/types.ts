@@ -40,6 +40,27 @@ export interface RemoteInputPacket {
   buttons: string[];
 }
 
+/** A compact, serializable private panel sent by the host to one phone companion.
+ * It deliberately contains no game commands: the host continues to validate all input. */
+export interface RemoteCompanionMetric {
+  label: string;
+  value: string;
+  tone?: 'neutral' | 'positive' | 'warning' | 'danger';
+}
+
+export interface RemoteCompanionView {
+  title: string;
+  subtitle?: string;
+  metrics?: RemoteCompanionMetric[];
+  details?: string[];
+}
+
+export interface RemoteCompanionPacket {
+  version: 1;
+  kind: 'companion';
+  view: RemoteCompanionView | null;
+}
+
 export interface RemoteSlotSnapshot {
   playerId: number;
   status: RemoteConnectionStatus;

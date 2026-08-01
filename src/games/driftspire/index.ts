@@ -79,7 +79,6 @@ export default class DriftspireGame implements GameModule {
     this.state = 'Loading';
     this.ctx = context;
     this.root = new Container();
-    this.root.scale.set(2);
     this.ctx.renderer.stage.addChild(this.root);
     this.seed =
       typeof this.ctx.modifiers.seed === 'number'

@@ -4,6 +4,9 @@ import {
   REMOTE_PROTOCOL_VERSION,
   type RemoteAnswerSignal,
   type RemoteConnectionStatus,
+  type RemoteCompanionPacket,
+  type RemoteCompanionMetric,
+  type RemoteCompanionView,
   type RemoteControllerProfile,
   type RemoteControllerSnapshot,
   type RemoteInputPacket,
@@ -14,6 +17,9 @@ import {
 const INPUT_CHANNEL = 'partyplay-input-v1';
 const INPUT_STALE_MS = 750;
 const PLAYER_LIMIT = 4;
+const COMPANION_PACKET_LIMIT = 8192;
+const MAX_COMPANION_METRICS = 8;
+const MAX_COMPANION_DETAILS = 8;
 
 interface HostSlot {
   playerId: number;
@@ -26,6 +32,7 @@ interface HostSlot {
   lastInputAt: number;
   lastSequence: number;
   generation: number;
+  companionView: RemoteCompanionView | null;
   error?: string;
 }
 
@@ -48,6 +55,46 @@ const parseInputPacket = (value: unknown): RemoteInputPacket | null => {
   }
 };
 
+const isShortText = (value: unknown, maximum: number): value is string =>
+  typeof value === 'string' && value.length <= maximum;
+
+const normalizeCompanionView = (value: unknown): RemoteCompanionView | null | undefined => {
+  if (value === null) return null;
+  if (!value || typeof value !== 'object') return undefined;
+  const candidate = value as Partial<RemoteCompanionView>;
+  if (!isShortText(candidate.title, 96)) return undefined;
+  if (candidate.subtitle !== undefined && !isShortText(candidate.subtitle, 180)) return undefined;
+  if (candidate.metrics !== undefined && (!Array.isArray(candidate.metrics) || candidate.metrics.length > MAX_COMPANION_METRICS)) return undefined;
+  if (candidate.details !== undefined && (!Array.isArray(candidate.details) || candidate.details.length > MAX_COMPANION_DETAILS)) return undefined;
+
+  const metrics = candidate.metrics?.map((metric) => {
+    if (!metric || typeof metric !== 'object') return undefined;
+    const item = metric as { label?: unknown; value?: unknown; tone?: unknown };
+    if (!isShortText(item.label, 40) || !isShortText(item.value, 72)) return undefined;
+    if (item.tone !== undefined && !['neutral', 'positive', 'warning', 'danger'].includes(String(item.tone))) return undefined;
+    return { label: item.label, value: item.value, ...(item.tone ? { tone: item.tone as RemoteCompanionMetric['tone'] } : {}) };
+  });
+  if (metrics?.some((metric) => !metric)) return undefined;
+  if (candidate.details?.some((detail) => !isShortText(detail, 180))) return undefined;
+  return {
+    title: candidate.title,
+    ...(candidate.subtitle ? { subtitle: candidate.subtitle } : {}),
+    ...(metrics?.length ? { metrics: metrics as NonNullable<RemoteCompanionView['metrics']> } : {}),
+    ...(candidate.details?.length ? { details: [...candidate.details] } : {}),
+  };
+};
+
+const parseCompanionPacket = (value: unknown): RemoteCompanionView | null | undefined => {
+  if (typeof value !== 'string' || value.length > COMPANION_PACKET_LIMIT) return undefined;
+  try {
+    const packet = JSON.parse(value) as Partial<RemoteCompanionPacket>;
+    if (packet.version !== REMOTE_PROTOCOL_VERSION || packet.kind !== 'companion') return undefined;
+    return normalizeCompanionView(packet.view);
+  } catch {
+    return undefined;
+  }
+};
+
 export class RemoteControllerService {
   private readonly slots = new Map<number, HostSlot>();
   private readonly listeners = new Set<() => void>();
@@ -65,6 +112,7 @@ export class RemoteControllerService {
         lastInputAt: 0,
         lastSequence: -1,
         generation: 0,
+        companionView: null,
       });
     }
     if (typeof window !== 'undefined') {
@@ -100,11 +148,22 @@ export class RemoteControllerService {
     return output;
   }
 
+  /** Sends a private, display-only view to one already-paired phone. The latest view is retained
+   * and re-sent whenever that channel opens, so games may safely publish before connection. */
+  public publishCompanionView(playerId: number, view: RemoteCompanionView | null): void {
+    const slot = this.requireSlot(playerId);
+    const normalized = normalizeCompanionView(view);
+    if (normalized === undefined) throw new Error('Companion views must contain short, serializable title, metrics, and details fields.');
+    slot.companionView = normalized;
+    this.sendCompanionView(slot);
+  }
+
   public async createOffer(profile: RemoteControllerProfile): Promise<string> {
     const slot = this.requireSlot(profile.playerId);
     this.closeTransport(slot);
     const generation = ++slot.generation;
     slot.profile = profile;
+    slot.companionView = null;
     slot.allowedActions = new Set(profile.actions);
     slot.status = 'creating-offer';
     slot.error = undefined;
@@ -156,6 +215,7 @@ export class RemoteControllerService {
     this.closeTransport(slot);
     slot.status = 'idle';
     slot.profile = undefined;
+    slot.companionView = null;
     slot.allowedActions.clear();
     slot.error = undefined;
     this.publish();
@@ -166,6 +226,7 @@ export class RemoteControllerService {
       slot.generation++;
       this.closeTransport(slot);
       slot.status = 'idle';
+      slot.companionView = null;
     }
     if (this.heartbeatTimer !== null) window.clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = null;
@@ -185,6 +246,7 @@ export class RemoteControllerService {
       slot.lastInputAt = performance.now();
       slot.lastSequence = -1;
       slot.buttons.clear();
+      this.sendCompanionView(slot);
       this.publish();
     });
     channel.addEventListener('message', (event) => {
@@ -234,6 +296,17 @@ export class RemoteControllerService {
       changed = true;
     }
     if (changed) this.publish();
+  }
+
+  private sendCompanionView(slot: HostSlot): void {
+    if (!slot.channel || slot.channel.readyState !== 'open') return;
+    const packet: RemoteCompanionPacket = {
+      version: REMOTE_PROTOCOL_VERSION,
+      kind: 'companion',
+      view: slot.companionView,
+    };
+    const encoded = JSON.stringify(packet);
+    if (encoded.length <= COMPANION_PACKET_LIMIT) slot.channel.send(encoded);
   }
 
   private closeTransport(slot: HostSlot): void {
@@ -288,10 +361,12 @@ export class RemotePhoneClient {
   private readonly connection: RTCPeerConnection;
   private channel: RTCDataChannel | null = null;
   private buttons = new Set<string>();
+  private companionView: RemoteCompanionView | null = null;
   private sequence = 0;
   private sendTimer: number | null = null;
   private state: RemoteConnectionStatus = 'connecting';
   private readonly stateListeners = new Set<(state: RemoteConnectionStatus) => void>();
+  private readonly companionListeners = new Set<(view: RemoteCompanionView | null) => void>();
 
   private constructor(profile: RemoteControllerProfile, connection: RTCPeerConnection) {
     this.profile = profile;
@@ -332,6 +407,13 @@ export class RemotePhoneClient {
     return () => this.stateListeners.delete(listener);
   }
 
+  /** Subscribe to the private display-only payload published by this phone's host slot. */
+  public subscribeCompanion(listener: (view: RemoteCompanionView | null) => void): () => void {
+    this.companionListeners.add(listener);
+    listener(this.companionView);
+    return () => this.companionListeners.delete(listener);
+  }
+
   public setPressed(action: string, pressed: boolean): void {
     if (!this.profile.actions.includes(action)) return;
     if (pressed) this.buttons.add(action);
@@ -351,6 +433,7 @@ export class RemotePhoneClient {
     this.channel?.close();
     this.connection.close();
     this.channel = null;
+    this.setCompanionView(null);
     this.setState('idle');
   }
 
@@ -364,6 +447,10 @@ export class RemotePhoneClient {
     });
     channel.addEventListener('close', () => this.setState('reconnecting'));
     channel.addEventListener('error', () => this.setState('error'));
+    channel.addEventListener('message', (event) => {
+      const view = parseCompanionPacket(event.data);
+      if (view !== undefined) this.setCompanionView(view);
+    });
   }
 
   private sendSnapshot(): void {
@@ -381,6 +468,11 @@ export class RemotePhoneClient {
     if (this.state === state) return;
     this.state = state;
     this.stateListeners.forEach(listener => listener(state));
+  }
+
+  private setCompanionView(view: RemoteCompanionView | null): void {
+    this.companionView = view;
+    this.companionListeners.forEach(listener => listener(view));
   }
 }
 

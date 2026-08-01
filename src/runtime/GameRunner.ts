@@ -103,7 +103,8 @@ export class GameRunner {
       const rendererContext = new PixiRendererContext(
         this.pixiApp,
         entry.manifest.logicalWidth ?? 480,
-        entry.manifest.logicalHeight ?? 270
+        entry.manifest.logicalHeight ?? 270,
+        entry.manifest.displayScale ?? 'integer',
       );
 
       // Setup resizing

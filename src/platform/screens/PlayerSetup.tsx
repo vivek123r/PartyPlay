@@ -1,6 +1,6 @@
 import React, { useState, useSyncExternalStore } from 'react';
 import { usePlatformStore } from '@platform/stores/platformStore';
-import type { GameModifiers, PlayerConfig } from '@runtime/types';
+import type { AIDifficulty, GameModifiers, GameSetupOption, GameSetupOptionValue, PlayerConfig, PlayerType } from '@runtime/types';
 import { RemotePairingModal } from '@platform/components/RemotePairingModal';
 import { remoteControllerService } from '@services/remote/RemoteControllerService';
 
@@ -43,6 +43,15 @@ const formatKey = (key: string) => key
 const getControlRows = (bindings: Record<string, string[]> | undefined) => {
   if (!bindings) return ['NO BINDINGS'];
   return Object.entries(bindings).map(([action, keys]) => `${CONTROL_LABELS[action] || action.toUpperCase()}: ${keys.map(formatKey).join(' / ')}`);
+};
+
+const formatSetupValue = (option: Extract<GameSetupOption, { type: 'range' }>, value: number) => {
+  switch (option.valueFormat) {
+    case 'seconds': return value === 0 ? 'OFF' : `${Math.round(value)}s`;
+    case 'percent': return `${Math.round(value)}%`;
+    case 'integer': return `${Math.round(value)}`;
+    default: return `${value.toFixed(2)}×`;
+  }
 };
 
 interface GameSetting {
@@ -104,9 +113,11 @@ export const PlayerSetup: React.FC = () => {
   const setModifiers = usePlatformStore((s) => s.setModifiers);
 
   const [playerCount, setPlayerCount] = useState(() => selectedGame?.minPlayers ?? 2);
-  const [gameOptions, setGameOptions] = useState<Record<string, number>>({ speedMultiplier: 1 });
+  const [gameOptions, setGameOptions] = useState<Record<string, GameSetupOptionValue>>({ speedMultiplier: 1 });
   const [arena, setArena] = useState('battle-pit');
   const [chosenColors, setChosenColors] = useState(DEFAULT_COLORS);
+  const [playerTypes, setPlayerTypes] = useState<Record<number, PlayerType>>({});
+  const [aiDifficulties, setAIDifficulties] = useState<Record<number, AIDifficulty>>({});
   const [phonePlayers, setPhonePlayers] = useState<Set<number>>(() => {
     const snapshot = remoteControllerService.getSnapshot();
     return new Set(Object.values(snapshot.slots)
@@ -125,6 +136,10 @@ export const PlayerSetup: React.FC = () => {
   if (!selectedGame) return null;
 
   const settings = GAME_SETTINGS[selectedGame.id] ?? GAME_SETTINGS['micro-game'];
+  const setupOptions = selectedGame.setup?.options;
+  const playerSetup = selectedGame.setup?.players;
+  const supportsBots = playerSetup?.supportsBots === true;
+  const aiDifficultyOptions = playerSetup?.aiDifficultyOptions ?? ['easy', 'normal', 'hard'];
   const availablePlayerCounts = Array.from(
     { length: selectedGame.maxPlayers - selectedGame.minPlayers + 1 },
     (_, index) => selectedGame.minPlayers + index,
@@ -135,18 +150,30 @@ export const PlayerSetup: React.FC = () => {
   };
 
   const handleStart = () => {
-    const activePlayers: PlayerConfig[] = Array.from({ length: playerCount }, (_, index) => ({
-      id: index + 1,
-      name: `Player ${index + 1}`,
-      color: chosenColors[index] || DEFAULT_COLORS[index],
-      inputDeviceId: phonePlayers.has(index + 1)
-        && remoteSnapshot.slots[index + 1]?.status === 'connected'
-        && remoteSnapshot.slots[index + 1]?.profile?.gameId === selectedGame.id
-        ? `remote-player-${index + 1}`
-        : 'keyboard-main',
-    }));
+    const activePlayers: PlayerConfig[] = Array.from({ length: playerCount }, (_, index) => {
+      const playerId = index + 1;
+      const type = supportsBots ? (playerTypes[playerId] ?? playerSetup?.defaultPlayerType ?? 'human') : 'human';
+      const player: PlayerConfig = {
+        id: playerId,
+        name: type === 'bot' ? `Bot ${playerId}` : `Player ${playerId}`,
+        color: chosenColors[index] || DEFAULT_COLORS[index],
+        inputDeviceId: type === 'bot'
+          ? undefined
+          : phonePlayers.has(playerId)
+            && remoteSnapshot.slots[playerId]?.status === 'connected'
+            && remoteSnapshot.slots[playerId]?.profile?.gameId === selectedGame.id
+            ? `remote-player-${playerId}`
+            : 'keyboard-main',
+      };
+      if (supportsBots) {
+        player.type = type;
+        if (type === 'bot') player.aiDifficulty = aiDifficulties[playerId] ?? playerSetup?.defaultAIDifficulty ?? 'normal';
+      }
+      return player;
+    });
     setPlayers(activePlayers);
-    const modifiers: GameModifiers = { ...gameOptions };
+    const configuredDefaults = Object.fromEntries((setupOptions ?? []).map((option) => [option.key, option.defaultValue]));
+    const modifiers: GameModifiers = { ...selectedGame.defaultModifiers, ...configuredDefaults, ...gameOptions };
     if (isSnakeArena) modifiers.arena = arena;
     setModifiers(modifiers);
     setScreen('play');
@@ -160,6 +187,19 @@ export const PlayerSetup: React.FC = () => {
       return next;
     });
     if (mode === 'keyboard') {
+      remoteControllerService.disconnect(playerId);
+      if (pairingPlayerId === playerId) setPairingPlayerId(null);
+    }
+  };
+
+  const setPlayerType = (playerId: number, type: PlayerType) => {
+    setPlayerTypes((current) => ({ ...current, [playerId]: type }));
+    if (type === 'bot') {
+      setPhonePlayers((current) => {
+        const next = new Set(current);
+        next.delete(playerId);
+        return next;
+      });
       remoteControllerService.disconnect(playerId);
       if (pairingPlayerId === playerId) setPairingPlayerId(null);
     }
@@ -210,14 +250,22 @@ export const PlayerSetup: React.FC = () => {
               const playerId = playerIndex + 1;
               const color = chosenColors[playerIndex] || DEFAULT_COLORS[playerIndex];
               const controlRows = getControlRows(selectedGame.defaultControls[playerIndex]?.bindings);
-              const usesPhone = phonePlayers.has(playerId);
+              const playerType = supportsBots ? (playerTypes[playerId] ?? playerSetup?.defaultPlayerType ?? 'human') : 'human';
+              const isBot = playerType === 'bot';
+              const usesPhone = !isBot && phonePlayers.has(playerId);
               const remoteSlot = remoteSnapshot.slots[playerId];
               const phoneConnected = remoteSlot?.status === 'connected' && remoteSlot.profile?.gameId === selectedGame.id;
               return (
                 <article className="hero-card player-config-card" key={playerIndex} style={{ '--player-color': color } as React.CSSProperties}>
-                  <div className="hero-card__topline"><span>P{playerId} // {usesPhone ? 'PHONE' : `KEYBOARD ${playerId}`}</span><span className={`hero-card__ready ${usesPhone ? `remote-state--${phoneConnected ? 'connected' : remoteSlot?.status ?? 'idle'}` : ''}`}>{usesPhone ? (phoneConnected ? 'CONNECTED' : remoteSlot?.profile?.gameId === selectedGame.id ? (remoteSlot.status ?? 'WAITING').toUpperCase() : 'WAITING') : 'READY'}</span></div>
-                  <div className="player-config-card__summary"><span className="player-config-card__swatch" style={{ backgroundColor: color }} /><div><span>PLAYER {playerIndex + 1}</span><h3>ACTIVE PLAYER</h3></div></div>
-                  <div className="controller-mode-toggle" aria-label={`Player ${playerId} controller`}>
+                  <div className="hero-card__topline"><span>P{playerId} // {isBot ? 'AI OPPONENT' : usesPhone ? 'PHONE' : `KEYBOARD ${playerId}`}</span><span className={`hero-card__ready ${usesPhone ? `remote-state--${phoneConnected ? 'connected' : remoteSlot?.status ?? 'idle'}` : ''}`}>{isBot ? 'BOT READY' : usesPhone ? (phoneConnected ? 'CONNECTED' : remoteSlot?.profile?.gameId === selectedGame.id ? (remoteSlot.status ?? 'WAITING').toUpperCase() : 'WAITING') : 'READY'}</span></div>
+                  <div className="player-config-card__summary"><span className="player-config-card__swatch" style={{ backgroundColor: color }} /><div><span>{isBot ? 'COMPUTER' : 'PLAYER'} {playerIndex + 1}</span><h3>{isBot ? 'AI PLAYER' : 'ACTIVE PLAYER'}</h3></div></div>
+                  {supportsBots && <div className="player-kind-toggle" aria-label={`Player ${playerId} type`}>
+                    <button className={!isBot ? 'is-active' : ''} onClick={() => setPlayerType(playerId, 'human')}>HUMAN</button>
+                    <button className={isBot ? 'is-active' : ''} onClick={() => setPlayerType(playerId, 'bot')}>BOT</button>
+                  </div>}
+                  {isBot ? (
+                    <label className="bot-difficulty-select"><span>AI DIFFICULTY</span><select value={aiDifficulties[playerId] ?? playerSetup?.defaultAIDifficulty ?? 'normal'} onChange={(event) => setAIDifficulties((current) => ({ ...current, [playerId]: event.target.value as AIDifficulty }))}>{aiDifficultyOptions.map((difficulty) => <option key={difficulty} value={difficulty}>{difficulty.toUpperCase()}</option>)}</select></label>
+                  ) : <><div className="controller-mode-toggle" aria-label={`Player ${playerId} controller`}>
                     <button className={!usesPhone ? 'is-active' : ''} onClick={() => setControllerMode(playerId, 'keyboard')}>⌨ KEYBOARD</button>
                     <button className={usesPhone ? 'is-active' : ''} onClick={() => setControllerMode(playerId, 'phone')}>▣ PHONE</button>
                   </div>
@@ -230,7 +278,7 @@ export const PlayerSetup: React.FC = () => {
                     </div>
                   ) : (
                     <div className="player-controls"><span>KEY MAP // P{playerId}</span><div>{controlRows.map((row) => <strong key={row}>{row}</strong>)}</div></div>
-                  )}
+                  )}</>}
                   <div className="hero-card__palette" aria-label={`Player ${playerIndex + 1} colour`}>
                     {RETRO_SWATCHES.map((swatch) => (
                       <button
@@ -252,8 +300,14 @@ export const PlayerSetup: React.FC = () => {
         <aside className="setup-settings-panel">
           <div className="setup-panel-heading"><div><span className="setup-kicker">MISSION PARAMETERS</span><h2>GAME SETUP</h2></div><span className="settings-cog">⚙</span></div>
           <div className="game-settings-list">
-            {settings.map((setting) => {
-              const value = gameOptions[setting.key] ?? setting.default;
+            {setupOptions?.length ? setupOptions.map((option) => {
+              const value = gameOptions[option.key] ?? option.defaultValue;
+              if (option.type === 'select') return <section className="setting-block setting-block--choice" key={option.key}><div className="setting-label"><span>{option.label}</span></div>{option.description && <small className="setting-description">{option.description}</small>}<select className="setup-select" value={String(value)} onChange={(event) => { const match = option.options.find((item) => String(item.value) === event.target.value); setGameOptions((current) => ({ ...current, [option.key]: match?.value ?? event.target.value })); }}>{option.options.map((item) => <option key={String(item.value)} value={String(item.value)}>{item.label}</option>)}</select></section>;
+              if (option.type === 'toggle') return <section className="setting-block setting-block--choice" key={option.key}><div className="setting-label"><span>{option.label}</span><strong>{value ? option.enabledLabel ?? 'ON' : option.disabledLabel ?? 'OFF'}</strong></div>{option.description && <small className="setting-description">{option.description}</small>}<button type="button" className={`setup-toggle ${value ? 'is-active' : ''}`} aria-pressed={Boolean(value)} onClick={() => setGameOptions((current) => ({ ...current, [option.key]: !value }))}><span>{value ? option.enabledLabel ?? 'ENABLED' : option.disabledLabel ?? 'DISABLED'}</span><i /></button></section>;
+              const rangeValue = typeof value === 'number' ? value : option.defaultValue;
+              return <section className="setting-block" key={option.key}><div className="setting-label"><span>{option.label}</span><strong>{formatSetupValue(option, rangeValue)}</strong></div>{option.description && <small className="setting-description">{option.description}</small>}<input className="speed-control" type="range" min={option.min} max={option.max} step={option.step} value={rangeValue} onChange={(event) => setGameOptions((current) => ({ ...current, [option.key]: Number(event.target.value) }))} /><div className="range-labels"><span>{option.lowLabel}</span><span>{option.highLabel}</span></div></section>;
+            }) : settings.map((setting) => {
+              const value = Number(gameOptions[setting.key] ?? selectedGame.defaultModifiers[setting.key] ?? setting.default);
               return <section className="setting-block" key={setting.key}>
                 <div className="setting-label"><span>{setting.label}</span><strong>{setting.format === 'seconds' ? `${Math.round(value)}s` : `${value.toFixed(2)}×`}</strong></div>
                 <input className="speed-control" type="range" min={setting.min} max={setting.max} step={setting.step} value={value} onChange={(event) => setGameOptions((current) => ({ ...current, [setting.key]: Number(event.target.value) }))} />

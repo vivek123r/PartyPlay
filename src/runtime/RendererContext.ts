@@ -9,16 +9,21 @@ export class PixiRendererContext implements RendererContext {
   private app: Application;
   private logicalWidth: number;
   private logicalHeight: number;
-  /** Games add their content here, never to `app.stage` directly. Pre-scaled so a game authored
-   * at `logicalWidth x logicalHeight` fills the (larger) physical canvas without touching any of
-   * its own coordinate math. Kept as an integer scale (see constructor) so nearest-neighbour
-   * upscaling stays pixel-exact. */
+  private displayScale: 'integer' | 'fit';
+  /** Games add their content here, never to `app.stage` directly. Integer-scaled games are mapped
+   * onto the shared virtual canvas; fitted games render directly in their own logical space. */
   private root: Container;
 
-  constructor(app: Application, logicalWidth = 480, logicalHeight = 270) {
+  constructor(
+    app: Application,
+    logicalWidth = 480,
+    logicalHeight = 270,
+    displayScale: 'integer' | 'fit' = 'integer',
+  ) {
     this.app = app;
     this.logicalWidth = logicalWidth;
     this.logicalHeight = logicalHeight;
+    this.displayScale = displayScale;
 
     const scaleX = PixiRendererContext.VIRTUAL_WIDTH / logicalWidth;
     const scaleY = PixiRendererContext.VIRTUAL_HEIGHT / logicalHeight;
@@ -61,9 +66,34 @@ export class PixiRendererContext implements RendererContext {
   }
 
   public resize(): void {
-    const scale = this.integerScale;
     const canvas = this.canvas;
     if (canvas) {
+      if (this.displayScale === 'fit') {
+        const parent = canvas.parentElement;
+        const availableWidth = parent?.clientWidth || window.innerWidth;
+        const availableHeight = parent?.clientHeight || window.innerHeight;
+        const scale = Math.max(
+          0.25,
+          Math.min(
+            availableWidth / this.logicalWidth,
+            availableHeight / this.logicalHeight,
+          ),
+        );
+
+        // Keep game coordinates at their authored size and use renderer resolution for the fit.
+        // The resulting backing-buffer pixels are then presented 1:1 as CSS pixels, keeping Pixi
+        // text and vector graphics sharp without stretching a low-resolution bitmap.
+        this.app.renderer.resize(this.logicalWidth, this.logicalHeight, scale);
+        this.root.scale.set(1);
+        canvas.style.width = `${canvas.width}px`;
+        canvas.style.height = `${canvas.height}px`;
+        canvas.style.position = 'absolute';
+        canvas.style.left = '50%';
+        canvas.style.top = '50%';
+        canvas.style.transform = 'translate(-50%, -50%)';
+        return;
+      }
+      const scale = this.integerScale;
       canvas.style.width = `${PixiRendererContext.VIRTUAL_WIDTH * scale}px`;
       canvas.style.height = `${PixiRendererContext.VIRTUAL_HEIGHT * scale}px`;
     }

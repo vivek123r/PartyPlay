@@ -14,8 +14,9 @@ const manifest: GameManifest = {
   minPlayers: 2,
   maxPlayers: 4,
   estimatedRoundTime: '30-45 min',
-  logicalWidth: 960,
-  logicalHeight: 540,
+  logicalWidth: 480,
+  logicalHeight: 270,
+  displayScale: 'fit',
 
   capabilities: {
     supportsPause: true,
