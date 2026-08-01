@@ -1,8 +1,32 @@
+export type WeaponType =
+  | 'burst_rifle'
+  | 'dual_smg'
+  | 'heavy_cannon'
+  | 'grenade_launcher'
+  | 'plasma_beam'
+  | 'spread_shotgun';
+
+export type AimDirection =
+  | 'straight'
+  | 'up'
+  | 'down'
+  | 'diagonal_up'
+  | 'diagonal_down';
+
+export type PowerUpType = 'spread' | 'laser' | 'machinegun' | 'shield';
+
 export interface Character {
   id: string;
   name: string;
   color: string;
   description: string;
+  weaponType: WeaponType;
+  weaponName: string;
+  fireRate: number;
+  moveSpeedMultiplier: number;
+  bulletSpeedMultiplier: number;
+  damageMultiplier: number;
+  specialInfo: string;
 }
 
 export interface PlayerSelection {
@@ -46,6 +70,11 @@ export interface PlayerState {
   isShooting: boolean;
   shootCooldown: number;
   facingRight: boolean;
+  aimDirection: AimDirection;
+  isCrouching: boolean;
+  weaponType: WeaponType;
+  activePowerUp?: PowerUpType;
+  powerUpTimer: number;
   isDead: boolean;
   deathTimer: number;
   invincibleTimer: number;
@@ -88,6 +117,11 @@ export interface Projectile {
   damage: number;
   fromPlayer: boolean;
   playerId?: number;
+  weaponType?: WeaponType;
+  isExplosive?: boolean;
+  explosionRadius?: number;
+  isPiercing?: boolean;
+  gravityEffect?: number;
   alive: boolean;
 }
 
@@ -99,6 +133,18 @@ export interface Particle {
   life: number;
   maxLife: number;
   color: number;
+  type?: 'spark' | 'smoke' | 'shell' | 'dust';
+  rotation?: number;
+  vRot?: number;
+  alive: boolean;
+}
+
+export interface PowerUp {
+  id: number;
+  type: PowerUpType;
+  x: number;
+  y: number;
+  vy: number;
   alive: boolean;
 }
 
@@ -124,7 +170,15 @@ export interface LevelData {
   platforms: Platform[];
   enemySpawns: EnemySpawn[];
   playerSpawns: Array<{ x: number; y: number }>;
+  environment: EnvironmentObjects;
   skyColor: number;
   mountainColor: number;
   groundColor: number;
+}
+
+export interface EnvironmentObjects {
+  trees: Array<{ x: number; groundY: number }>;
+  crates: Array<{ x: number; y: number }>;
+  barrels: Array<{ x: number; y: number }>;
+  signs: Array<{ x: number; y: number }>;
 }

@@ -25,7 +25,7 @@ const manifest: GameManifest = {
   defaultControls: [
     {
       playerId: 1,
-      deviceId: 'keyboard',
+      deviceId: 'keyboard-main',
       bindings: {
         moveUp: ['KeyW'],
         moveDown: ['KeyS'],
@@ -33,11 +33,12 @@ const manifest: GameManifest = {
         moveRight: ['KeyD'],
         shoot: ['KeyF'],
         jump: ['KeyG'],
+        pause: ['Escape'],
       },
     },
     {
       playerId: 2,
-      deviceId: 'keyboard',
+      deviceId: 'keyboard-main',
       bindings: {
         moveUp: ['ArrowUp'],
         moveDown: ['ArrowDown'],
@@ -45,6 +46,7 @@ const manifest: GameManifest = {
         moveRight: ['ArrowRight'],
         shoot: ['KeyK'],
         jump: ['KeyL'],
+        pause: ['Escape'],
       },
     },
   ],

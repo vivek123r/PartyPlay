@@ -32,31 +32,10 @@ export const SoldierPortrait: React.FC<Props> = ({ character, size = 'md' }) => 
           height: height * 0.8,
         }}
       >
-        {/* Helmet */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '10%',
-            left: '15%',
-            width: '70%',
-            height: '25%',
-            backgroundColor: character.color,
-            border: '2px solid #fffffe',
-            boxShadow: 'inset 0 -2px 0 #000',
-          }}
-        />
+        {/* Headgear & Armor Overlays */}
+        <HeadgearOverlay characterId={character.id} color={character.color} />
         {/* Visor */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '18%',
-            left: '30%',
-            width: '40%',
-            height: '8%',
-            backgroundColor: '#0f0e17',
-            border: '1px solid #fffffe',
-          }}
-        />
+        <VisorOverlay characterId={character.id} color={character.color} />
         {/* Body / Torso */}
         <div
           style={{
@@ -70,6 +49,8 @@ export const SoldierPortrait: React.FC<Props> = ({ character, size = 'md' }) => 
             boxShadow: 'inset 0 -3px 0 #000, 2px 0 0 #1f1e2e',
           }}
         />
+        {/* Class Chest Accents */}
+        <ChestAccentOverlay characterId={character.id} />
         {/* Belt */}
         <div
           style={{
@@ -113,6 +94,165 @@ export const SoldierPortrait: React.FC<Props> = ({ character, size = 'md' }) => 
       </div>
     </div>
   );
+};
+
+const HeadgearOverlay: React.FC<{ characterId: string; color: string }> = ({ characterId, color }) => {
+  if (characterId === 'commando') {
+    // Red bandana + trailing tail
+    return (
+      <>
+        <div
+          style={{
+            position: 'absolute',
+            top: '10%',
+            left: '10%',
+            width: '80%',
+            height: '18%',
+            backgroundColor: '#ff2e63',
+            border: '2px solid #fffffe',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            top: '12%',
+            left: '-10%',
+            width: '20%',
+            height: '12%',
+            backgroundColor: '#ff2e63',
+            border: '1px solid #fffffe',
+          }}
+        />
+      </>
+    );
+  }
+  if (characterId === 'heavy') {
+    // Massive pauldrons + helmet crest
+    return (
+      <>
+        <div
+          style={{
+            position: 'absolute',
+            top: '6%',
+            left: '15%',
+            width: '70%',
+            height: '28%',
+            backgroundColor: color,
+            border: '2px solid #fffffe',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            top: '32%',
+            left: '2%',
+            width: '25%',
+            height: '20%',
+            backgroundColor: '#2a5530',
+            border: '2px solid #fffffe',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            top: '32%',
+            right: '2%',
+            width: '25%',
+            height: '20%',
+            backgroundColor: '#2a5530',
+            border: '2px solid #fffffe',
+          }}
+        />
+      </>
+    );
+  }
+  if (characterId === 'scout') {
+    // Recon hood
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          top: '8%',
+          left: '12%',
+          width: '76%',
+          height: '26%',
+          backgroundColor: color,
+          border: '2px solid #fffffe',
+        }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: '10%',
+        left: '15%',
+        width: '70%',
+        height: '25%',
+        backgroundColor: color,
+        border: '2px solid #fffffe',
+        boxShadow: 'inset 0 -2px 0 #000',
+      }}
+    />
+  );
+};
+
+const VisorOverlay: React.FC<{ characterId: string; color: string }> = ({ characterId }) => {
+  let visorBg = '#0f0e17';
+  if (characterId === 'scout') visorBg = '#08d9d6';
+  else if (characterId === 'heavy') visorBg = '#ffff44';
+  else if (characterId === 'infiltrator') visorBg = '#bb99ff';
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: '18%',
+        left: '30%',
+        width: '40%',
+        height: '8%',
+        backgroundColor: visorBg,
+        border: '1px solid #fffffe',
+      }}
+    />
+  );
+};
+
+const ChestAccentOverlay: React.FC<{ characterId: string }> = ({ characterId }) => {
+  if (characterId === 'commando') {
+    // Dual diagonal bandoliers
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          top: '40%',
+          left: '25%',
+          width: '50%',
+          height: '20%',
+          borderLeft: '3px solid #884422',
+          borderRight: '3px solid #884422',
+        }}
+      />
+    );
+  }
+  if (characterId === 'demolition') {
+    // Grenade pouches
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          top: '42%',
+          left: '20%',
+          width: '60%',
+          height: '14%',
+          backgroundColor: '#ffde7d',
+          border: '1px solid #000',
+        }}
+      />
+    );
+  }
+  return null;
 };
 
 const WeaponOverlay: React.FC<{

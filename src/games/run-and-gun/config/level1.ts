@@ -13,6 +13,56 @@ export const LEVEL_1: LevelData = {
     { x: 90, y: 210 },
   ],
 
+  environment: {
+    trees: [
+      // Section 1 — Opening field
+      { x: 80, groundY: 245 },
+      { x: 160, groundY: 245 },
+      { x: 350, groundY: 245 },
+      { x: 550, groundY: 245 },
+      // Section 2 — Platform gauntlet
+      { x: 670, groundY: 245 },
+      { x: 920, groundY: 245 },
+      { x: 1100, groundY: 245 },
+      { x: 1280, groundY: 245 },
+      // Section 3 — Trench approach
+      { x: 1380, groundY: 245 },
+      { x: 1520, groundY: 245 },
+      { x: 1640, groundY: 245 },
+      { x: 1780, groundY: 245 },
+      { x: 1880, groundY: 245 },
+      // Section 4 — Boss arena
+      { x: 1960, groundY: 245 },
+      { x: 2100, groundY: 245 },
+      { x: 2300, groundY: 245 },
+    ],
+    crates: [
+      { x: 220, y: 233 },
+      { x: 340, y: 233 },
+      { x: 720, y: 233 },
+      { x: 1020, y: 233 },
+      { x: 1420, y: 233 },
+      { x: 1600, y: 233 },
+      { x: 1760, y: 233 },
+      { x: 2050, y: 233 },
+    ],
+    barrels: [
+      { x: 270, y: 229 },
+      { x: 580, y: 229 },
+      { x: 780, y: 229 },
+      { x: 1060, y: 229 },
+      { x: 1460, y: 229 },
+      { x: 1680, y: 229 },
+      { x: 2100, y: 229 },
+    ],
+    signs: [
+      { x: 150, y: 221 },   // "DANGER: ENEMY BASE AHEAD"
+      { x: 620, y: 221 },   // "BEWARE: TURRET DEFENSES"
+      { x: 1320, y: 221 },  // "TRENCH ZONE — PROCEED WITH CAUTION"
+      { x: 1920, y: 221 },  // "BOSS ARENA — HEAVY ARMOR ADVISED"
+    ],
+  },
+
   platforms: [
     // Section 1: Opening Field (0–600)
     { x: 200, y: 195, width: 80, height: 10 },
