@@ -24,8 +24,16 @@ export const MainMenu: React.FC = () => {
       <div className="pixel-panel" style={{ width: '360px', padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', zIndex: 10 }}>
         <button
           className="pixel-btn pixel-btn-primary"
+          onClick={() => setScreen('run-and-gun-title')}
+          style={{ width: '100%', fontSize: '1.2rem', padding: '16px', borderColor: 'var(--pixel-yellow)', background: 'var(--pixel-red)', color: 'var(--pixel-text)' }}
+        >
+          ▶ BLAZING FURY
+        </button>
+
+        <button
+          className="pixel-btn pixel-btn-primary"
           onClick={() => setScreen('browser')}
-          style={{ width: '100%', fontSize: '1.2rem', padding: '16px' }}
+          style={{ width: '100%', fontSize: '1rem', padding: '14px' }}
         >
           ▶ ARCADE GAMES
         </button>
@@ -33,7 +41,7 @@ export const MainMenu: React.FC = () => {
         <button
           className="pixel-btn"
           onClick={() => setScreen('settings')}
-          style={{ width: '100%', fontSize: '1.2rem', padding: '16px' }}
+          style={{ width: '100%', fontSize: '1rem', padding: '14px' }}
         >
           ⚙ SETTINGS
         </button>

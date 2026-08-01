@@ -1,3 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&display=swap');
+@import url('./run-and-gun.css');
+
 :root {
   --pixel-bg: #0f0e17;
   --pixel-surface: #1f1e2e;

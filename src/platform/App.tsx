@@ -12,6 +12,11 @@ import { GameResults } from './screens/GameResults';
 import { Settings } from './screens/Settings';
 import { CrashScreen } from './screens/CrashScreen';
 import { RemoteControllerScreen } from './screens/RemoteControllerScreen';
+import { RunAndGunTitleScreen } from './screens/run-and-gun/RunAndGunTitleScreen';
+import { RunAndGunCharacterSelect } from './screens/run-and-gun/RunAndGunCharacterSelect';
+import { RunAndGunPlayerSetup } from './screens/run-and-gun/RunAndGunPlayerSetup';
+import { RunAndGunControlsScreen } from './screens/run-and-gun/RunAndGunControlsScreen';
+import { RunAndGunSettingsScreen } from './screens/run-and-gun/RunAndGunSettingsScreen';
 
 export const App: React.FC = () => {
   const currentScreen = usePlatformStore((s) => s.currentScreen);
@@ -54,6 +59,16 @@ export const App: React.FC = () => {
       return <RemoteControllerScreen />;
     case 'crash':
       return <CrashScreen />;
+    case 'run-and-gun-title':
+      return <RunAndGunTitleScreen />;
+    case 'run-and-gun-character':
+      return <RunAndGunCharacterSelect />;
+    case 'run-and-gun-setup':
+      return <RunAndGunPlayerSetup />;
+    case 'run-and-gun-controls':
+      return <RunAndGunControlsScreen />;
+    case 'run-and-gun-settings':
+      return <RunAndGunSettingsScreen />;
     default:
       return <MainMenu />;
   }
